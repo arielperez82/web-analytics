@@ -1,3 +1,4 @@
+import { type AnalyticsInstance } from 'analytics';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,9 +16,10 @@ describe('initTinybirdAnalytics', () => {
     localStorage.clear();
   });
 
-  describe('with a valid config', () => {
+  describe('when initializedwith a valid config', () => {
     let capturedBody: TinybirdEvent | null = null
     let parsedBody: Record<string, unknown> | null = null
+    let analytics: AnalyticsInstance | null = null
 
     // Test configuration
     const validConfig = {
@@ -39,22 +41,23 @@ describe('initTinybirdAnalytics', () => {
           return new HttpResponse(null, { status: 202 });
         })
       )
+
+      analytics = initTinybirdAnalytics(validConfig);
     })
 
     afterEach(() => {
+      analytics = null;
       capturedBody = null;
       parsedBody = null;
     });
 
-    it('exposes initialized analytics instance on window object', () => {
-      const analytics = initTinybirdAnalytics(validConfig);
+    it('exposes the initialized analytics instance on window object', () => {
       expect(window.analytics).toBe(analytics);
     });
 
     it('sends expected fields with track call', async () => {
-      const analytics = initTinybirdAnalytics(validConfig);
      // Call track method
-      analytics.track('button_clicked', { button: 'signup' });
+      analytics?.track('button_clicked', { button: 'signup' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -65,10 +68,8 @@ describe('initTinybirdAnalytics', () => {
     });
 
     it('sends expected fields with identify call', async () => {
-      const analytics = initTinybirdAnalytics(validConfig);
-
       // Call identify method
-      analytics.identify('user123', { name: 'John Doe' });
+      analytics?.identify('user123', { name: 'John Doe' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -79,10 +80,8 @@ describe('initTinybirdAnalytics', () => {
     });
 
     it('sends expected fields with page call', async () => {
-      const analytics = initTinybirdAnalytics(validConfig);
-
       // Call page method
-      analytics.page({ title: 'Home Page' });
+      analytics?.page({ title: 'Home Page' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -93,8 +92,7 @@ describe('initTinybirdAnalytics', () => {
     });
 
     it('merges global attributes into every event', async () => {
-      const analytics = initTinybirdAnalytics(validConfig);
-      analytics.track('some_event');
+      analytics?.track('some_event');
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -105,9 +103,8 @@ describe('initTinybirdAnalytics', () => {
     });
 
     it('includes default properties in every event', async () => {
-      const analytics = initTinybirdAnalytics(validConfig);
       // Call track method
-      analytics.track('test_event', { custom: 'data' });
+      analytics?.track('test_event', { custom: 'data' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -117,8 +114,7 @@ describe('initTinybirdAnalytics', () => {
       });
     });
 
-    it('when initialized multiple times, last instance is used', () => {
-      const analytics = initTinybirdAnalytics(validConfig);
+    it('when initialized multiple times, last analytics instance is used', () => {
       const config = {
         token: 'test-token',
         host: 'https://api.tinybird.co',
