@@ -10,11 +10,11 @@ on:
           - validate
           - deploy-staging
           - promote
-  push:
-    branches:
-      - main
-    paths:
-      - 'tinybird/**'
+#  push:
+#    branches:
+#      - main
+#    paths:
+#      - 'tinybird/**'
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: './tinybird'
+        working-directory: "./tinybird"
     services:
       tinybird:
         image: tinybirdco/tinybird-local:latest
@@ -64,7 +64,7 @@ jobs:
       name: github-pages
     defaults:
       run:
-        working-directory: './tinybird'
+        working-directory: "./tinybird"
     permissions:
       contents: write
     steps:
@@ -118,7 +118,7 @@ jobs:
       name: github-pages
     defaults:
       run:
-        working-directory: './tinybird'
+        working-directory: "./tinybird"
     permissions:
       contents: write
     steps:

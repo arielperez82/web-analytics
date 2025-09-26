@@ -13,8 +13,7 @@
     }
   },
   "files": [
-    "dist",
-    "types"
+    "dist"
   ],
   "keywords": [
     "analytics",
@@ -23,7 +22,7 @@
     "web-analytics",
     "analytics.js"
   ],
-  "author": "Your Name",
+  "author": "Ariel Pérez",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -39,7 +38,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest --coverage",
-    "prepare": "pnpm build",
+    "prepare": "husky install",
+    "postinstall": "pnpm install && pnpm build",
     "pre-commit": "lint-staged",
     "lint:md": "markdownlint .",
     "lint:md:fix": "markdownlint --fix .",
