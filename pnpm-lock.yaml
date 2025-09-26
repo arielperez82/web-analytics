@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      prettier:
-        specifier: ^3.6.2
-        version: 3.6.2
     devDependencies:
       '@types/node':
         specifier: 24.0.3
@@ -24,6 +20,9 @@ importers:
       lint-staged:
         specifier: ^16.1.2
         version: 16.2.1
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
       tsx:
         specifier: 4.20.3
         version: 4.20.3
@@ -76,15 +75,9 @@ importers:
       eslint-plugin-simple-import-sort:
         specifier: ^12.1.1
         version: 12.1.1(eslint@9.36.0)
-      husky:
-        specifier: ^9.1.7
-        version: 9.1.7
       jsdom:
         specifier: ^27.0.0
         version: 27.0.0(postcss@8.5.6)
-      lint-staged:
-        specifier: ^16.1.2
-        version: 16.2.1
       markdownlint-cli:
         specifier: ^0.45.0
         version: 0.45.0
@@ -92,7 +85,7 @@ importers:
         specifier: ^2.11.3
         version: 2.11.3(@types/node@24.0.3)(typescript@5.9.2)
       prettier:
-        specifier: ^3.0.3
+        specifier: ^3.6.2
         version: 3.6.2
       prettier-plugin-sort-imports:
         specifier: ^1.8.8
