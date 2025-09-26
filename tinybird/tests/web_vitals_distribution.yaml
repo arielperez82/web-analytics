@@ -1,0 +1,5 @@
+
+- name: demo_site_100_days
+  description: Test web vitals distribution for demo.site over 100 days
+  parameters: domain=demo.site&days=100
+  expected_result: ''

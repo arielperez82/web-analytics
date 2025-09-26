@@ -1,0 +1,8 @@
+---
+description: Maintains a consistent coding style, ensuring that code starts with a file path comment and prioritizes modularity.
+alwaysApply: false
+---
+# general coding style
+
+- Comments should describe purpose, not effect.
+- Prioritize modularity, DRY principles, and performance.

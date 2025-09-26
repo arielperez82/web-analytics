@@ -1,0 +1,20 @@
+
+- name: web_vitals_demo_site_100_days
+  description: Test web vitals metrics for demo.site over the last 100 days
+  parameters: domain=demo.site&days=100
+  expected_result: "{\"metric_name\":\"TTFB\",\"avg_value\":924.16,\"p75\":1496,\"\
+    p90\":1911,\"p90\":1911,\"p95\":1991,\"p99\":1991,\"measurements\":19,\"score\"\
+    :75,\"status\":\"Good\",\"units\":\"ms\",\"description\":\"Time to First Byte\
+    \ - measures server response time and network latency\",\"thresholds\":\"Excellent:\
+    \ \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"domain\":\"demo.site\",\"\
+    tenant_id\":\"tenant_2\"}\n{\"metric_name\":\"TTFB\",\"avg_value\":1182.82,\"\
+    p75\":1621,\"p90\":1651,\"p90\":1651,\"p95\":1751,\"p99\":1831,\"measurements\"\
+    :11,\"score\":25,\"status\":\"Poor\",\"units\":\"ms\",\"description\":\"Time to\
+    \ First Byte - measures server response time and network latency\",\"thresholds\"\
+    :\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"domain\":\"demo.site\"\
+    ,\"tenant_id\":\"tenant_3\"}\n{\"metric_name\":\"TTFB\",\"avg_value\":1168.73,\"\
+    p75\":1631,\"p90\":1781,\"p90\":1781,\"p95\":1790.5,\"p99\":1791,\"measurements\"\
+    :22,\"score\":25,\"status\":\"Poor\",\"units\":\"ms\",\"description\":\"Time to\
+    \ First Byte - measures server response time and network latency\",\"thresholds\"\
+    :\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"domain\":\"demo.site\"\
+    ,\"tenant_id\":\"tenant_1\"}\n"

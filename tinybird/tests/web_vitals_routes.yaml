@@ -1,0 +1,25 @@
+
+- name: routes_analysis_worst_performers
+  description: Show worst performing routes from the last 100 days with a limit of
+    10 results
+  parameters: days=100&analysis_type=routes&limit=10&sort_order=desc
+  expected_result: |
+    {"route":"home","overall_score":90.91,"lcp_avg":2246.82,"ttfb_avg":null,"fcp_avg":null,"inp_avg":null,"cls_avg":null,"lcp_score":91,"ttfb_score":null,"fcp_score":null,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"example.com","analysis_type":"routes"}
+    {"route":"pricing","overall_score":89.29,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":1635.57,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":89,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"myapp.com","analysis_type":"routes"}
+    {"route":"blog","overall_score":87.5,"lcp_avg":2281,"ttfb_avg":null,"fcp_avg":null,"inp_avg":null,"cls_avg":null,"lcp_score":88,"ttfb_score":null,"fcp_score":null,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"example.com","analysis_type":"routes"}
+    {"route":"blog","overall_score":87.5,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":1725,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":88,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"myapp.com","analysis_type":"routes"}
+    {"route":"home","overall_score":87.5,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":1858.67,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":88,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"myapp.com","analysis_type":"routes"}
+    {"route":"product","overall_score":82.5,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":1887,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":82,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"myapp.com","analysis_type":"routes"}
+    {"route":"pricing","overall_score":73.53,"lcp_avg":3143.24,"ttfb_avg":null,"fcp_avg":null,"inp_avg":null,"cls_avg":null,"lcp_score":74,"ttfb_score":null,"fcp_score":null,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"example.com","analysis_type":"routes"}
+    {"route":"pricing","overall_score":64.06,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":null,"inp_avg":409.25,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":null,"inp_score":64,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"test.org","analysis_type":"routes"}
+    {"route":"blog","overall_score":63.64,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":null,"inp_avg":404.82,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":null,"inp_score":64,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"test.org","analysis_type":"routes"}
+    {"route":"home","overall_score":62.5,"lcp_avg":null,"ttfb_avg":901,"fcp_avg":null,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":62,"fcp_score":null,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"demo.site","analysis_type":"routes"}
+
+- name: pathnames_analysis_product_route
+  description: Show worst performing pathnames within the product route from the last
+    100 days with a limit of 3 results
+  parameters: days=100&analysis_type=pathnames&route=product&limit=3&sort_order=desc
+  expected_result: |
+    {"pathname":"\/product","full_pathname":"\/product","route_part":"product","overall_score":82.5,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":1887,"inp_avg":null,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":82,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"myapp.com","analysis_type":"pathnames"}
+    {"pathname":"\/product","full_pathname":"\/product","route_part":"product","overall_score":61.67,"lcp_avg":null,"ttfb_avg":null,"fcp_avg":null,"inp_avg":379.67,"cls_avg":null,"lcp_score":null,"ttfb_score":null,"fcp_score":null,"inp_score":62,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"test.org","analysis_type":"pathnames"}
+    {"pathname":"\/product","full_pathname":"\/product","route_part":"product","overall_score":56.25,"lcp_avg":3610,"ttfb_avg":null,"fcp_avg":null,"inp_avg":null,"cls_avg":null,"lcp_score":56,"ttfb_score":null,"fcp_score":null,"inp_score":null,"cls_score":null,"metric_units":"LCP=ms, TTFB=ms, FCP=ms, INP=ms, CLS=score","domain":"example.com","analysis_type":"pathnames"}

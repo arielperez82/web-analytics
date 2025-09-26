@@ -1,0 +1,90 @@
+{
+  "name": "tinybird-analytics",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Complete analytics solution for Tinybird with Analytics.js integration",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "types"
+  ],
+  "keywords": [
+    "analytics",
+    "tinybird",
+    "tracking",
+    "web-analytics",
+    "analytics.js"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arielperez82/web-analytics/client.git"
+  },
+  "homepage": "https://github.com/arielperez82/web-analytics/client#readme",
+  "bugs": {
+    "url": "https://github.com/arielperez82/web-analytics/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --coverage",
+    "prepublishOnly": "pnpm build",
+    "predeploy": "pnpm build",
+    "prepare": "husky",
+    "pre-commit": "lint-staged",
+    "lint:md": "markdownlint .",
+    "lint:md:fix": "markdownlint --fix .",
+    "lint:format": "prettier --check",
+    "lint:format:fix": "prettier --write",
+    "lint:format:src": "prettier --check '{src,scripts}/**/*.{js,jsx,ts,tsx,astro}'",
+    "lint:format:src:fix": "prettier --write '{src,scripts}/**/*.{js,jsx,ts,tsx,astro}'",
+    "lint:code": "eslint",
+    "lint:code:fix": "eslint --fix",
+    "lint:code:src": "eslint src scripts",
+    "lint:code:src:fix": "eslint --fix src scripts",
+    "lint": "pnpm run lint:format:src && pnpm run lint:format:supabase && pnpm run lint:format:css && pnpm run lint:code:src && pnpm run lint:code:supabase && pnpm run lint:styles && pnpm run lint:md",
+    "lint:fix": "pnpm run lint:format:src:fix && pnpm run lint:format:supabase:fix && pnpm run lint:format:css:fix && pnpm run lint:code:src:fix && pnpm run lint:code:supabase:fix && pnpm run lint:styles:fix && pnpm run lint:md:fix"
+  },
+  "dependencies": {
+    "analytics": "^0.8.16",
+    "analytics-plugin-do-not-track": "^0.1.5",
+    "countries-and-timezones": "^3.8.0",
+    "dotenv-cli": "^8.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.29.0",
+    "@types/node": "24.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.29.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-prettier": "^5.5.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
+    "lint-staged": "^16.1.2",
+    "markdownlint-cli": "^0.45.0",
+    "msw": "^2.11.3",
+    "prettier": "^3.0.3",
+    "prettier-plugin-sort-imports": "^1.8.8",
+    "tsx": "4.20.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.34.1",
+    "vitest": "^2.1.8",
+    "web-vitals": "^5.0.3"
+  }
+}

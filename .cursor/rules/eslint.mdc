@@ -1,0 +1,8 @@
+---
+globs: *.ts,*.js
+alwaysApply: false
+---
+
+# Respect eslint rules when you generate code.
+
+For .js and .ts files, execute `npx eslint --print-config eslint.config.js` and comply with the output.

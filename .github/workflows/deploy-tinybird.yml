@@ -1,0 +1,158 @@
+name: Deploy to Tinybird
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_job:
+        type: choice
+        description: Select the job to run
+        options:
+          - validate
+          - deploy-staging
+          - promote
+  push:
+    branches:
+      - main
+    paths:
+      - 'tinybird/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'push' || github.event.inputs.target_job == 'deploy-staging' || github.event.inputs.target_job == 'validate'
+    name: Validate Release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+
+    defaults:
+      run:
+        working-directory: './tinybird'
+    services:
+      tinybird:
+        image: tinybirdco/tinybird-local:latest
+        ports:
+          - 7181:7181
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tinybird CLI
+        run: curl https://tinybird.co | sh
+
+      - name: Build project
+        run: tb build
+
+      - name: Run Tinybird tests
+        run: tb test run
+
+      #  - name: Run Python tests
+      #    run: |
+      #      pip install pytest pyyaml
+      #      PYTHONPATH=ree_data_tracker/src pytest ree_data_tracker/tests
+
+      - name: Deployment check
+        run: tb --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deploy --check
+
+  deploy-staging:
+    if: github.event_name == 'push' || github.event.inputs.target_job == 'deploy-staging'
+    name: Deploy to Tinybird Staging
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    defaults:
+      run:
+        working-directory: './tinybird'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure Git
+        run: |
+          git config user.name "Github Actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Show diff between main and latest production deployment
+        run: |
+          # Find the latest tinybird-production-* tag
+          LATEST_PROD_TAG=$(git tag --list 'tinybird-production-*' --sort=-creatordate | head -n 1)
+          if [ -z "$LATEST_PROD_TAG" ]; then
+            echo "No production deployment tag found."
+            exit 0
+          fi
+          echo "🔍 Commits in main not in $LATEST_PROD_TAG (i.e., what will change in staging vs production):"
+          git log $LATEST_PROD_TAG..origin/main --oneline
+
+      - name: Install Tinybird CLI
+        run: |
+          curl https://tinybird.co | sh
+
+      - name: Deploy to Tinybird Staging
+        run: |
+          tb --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deployment create
+
+      - name: Tag repo with Tinybird Staging Deployment ID
+        if: success()
+        run: |
+          git fetch --tags
+          DEPLOYMENT_ID=$(tb --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deployment ls | awk '/Staging/ { print $2 }')
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "No deployment ID found, skipping tag."
+            exit 0
+          fi
+          TAG="tinybird-staging-$DEPLOYMENT_ID"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+  promote:
+    name: Promote to Tinybird Production
+    if: github.event.inputs.target_job == 'promote'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    defaults:
+      run:
+        working-directory: './tinybird'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Git
+        run: |
+          git config user.name "Github Actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Install Tinybird CLI
+        run: |
+          curl https://tinybird.co | sh
+
+      - name: Promote to Tinybird Production
+        run: |
+          # Get the list of deployments and look for any with status "Staging"
+          STAGING_DEPLOYMENT=$(tb --cloud --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deployment ls | grep -i "Staging" || true)
+
+          if [ -z "$STAGING_DEPLOYMENT" ]; then
+            echo "✅ No staging deployment to promote."
+          else
+            echo "🚀 Staging deployment found. Promoting to production..."
+            tb --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deployment promote
+          fi
+
+      - name: Tag repo with Tinybird Production Deployment ID
+        if: success()
+        run: |
+          git fetch --tags
+          DEPLOYMENT_ID=$(tb --cloud --host ${{ vars.TINYBIRD_HOST }} --token ${{ secrets.TINYBIRD_TOKEN }} deployment ls | awk '/Production/ { print $2 }')
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "No deployment ID found, skipping tag."
+            exit 0
+          fi
+          TAG="tinybird-production-$DEPLOYMENT_ID"
+          git tag "$TAG"
+          git push origin "$TAG"

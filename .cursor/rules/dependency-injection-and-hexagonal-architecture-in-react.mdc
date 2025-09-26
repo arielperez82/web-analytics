@@ -1,0 +1,134 @@
+---
+globs: client/src/**/*
+alwaysApply: false
+---
+# Mastering Dependency Injection in React
+
+We will see how to easily and simply perform dependency inversion in React, allowing us to decouple the infrastructure from all the functional logic of our application.
+
+## Don’t import infrastructure from the use case, inject it
+
+Dependency inversion is one of the 5 SOLI(D) principles designed to guide software design towards more robust, flexible, and maintainable structures. In the case we will see today, we will use it alongside the repository pattern, decoupling the use case from the repository implementation through an interface. This way, any change in the backend connection or state management will be completely transparent to our use case.
+
+## Creating our first repository interface
+
+As I mentioned before, we are going to implement the repository pattern, which involves creating an interface with the methods we need to communicate with the infrastructure and then implementing that interface, which we will later inject into our use cases. The theory may seem overwhelming, but with some practical examples, everything becomes clearer:
+
+```typescript
+export interface TasksRepository {
+    getAll: () => Promise<Array<Task>>;
+    findById: (id: string) => Promise<Task>;
+    save: (task: Task) => Promise<Task>;
+    delete: (task: Task) => void;
+}
+```
+This approach also solves one of the main problems when performing integration tests on the front end, as we can mock the repository implementation and perform tests that simulate real user flows without the need for end-to-end tests with the server. However, we’ll talk about that in the last episode.
+
+## Implementing a repository
+
+Having this interface already created, we can implement repositories using the above interface as a guide. The following example shows the implementation of a REST repository. We could implement it using Local Storage if we don’t have the backend ready yet or mock the results as we’ll see in the testing episode:
+
+```typescript
+export const tasksRestRepository: TasksRepository = {
+  getAll: () => {
+    return fetch("https://api.com/tasks")
+      .then(res => res.json())
+      .then(tasks => tasks.map(mapTaskFromRest))
+  },
+  findById: (id: string) => {
+    return fetch(`https://api.com/tasks/${id}`)
+      .then(res => res.json())
+      .then(mapTaskFromRest)
+  },
+  // ...
+}
+```
+
+## Use currying and no more DRY in hexagonal
+
+From now on, use cases won’t directly invoke repositories, but instead, they will receive them as parameters. This is what is known as dependency inversion.
+
+How could the definition of a use case look now? Like this:
+
+```typescript
+export const findTaskByIdUseCase = (repository: TasksRepository, id: string): Promise<Task> => {
+  // ...
+}
+```
+
+The above use case has a problem. We need to pass the repository as a parameter every time we invoke it. This is tedious, clutters the code, and also doesn’t facilitate testing, as we will see. That’s why my favorite alternative is to use currying:
+
+```typescript
+export const findTaskByIdUseCase = (repository: TasksRepository) => (id: string): Promise<Task> => {
+  // ...
+}
+
+const findTaskByIdWithRepositoryResolved = findTaskByIdUseCase(tasksRestRepository);
+const task = await findTaskByIdWithRepositoryResolved("1");
+const anotherTask = await findTaskByIdWithRepositoryResolved("2");
+Using contexts to resolve dependency inversion
+Now, another problem arises: how do we resolve this dependency in a React application? We will use React contexts, but in such a way that everything remains fully typed:
+
+interface ContextValue {
+  findTaskById: ReturnType<typeof findTaskByIdUseCase>;
+}
+
+const ApplicationContext = createContext<ContextValue>({} as ContextValue);
+export const useApplication = (): ContextValue => {
+  return React.useContext(ApplicationContext);
+};
+interface Props {
+  children: React.ReactNode;
+  dependencies: {
+    tasksRepository: TasksRepository;
+  };
+}
+export const ApplicationProvider = ({ children, dependencies }: Props) => {
+  const { tasksRepository } = dependencies;
+  return (
+    <ApplicationContext.Provider
+      value={{
+        findTaskById: findTaskByIdUseCase(tasksRepository),
+      }}
+    >
+      {children}
+    </ApplicationContext.Provider>
+  );
+};
+```
+
+We wrap our application with this context so that all components can access it.
+
+```typescript
+const createDependencies = () => ({
+    tasksRepository: tasksRestRepository,
+})
+
+export default function App() {
+  return (
+    <ApplicationProvider dependencies={createDependencies()}>
+        <Routes />
+    </ApplicationProvider>
+  );
+}
+```
+
+Now we can go to any page/component and use this context to invoke a use case without worrying about the injected repository dependency:
+
+```typescript
+export const TaskCard = ({id}) => {
+    const {findTaskById} = useApplication();
+    const [task, setTask] = useState();
+    useEffect(() => {
+        findByTask(id).then(setTask)
+    }, [id, findByTask, setTask])
+    if (!task) return null;
+    return (
+        <div>
+            <h2>{task.title}</h2>
+        </div>
+    )
+}
+```
+
+And that concludes this article on dependency inversion with React using contexts.

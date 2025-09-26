@@ -1,0 +1,11 @@
+---
+description: Rules for ensuring accessibility in Astro components, including semantic HTML and ARIA attributes.
+globs: client/src/**/*
+alwaysApply: false
+---
+
+# Accessibility
+
+- Ensure proper semantic HTML structure in Astro components.
+- Implement ARIA attributes where necessary.
+- Ensure keyboard navigation support for interactive elements.

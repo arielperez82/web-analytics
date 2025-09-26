@@ -1,0 +1,38 @@
+---
+globs: tinybird/**/*.*
+alwaysApply: false
+---
+
+# Tinybird instructions
+
+<test_file_instructions>
+<test_file_format>
+  parameters: date_from=2024-01-01&date_to=2024-01-01
+  expected_result: |
+    {"date":"2024-01-01 00:00:00","visits":0,"pageviews":0,"bounce_rate":null,"avg_session_sec":0}
+    {"date":"2024-01-01 01:00:00","visits":0,"pageviews":0,"bounce_rate":null,"avg_session_sec":0}
+
+</test_file_format>
+
+</test_file_instructions>
+<deployment_instruction>
+Follow these instructions when evolving a datasource schema:
+
+- When you make schema changes that are incompatible with the old schema, you must use a forward query in your data source. Forward queries are necessary when introducing breaking changes. Otherwise, your deployment will fail due to a schema mismatch.
+- Forward queries translate the old schema to a new one that you define in the .datasource file. This helps you evolve your schema while continuing to ingest data.
+Follow these steps to evolve your schema using a forward query:
+- Edit the .datasource file to add a forward query.
+- Run tb deploy --check to validate the deployment before creating it.
+- Deploy and promote your changes in Tinybird Cloud using {base_command} --cloud deploy.
+    <forward_query_example>
+SCHEMA >
+    `timestamp` DateTime `json:$.timestamp`,
+    `session_id` UUID `json:$.session_id`,
+    `action` String `json:$.action`,
+    `version` String `json:$.version`,
+    `payload` String `json:$.payload`
+
+FORWARD_QUERY >
+    select timestamp, toUUID(session_id) as session_id, action, version, payload
+    </forward_query_example>
+</deployment_instruction>
