@@ -353,17 +353,12 @@ const tinybirdAnalytics = (
       instance._user_id = event.user_id;
     }
 
-    console.log('identiy event', event);
-    console.log('instance._user_id', instance._user_id);
-
     const identifyData: TinybirdEvent = {
       user_id: instance._user_id,
       ...event.traits,
       ...getCommonProperties(attributionManager),
     };
 
-
-    console.log('identifyData', identifyData);
     // Send identify event
     sendEvent('identify', identifyData);
   };

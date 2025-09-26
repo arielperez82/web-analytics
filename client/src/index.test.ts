@@ -16,7 +16,7 @@ describe('initTinybirdAnalytics', () => {
     localStorage.clear();
   });
 
-  describe('when initializedwith a valid config', () => {
+  describe('when initialized with a valid config', () => {
     let capturedBody: TinybirdEvent | null = null
     let parsedBody: Record<string, unknown> | null = null
     let analytics: AnalyticsInstance | null = null
@@ -102,14 +102,41 @@ describe('initTinybirdAnalytics', () => {
       });
     });
 
-    it('includes default properties in every event', async () => {
+    it('includes common properties in every event', async () => {
       // Call track method
       analytics?.track('test_event', { custom: 'data' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
           action: 'test_event',
-          parsedPayload: { custom: 'data' },
+          parsedPayload: {
+            'user-agent': window.navigator.userAgent,
+            locale: window.navigator.language,
+            location: expect.any(String),
+            referrer: document.referrer,
+            pathname: window.location.pathname,
+            href: window.location.href
+          },
+        });
+      });
+    });
+
+    it('includes utm properties in every event when present in the url', async () => {
+      vi.spyOn(window, 'location', 'get').mockReturnValue({ search: '?utm_source=s&utm_medium=m&utm_campaign=c&utm_term=t&utm_content=c' } as unknown as Location);
+
+      // Call track method
+      analytics?.track('test_event', { custom: 'data' });
+
+      await vi.waitFor(() => {
+        expect(parsedBody).toMatchObject({
+          action: 'test_event',
+          parsedPayload: {
+            utm_source: 's',
+            utm_medium: 'm',
+            utm_campaign: 'c',
+            utm_term: 't',
+            utm_content: 'c',
+          },
         });
       });
     });

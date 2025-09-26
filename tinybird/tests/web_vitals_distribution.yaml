@@ -1,5 +1,165 @@
 
 - name: demo_site_100_days
   description: Test web vitals distribution for demo.site over 100 days
-  parameters: domain=demo.site&days=100
+  parameters: domain=demo.site&date_from=2024-01-01&date_to=2024-04-10
+  expected_result: "{\"metric_name\":\"TTFB\",\"performance_category\":\"excellent\"\
+    ,\"avg_value\":241,\"p75\":301,\"p90\":343,\"p95\":357,\"p99\":368.2,\"measurement_count\"\
+    :3,\"percentage\":15,\"total_measurements\":20,\"score\":100,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\"\
+    ,\"description\":\"Time to First Byte - measures server response time and network\
+    \ latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\",\"performance_category\"\
+    :\"excellent\",\"avg_value\":415,\"p75\":451,\"p90\":469,\"p95\":475,\"p99\":479.8,\"\
+    measurement_count\":5,\"percentage\":29.4,\"total_measurements\":17,\"score\"\
+    :100,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms,\
+    \ Poor: >1000ms\",\"description\":\"Time to First Byte - measures server response\
+    \ time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\"\
+    ,\"performance_category\":\"excellent\",\"avg_value\":324.33,\"p75\":361,\"p90\"\
+    :397,\"p95\":409,\"p99\":418.59999999999997,\"measurement_count\":3,\"percentage\"\
+    :14.3,\"total_measurements\":21,\"score\":100,\"units\":\"ms\",\"thresholds\"\
+    :\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"description\"\
+    :\"Time to First Byte - measures server response time and network latency\",\"\
+    domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\",\"performance_category\":\"\
+    good\",\"avg_value\":638.78,\"p75\":741,\"p90\":821,\"p95\":821,\"p99\":821,\"\
+    measurement_count\":9,\"percentage\":42.9,\"total_measurements\":21,\"score\"\
+    :75,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms,\
+    \ Poor: >1000ms\",\"description\":\"Time to First Byte - measures server response\
+    \ time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\"\
+    ,\"performance_category\":\"good\",\"avg_value\":749.57,\"p75\":826,\"p90\":879,\"\
+    p95\":900,\"p99\":916.8,\"measurement_count\":7,\"percentage\":35,\"total_measurements\"\
+    :20,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good:\
+    \ \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures\
+    \ server response time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\"\
+    :\"TTFB\",\"performance_category\":\"good\",\"avg_value\":816,\"p75\":928.5,\"\
+    p90\":942,\"p95\":946.5,\"p99\":950.1,\"measurement_count\":4,\"percentage\":23.5,\"\
+    total_measurements\":17,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent:\
+    \ \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First\
+    \ Byte - measures server response time and network latency\",\"domain\":\"demo.site\"\
+    }\n{\"metric_name\":\"TTFB\",\"performance_category\":\"poor\",\"avg_value\":1498,\"\
+    p75\":1648.5,\"p90\":1854.9999999999998,\"p95\":1918,\"p99\":1968.4,\"measurement_count\"\
+    :10,\"percentage\":50,\"total_measurements\":20,\"score\":25,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\"\
+    ,\"description\":\"Time to First Byte - measures server response time and network\
+    \ latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\",\"performance_category\"\
+    :\"poor\",\"avg_value\":1339.75,\"p75\":1518.5,\"p90\":1664,\"p95\":1702.5,\"\
+    p99\":1733.3,\"measurement_count\":8,\"percentage\":47.1,\"total_measurements\"\
+    :17,\"score\":25,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good:\
+    \ \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures\
+    \ server response time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\"\
+    :\"TTFB\",\"performance_category\":\"poor\",\"avg_value\":1556.56,\"p75\":1681,\"\
+    p90\":1935,\"p95\":1963,\"p99\":1985.3999999999999,\"measurement_count\":9,\"\
+    percentage\":42.9,\"total_measurements\":21,\"score\":25,\"units\":\"ms\",\"thresholds\"\
+    :\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\",\"description\"\
+    :\"Time to First Byte - measures server response time and network latency\",\"\
+    domain\":\"demo.site\"}\n"
+
+- name: distribution_with_previous_period
+  description: Test web vitals distribution with previous period comparison
+  parameters: date_from=2024-01-01&date_to=2024-01-07&include_previous_period=true
+  expected_result: "{\"metric_name\":\"FCP\",\"performance_category\":\"excellent\"\
+    ,\"avg_value\":777,\"p75\":777,\"p90\":777,\"p95\":777,\"p99\":777,\"measurement_count\"\
+    :1,\"percentage\":100,\"total_measurements\":1,\"previous_avg_value\":0,\"previous_p75\"\
+    :0,\"previous_p90\":0,\"previous_p95\":0,\"previous_p99\":0,\"previous_measurement_count\"\
+    :0,\"previous_total_measurements\":1,\"previous_percentage\":0,\"avg_value_growth_percentage\"\
+    :100,\"measurement_count_growth_percentage\":100,\"score\":100,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u22641800ms, Good: \u22643000ms, Poor: >3000ms\"\
+    ,\"description\":\"First Contentful Paint - measures time until first content\
+    \ appears on screen\",\"domain\":\"myapp.com\"}\n{\"metric_name\":\"FCP\",\"performance_category\"\
+    :\"good\",\"avg_value\":2697,\"p75\":2697,\"p90\":2697,\"p95\":2697,\"p99\":2697,\"\
+    measurement_count\":1,\"percentage\":100,\"total_measurements\":1,\"previous_avg_value\"\
+    :1897,\"previous_p75\":1897,\"previous_p90\":1897,\"previous_p95\":1897,\"previous_p99\"\
+    :1897,\"previous_measurement_count\":1,\"previous_total_measurements\":3,\"previous_percentage\"\
+    :33.3,\"avg_value_growth_percentage\":42.17,\"measurement_count_growth_percentage\"\
+    :0,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent: \u22641800ms, Good:\
+    \ \u22643000ms, Poor: >3000ms\",\"description\":\"First Contentful Paint - measures\
+    \ time until first content appears on screen\",\"domain\":\"myapp.com\"}\n{\"\
+    metric_name\":\"TTFB\",\"performance_category\":\"excellent\",\"avg_value\":121,\"\
+    p75\":121,\"p90\":121,\"p95\":121,\"p99\":121,\"measurement_count\":1,\"percentage\"\
+    :25,\"total_measurements\":4,\"previous_avg_value\":0,\"previous_p75\":0,\"previous_p90\"\
+    :0,\"previous_p95\":0,\"previous_p99\":0,\"previous_measurement_count\":0,\"previous_total_measurements\"\
+    :0,\"previous_percentage\":null,\"avg_value_growth_percentage\":100,\"measurement_count_growth_percentage\"\
+    :100,\"score\":100,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good:\
+    \ \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures\
+    \ server response time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\"\
+    :\"TTFB\",\"performance_category\":\"good\",\"avg_value\":857.67,\"p75\":886,\"\
+    p90\":907,\"p95\":914,\"p99\":919.5999999999999,\"measurement_count\":3,\"percentage\"\
+    :75,\"total_measurements\":4,\"previous_avg_value\":0,\"previous_p75\":0,\"previous_p90\"\
+    :0,\"previous_p95\":0,\"previous_p99\":0,\"previous_measurement_count\":0,\"previous_total_measurements\"\
+    :0,\"previous_percentage\":null,\"avg_value_growth_percentage\":100,\"measurement_count_growth_percentage\"\
+    :100,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good:\
+    \ \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures\
+    \ server response time and network latency\",\"domain\":\"demo.site\"}\n{\"metric_name\"\
+    :\"TTFB\",\"performance_category\":\"poor\",\"avg_value\":1464.33,\"p75\":1686,\"\
+    p90\":1719,\"p95\":1730,\"p99\":1738.8000000000002,\"measurement_count\":3,\"\
+    percentage\":100,\"total_measurements\":3,\"previous_avg_value\":0,\"previous_p75\"\
+    :0,\"previous_p90\":0,\"previous_p95\":0,\"previous_p99\":0,\"previous_measurement_count\"\
+    :0,\"previous_total_measurements\":0,\"previous_percentage\":null,\"avg_value_growth_percentage\"\
+    :100,\"measurement_count_growth_percentage\":100,\"score\":25,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\"\
+    ,\"description\":\"Time to First Byte - measures server response time and network\
+    \ latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\",\"performance_category\"\
+    :\"poor\",\"avg_value\":1191,\"p75\":1191,\"p90\":1191,\"p95\":1191,\"p99\":1191,\"\
+    measurement_count\":1,\"percentage\":100,\"total_measurements\":1,\"previous_avg_value\"\
+    :0,\"previous_p75\":0,\"previous_p90\":0,\"previous_p95\":0,\"previous_p99\":0,\"\
+    previous_measurement_count\":0,\"previous_total_measurements\":0,\"previous_percentage\"\
+    :null,\"avg_value_growth_percentage\":100,\"measurement_count_growth_percentage\"\
+    :100,\"score\":25,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good:\
+    \ \u22641000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures\
+    \ server response time and network latency\",\"domain\":\"demo.site\"}\n"
+
+- name: distribution_tenant_filter
+  description: Test web vitals distribution filtered by tenant
+  parameters: tenant_id=tenant_1&date_from=2024-01-01&date_to=2024-01-31
+  expected_result: "{\"metric_name\":\"FCP\",\"performance_category\":\"excellent\"\
+    ,\"avg_value\":1197,\"p75\":1197,\"p90\":1197,\"p95\":1197,\"p99\":1197,\"measurement_count\"\
+    :1,\"percentage\":33.3,\"total_measurements\":3,\"score\":100,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u22641800ms, Good: \u22643000ms, Poor: >3000ms\"\
+    ,\"description\":\"First Contentful Paint - measures time until first content\
+    \ appears on screen\",\"domain\":\"myapp.com\"}\n{\"metric_name\":\"FCP\",\"performance_category\"\
+    :\"good\",\"avg_value\":2532,\"p75\":2639.5,\"p90\":2704,\"p95\":2725.5,\"p99\"\
+    :2742.7000000000003,\"measurement_count\":2,\"percentage\":66.7,\"total_measurements\"\
+    :3,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent: \u22641800ms, Good:\
+    \ \u22643000ms, Poor: >3000ms\",\"description\":\"First Contentful Paint - measures\
+    \ time until first content appears on screen\",\"domain\":\"myapp.com\"}\n{\"\
+    metric_name\":\"INP\",\"performance_category\":\"good\",\"avg_value\":323,\"p75\"\
+    :323,\"p90\":323,\"p95\":323,\"p99\":323,\"measurement_count\":2,\"percentage\"\
+    :25,\"total_measurements\":8,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent:\
+    \ \u2264200ms, Good: \u2264500ms, Poor: >500ms\",\"description\":\"Interaction\
+    \ to Next Paint - measures responsiveness to user interactions\",\"domain\":\"\
+    test.org\"}\n{\"metric_name\":\"INP\",\"performance_category\":\"poor\",\"avg_value\"\
+    :653,\"p75\":683,\"p90\":728,\"p95\":750.5,\"p99\":768.5,\"measurement_count\"\
+    :6,\"percentage\":75,\"total_measurements\":8,\"score\":25,\"units\":\"ms\",\"\
+    thresholds\":\"Excellent: \u2264200ms, Good: \u2264500ms, Poor: >500ms\",\"description\"\
+    :\"Interaction to Next Paint - measures responsiveness to user interactions\"\
+    ,\"domain\":\"test.org\"}\n{\"metric_name\":\"LCP\",\"performance_category\":\"\
+    excellent\",\"avg_value\":2425,\"p75\":2425,\"p90\":2425,\"p95\":2425,\"p99\"\
+    :2425,\"measurement_count\":1,\"percentage\":20,\"total_measurements\":5,\"score\"\
+    :100,\"units\":\"ms\",\"thresholds\":\"Excellent: \u22642500ms, Good: \u22644000ms,\
+    \ Poor: >4000ms\",\"description\":\"Largest Contentful Paint - measures loading\
+    \ performance of the largest content element\",\"domain\":\"example.com\"}\n{\"\
+    metric_name\":\"LCP\",\"performance_category\":\"good\",\"avg_value\":3305,\"\
+    p75\":3305,\"p90\":3305,\"p95\":3305,\"p99\":3305,\"measurement_count\":1,\"percentage\"\
+    :20,\"total_measurements\":5,\"score\":75,\"units\":\"ms\",\"thresholds\":\"Excellent:\
+    \ \u22642500ms, Good: \u22644000ms, Poor: >4000ms\",\"description\":\"Largest\
+    \ Contentful Paint - measures loading performance of the largest content element\"\
+    ,\"domain\":\"example.com\"}\n{\"metric_name\":\"LCP\",\"performance_category\"\
+    :\"poor\",\"avg_value\":4831.67,\"p75\":4970,\"p90\":4979,\"p95\":4982,\"p99\"\
+    :4984.400000000001,\"measurement_count\":3,\"percentage\":60,\"total_measurements\"\
+    :5,\"score\":25,\"units\":\"ms\",\"thresholds\":\"Excellent: \u22642500ms, Good:\
+    \ \u22644000ms, Poor: >4000ms\",\"description\":\"Largest Contentful Paint - measures\
+    \ loading performance of the largest content element\",\"domain\":\"example.com\"\
+    }\n{\"metric_name\":\"TTFB\",\"performance_category\":\"good\",\"avg_value\":716,\"\
+    p75\":761,\"p90\":797,\"p95\":809,\"p99\":818.5999999999999,\"measurement_count\"\
+    :4,\"percentage\":57.1,\"total_measurements\":7,\"score\":75,\"units\":\"ms\"\
+    ,\"thresholds\":\"Excellent: \u2264500ms, Good: \u22641000ms, Poor: >1000ms\"\
+    ,\"description\":\"Time to First Byte - measures server response time and network\
+    \ latency\",\"domain\":\"demo.site\"}\n{\"metric_name\":\"TTFB\",\"performance_category\"\
+    :\"poor\",\"avg_value\":1424.33,\"p75\":1541,\"p90\":1601,\"p95\":1621,\"p99\"\
+    :1637,\"measurement_count\":3,\"percentage\":42.9,\"total_measurements\":7,\"\
+    score\":25,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good: \u2264\
+    1000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures server\
+    \ response time and network latency\",\"domain\":\"demo.site\"}\n"
+
+- name: distribution_default_period
+  description: Test web vitals distribution with default date range
+  parameters: ''
   expected_result: ''

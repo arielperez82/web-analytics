@@ -21,5 +21,11 @@
   "editor.insertSpaces": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-  "files.trimFinalNewlines": true
+  "files.trimFinalNewlines": true,
+  "testing.automaticallyOpenTestResults": "neverOpen",
+  "jest.outputConfig": {
+    "revealOn": "run",
+    "revealWithFocus": "none",
+    "clearOnRun": "none"
+  }
 }

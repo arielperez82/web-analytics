@@ -10,6 +10,7 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'html'],
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/__tests__/**', 'src/**/*.test.ts', 'src/**/*.spec.ts']
-    }
-  }
+    },
+    restoreMocks: true,
+  },
 })
