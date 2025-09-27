@@ -15,7 +15,8 @@ const mediaPlatforms = [
   'podcasts.apple.com',
   'music.amazon.com',
   'spotify.com',
-  'youtube.com'
+  'youtube.com',
+  'github.com'
 ]
 
 const inferLinkType = (url: string): LinkType => {
