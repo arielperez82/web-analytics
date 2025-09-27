@@ -1,9 +1,9 @@
 // eslint.config.js
-import simpleImportSort from "eslint-plugin-simple-import-sort";
-import prettier from "eslint-config-prettier/flat";
-import tsParser from "@typescript-eslint/parser";
-import tseslint from "typescript-eslint";
 import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import prettier from "eslint-config-prettier/flat";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import tseslint from "typescript-eslint";
 
 export default [
   js.configs.recommended,
