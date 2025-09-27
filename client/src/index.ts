@@ -5,11 +5,12 @@
  * A complete analytics solution for Tinybird with Analytics.js integration
  */
 
+
 import Analytics from 'analytics'
 import doNotTrack from 'analytics-plugin-do-not-track'
 
+import { clickTracker } from './click-tracker'
 import tinybirdPlugin, { type TinybirdPluginConfig } from './tinybird-analytics-plugin'
-
 
 /**
  * Initialize Tinybird Analytics
@@ -73,8 +74,15 @@ export function initTinybirdAnalytics(config: TinybirdPluginConfig) {
     window.analytics = analytics
   }
 
+  if (finalConfig.enableClickTracking) {
+    clickTracker.initialize()
+  }
+
   return analytics
 }
 
 // Re-export plugin
 export { default as tinybirdPlugin } from './tinybird-analytics-plugin'
+
+// Export click tracker
+export { clickTracker }

@@ -3,39 +3,39 @@
  * This file demonstrates how to use the library in a real application
  */
 
-import { initTinybirdAnalytics } from './src/tinybird-analytics'
+import { initTinybirdAnalytics } from "./src/tinybird-analytics";
 
 // Example 1: Basic initialization
 const analytics = initTinybirdAnalytics({
-  token: 'p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example',
-  host: 'https://api.tinybird.co',
-  domain: 'example.com',
-  tenantId: 'my-company'
-})
+  token: "p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example",
+  host: "https://api.tinybird.co",
+  domain: "example.com",
+  tenantId: "my-company",
+});
 
 // Example 2: Advanced configuration
 const advancedAnalytics = initTinybirdAnalytics({
-  token: 'p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example',
-  host: 'https://api.tinybird.co',
-  domain: 'example.com',
-  tenantId: 'my-company',
-  datasource: 'custom_events',
-  storage: 'sessionStorage',
+  token: "p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example",
+  host: "https://api.tinybird.co",
+  domain: "example.com",
+  tenantId: "my-company",
+  datasource: "custom_events",
+  storage: "sessionStorage",
   webVitals: true,
   globalAttributes: {
-    environment: 'production',
-    version: '2.1.0',
-    team: 'frontend'
-  }
-})
+    environment: "production",
+    version: "2.1.0",
+    team: "frontend",
+  },
+});
 
 // Example 3: Tracking events
 function trackButtonClick(buttonName: string, page: string) {
-  analytics.track('button_clicked', {
+  analytics.track("button_clicked", {
     button: buttonName,
     page: page,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 4: Tracking page views
@@ -44,67 +44,79 @@ function trackPageView(title: string, url: string, category?: string) {
     title: title,
     url: url,
     category: category,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 5: User identification
 function identifyUser(userId: string, userTraits: Record<string, unknown>) {
   analytics.identify(userId, {
     ...userTraits,
-    lastSeen: new Date().toISOString()
-  })
+    lastSeen: new Date().toISOString(),
+  });
 }
 
 // Example 6: E-commerce tracking
-function trackPurchase(orderId: string, products: Array<{ id: string; name: string; price: number }>, total: number) {
-  analytics.track('purchase', {
+function trackPurchase(
+  orderId: string,
+  products: Array<{ id: string; name: string; price: number }>,
+  total: number,
+) {
+  analytics.track("purchase", {
     orderId: orderId,
     products: products,
     total: total,
-    currency: 'USD',
-    timestamp: new Date().toISOString()
-  })
+    currency: "USD",
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 7: Form tracking
-function trackFormSubmission(formName: string, success: boolean, errorMessage?: string) {
-  analytics.track('form_submitted', {
+function trackFormSubmission(
+  formName: string,
+  success: boolean,
+  errorMessage?: string,
+) {
+  analytics.track("form_submitted", {
     form: formName,
     success: success,
     error: errorMessage,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 8: Error tracking
 function trackError(error: Error, context: string) {
-  analytics.track('error_occurred', {
+  analytics.track("error_occurred", {
     message: error.message,
     stack: error.stack,
     context: context,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 9: Performance tracking
 function trackPerformance(metric: string, value: number, unit: string) {
-  analytics.track('performance_metric', {
+  analytics.track("performance_metric", {
     metric: metric,
     value: value,
     unit: unit,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example 10: A/B testing
-function trackExperiment(experimentName: string, variant: string, success: boolean) {
-  analytics.track('experiment_viewed', {
+function trackExperiment(
+  experimentName: string,
+  variant: string,
+  success: boolean,
+) {
+  analytics.track("experiment_viewed", {
     experiment: experimentName,
     variant: variant,
     success: success,
-    timestamp: new Date().toISOString()
-  })
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // Example usage in a React component (pseudo-code)
@@ -191,5 +203,5 @@ export {
   trackFormSubmission,
   trackPageView,
   trackPerformance,
-  trackPurchase
-}
+  trackPurchase,
+};

@@ -37,6 +37,7 @@ export interface TinybirdAnalyticsConfig {
   globalAttributes?: Record<string, unknown>;
   webVitals?: boolean;
   devMode?: boolean;
+  enableClickTracking?: boolean;
 }
 
 export interface TinybirdIdentityEvent {

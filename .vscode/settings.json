@@ -12,7 +12,7 @@
   "eslint.workingDirectories": [
     "client"
   ],
-  //"prettier.configPath": "./client/.prettierrc",
+  "prettier.configPath": "./client/.prettierrc",
   "typescript.preferences.importModuleSpecifier": "relative",
   "typescript.suggest.autoImports": true,
   "typescript.updateImportsOnFileMove.enabled": "always",

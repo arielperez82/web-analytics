@@ -9,8 +9,8 @@
     "pre-commit": "lint-staged",
     "lint:md": "markdownlint .",
     "lint:md:fix": "markdownlint --fix .",
-    "lint:format": "prettier --check",
-    "lint:format:fix": "prettier --write",
+    "lint:format:md": "prettier --check '*.md'",
+    "lint:format:md:fix": "prettier --write '*.md'",
     "lint:format:code": "pnpm --filter tinybird-analytics lint:format:code",
     "lint:format:code:fix": "pnpm --filter tinybird-analytics lint:format:code:fix",
     "lint:code": "pnpm --filter tinybird-analytics lint:code",
@@ -25,6 +25,7 @@
     "dotenv-cli": "^8.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
+    "markdownlint-cli": "^0.45.0",
     "prettier": "^3.6.2",
     "tsx": "4.20.3"
   }

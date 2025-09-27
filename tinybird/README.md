@@ -40,8 +40,11 @@ web-analytics-starter-kit/tinybird/
 
 ### Folder descriptions
 
-- **datasources/**: Contains all datasource definitions, including the main analytics_events datasource and materialized view datasources.
-- **endpoints/**: Contains all API pipes/endpoints for web analytics, such as analytics_hits, kpis, top_browsers, top_devices, top_locations, top_pages, top_sources, trend, current_visitors, and domain.
+- **datasources/**: Contains all datasource definitions, including the main
+  analytics_events datasource and materialized view datasources.
+- **endpoints/**: Contains all API pipes/endpoints for web analytics, such as
+  analytics_hits, kpis, top_browsers, top_devices, top_locations, top_pages,
+  top_sources, trend, current_visitors, and domain.
 - **materializations/**: Contains materialized view pipes for analytics_pages, analytics_sessions, and analytics_sources.
 - **web_vitals/**: Contains API pipes/endpoints for web vitals metrics.
 - **tests/**: Contains tests.
@@ -50,9 +53,14 @@ web-analytics-starter-kit/tinybird/
 
 ## Project description
 
-The Tinybird data project for web analytics includes datasources, endpoints, and materializations to power analytics dashboards and APIs. The main datasource, `analytics_events`, collects events from the tracker script. Endpoints provide parsed and aggregated analytics, and materializations enable efficient querying for dashboards.
+The Tinybird data project for web analytics includes datasources, endpoints, and
+materializations to power analytics dashboards and APIs. The main datasource
+analytics_events`, collects events from the tracker script. Endpoints provide
+parsed and aggregated analytics, and materializations enable efficient querying
+for dashboards.
 
-`web_vitals` metrics are stored in `analytics_events` with `action=web_vital`. See `web_vitals` folder for example endpoints.
+`web_vitals` metrics are stored in `analytics_events` with `action=web_vital`.
+See `web_vitals` folder for example endpoints.
 
 ## Local development
 

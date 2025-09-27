@@ -2,7 +2,7 @@ import { type AnalyticsInstance } from 'analytics';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { initTinybirdAnalytics } from './';
+import { clickTracker, initTinybirdAnalytics } from './';
 import { server } from './__tests__/server';
 import { TinybirdEvent } from './tinybird-analytics';
 
@@ -152,6 +152,19 @@ describe('initTinybirdAnalytics', () => {
       expect(analytics).toBeDefined()
       expect(analytics2).toBeDefined()
       expect(window.analytics).toBe(analytics2)
+    })
+
+    it('enables click tracking when enableClickTracking is true', () => {
+      const config = {
+        token: 'test-token',
+        host: 'https://api.tinybird.co',
+        domain: 'example.com',
+        enableClickTracking: true,
+      }
+
+      initTinybirdAnalytics(config)
+
+      expect(clickTracker.isInitialized()).toBeTruthy()
     })
   });
 

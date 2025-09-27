@@ -1,13 +1,16 @@
 # Tinybird Analytics
 
-A complete analytics solution for Tinybird with Analytics.js integration. Track user interactions, page views, and web vitals with ease.
+A complete analytics solution for Tinybird with Analytics.js integration.
+Track user interactions, page views, and web vitals with ease.
 
 ## Features
 
 - 🚀 **Easy Integration**: Simple initialization with minimal configuration
-- 📊 **Complete Analytics**: Track events, page views, user identification, and web vitals
+- 📊 **Complete Analytics**: Track events, page views, user identification,
+  and web vitals
 - 🔒 **Privacy First**: Built-in Do Not Track support and PII masking
-- 🎯 **Tinybird Optimized**: Designed specifically for Tinybird's analytics infrastructure
+- 🎯 **Tinybird Optimized**: Designed specifically for Tinybird's analytics
+  infrastructure
 - 📱 **Cross-Platform**: Works in browsers and modern JavaScript environments
 - 🔧 **TypeScript Support**: Full TypeScript definitions included
 
@@ -24,33 +27,33 @@ yarn add tinybird-analytics
 ## Quick Start
 
 ```typescript
-import { initTinybirdAnalytics } from 'tinybird-analytics'
+import { initTinybirdAnalytics } from "tinybird-analytics";
 
 // Initialize analytics
 const analytics = initTinybirdAnalytics({
-  token: 'your-tinybird-token',
-  host: 'https://api.tinybird.co',
-  domain: 'example.com',
-  tenantId: 'your-tenant-id'
-})
+  token: "your-tinybird-token",
+  host: "https://api.tinybird.co",
+  domain: "example.com",
+  tenantId: "your-tenant-id",
+});
 
 // Track events
-analytics.track('button_clicked', { 
-  button: 'signup',
-  page: 'home'
-})
+analytics.track("button_clicked", {
+  button: "signup",
+  page: "home",
+});
 
 // Track page views
-analytics.page({ 
-  title: 'Home Page',
-  url: '/home'
-})
+analytics.page({
+  title: "Home Page",
+  url: "/home",
+});
 
 // Identify users
-analytics.identify('user123', { 
-  name: 'John Doe',
-  email: 'john@example.com'
-})
+analytics.identify("user123", {
+  name: "John Doe",
+  email: "john@example.com",
+});
 ```
 
 ## Configuration
@@ -67,6 +70,8 @@ analytics.identify('user123', {
 - `datasource`: Tinybird datasource name (default: `analytics_events`)
 - `storage`: Storage method for session data (default: `localStorage`)
 - `webVitals`: Enable web vitals tracking (default: `true`)
+- `enableClickTracking`: Enable automatic click tracking for links with
+  `data-track` attribute (default: `false`)
 - `globalAttributes`: Global attributes to include with all events
 - - `tenantId`: Your tenant identifier (default: domain)
 
@@ -74,18 +79,19 @@ analytics.identify('user123', {
 
 ```typescript
 const analytics = initTinybirdAnalytics({
-  token: 'p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example',
-  host: 'https://api.tinybird.co',
-  domain: 'example.com',
-  tenantId: 'my-company',
-  datasource: 'custom_events',
-  storage: 'sessionStorage',
+  token: "p.eyJ1IjoiZXhhbXBsZSIsImV4cCI6MTY5ODc2MDAwMH0.example",
+  host: "https://api.tinybird.co",
+  domain: "example.com",
+  tenantId: "my-company",
+  datasource: "custom_events",
+  storage: "sessionStorage",
   webVitals: true,
+  enableClickTracking: true,
   globalAttributes: {
-    site: 'my-website',
-    version: '1.0.0'
-  }
-})
+    site: "my-website",
+    version: "1.0.0",
+  },
+});
 ```
 
 ## API Reference
@@ -107,11 +113,11 @@ Initialize the analytics instance with the provided configuration.
 Track a custom event.
 
 ```typescript
-analytics.track('purchase', {
-  product: 'Widget',
+analytics.track("purchase", {
+  product: "Widget",
   price: 29.99,
-  currency: 'USD'
-})
+  currency: "USD",
+});
 ```
 
 #### `page(properties)`
@@ -120,10 +126,10 @@ Track a page view.
 
 ```typescript
 analytics.page({
-  title: 'Product Page',
-  url: '/products/widget',
-  category: 'Electronics'
-})
+  title: "Product Page",
+  url: "/products/widget",
+  category: "Electronics",
+});
 ```
 
 #### `identify(userId, traits)`
@@ -131,11 +137,11 @@ analytics.page({
 Identify a user.
 
 ```typescript
-analytics.identify('user123', {
-  name: 'John Doe',
-  email: 'john@example.com',
-  plan: 'premium'
-})
+analytics.identify("user123", {
+  name: "John Doe",
+  email: "john@example.com",
+  plan: "premium",
+});
 ```
 
 ## Advanced Usage
@@ -145,8 +151,8 @@ analytics.identify('user123', {
 ```typescript
 const analytics = initTinybirdAnalytics({
   // ... other config
-  storage: 'cookie', // or 'sessionStorage', 'localStorage'
-})
+  storage: "cookie", // or 'sessionStorage', 'localStorage'
+});
 ```
 
 ### Disable Web Vitals
@@ -154,8 +160,17 @@ const analytics = initTinybirdAnalytics({
 ```typescript
 const analytics = initTinybirdAnalytics({
   // ... other config
-  webVitals: false
-})
+  webVitals: false,
+});
+```
+
+### Enable Click Tracking
+
+```typescript
+const analytics = initTinybirdAnalytics({
+  // ... other config
+  enableClickTracking: true,
+});
 ```
 
 ### Global Attributes
@@ -166,11 +181,11 @@ Add attributes that will be included with every event:
 const analytics = initTinybirdAnalytics({
   // ... other config
   globalAttributes: {
-    environment: 'production',
-    version: '2.1.0',
-    team: 'frontend'
-  }
-})
+    environment: "production",
+    version: "2.1.0",
+    team: "frontend",
+  },
+});
 ```
 
 ## Web Vitals
@@ -183,6 +198,66 @@ The library automatically tracks Core Web Vitals when enabled:
 - **TTFB** (Time to First Byte)
 - **INP** (Interaction to Next Paint)
 
+## Click Tracking
+
+When `enableClickTracking` is set to `true`, the library automatically tracks
+clicks on links that have a `data-track` attribute. This feature provides
+automatic link click tracking without requiring manual event tracking.
+
+### Usage
+
+```typescript
+const analytics = initTinybirdAnalytics({
+  // ... other config
+  enableClickTracking: true,
+});
+```
+
+### HTML Setup
+
+Add the `data-track` attribute to any link you want to track:
+
+```html
+<a href="/products" data-track>View Products</a>
+<a href="https://example.com" data-track data-track-link-type="external"
+  >External Link</a
+>
+```
+
+### Event Properties
+
+When a link is clicked, a `link_click` event is automatically tracked with the
+following properties:
+
+- `element_id`: The ID of the clicked element (if present)
+- `link_type`: Automatically inferred type (`web`, `social`, `media`, `email`)
+- `link_url`: The destination URL
+- `link_text`: The link text content
+- Custom properties from `data-track-prop*` attributes
+
+### Custom Link Types
+
+You can specify a custom link type using the `data-track-link-type` attribute:
+
+```html
+<a href="/download" data-track data-track-link-type="download">Download PDF</a>
+```
+
+### Custom Properties
+
+Add custom properties using `data-track-prop*` attributes:
+
+```html
+<a
+  href="/signup"
+  data-track
+  data-track-prop-category="cta"
+  data-track-prop-position="header"
+>
+  Sign Up
+</a>
+```
+
 ## Privacy & Compliance
 
 - **Do Not Track**: Automatically respects user's Do Not Track preferences
@@ -193,14 +268,14 @@ The library automatically tracks Core Web Vitals when enabled:
 Full TypeScript definitions are included:
 
 ```typescript
-import type { TinybirdAnalyticsConfig } from 'tinybird-analytics'
+import type { TinybirdAnalyticsConfig } from "tinybird-analytics";
 
 const config: TinybirdAnalyticsConfig = {
-  token: 'your-token',
-  host: 'https://api.tinybird.co',
-  domain: 'example.com',
-  tenantId: 'your-tenant'
-}
+  token: "your-token",
+  host: "https://api.tinybird.co",
+  domain: "example.com",
+  tenantId: "your-tenant",
+};
 ```
 
 ## Contributing
