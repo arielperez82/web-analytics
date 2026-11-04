@@ -233,7 +233,7 @@ const tinybirdAnalytics = (
     proxyUrl: null,
     domain: null,
     datasource: 'analytics_events',
-    storage: 'localStorage' as StorageMethod,
+    storage: 'localStorage',
     storageFallbacks: ['sessionStorage', 'cookie'] as StorageMethod[],
     enableMemoryFallback: true,
     stringifyPayload: true,
@@ -245,6 +245,24 @@ const tinybirdAnalytics = (
   const storageManager = createStorageManager(configWithDefaults);
   const sessionManager = createSessionManager(storageManager);
   const attributionManager = createAttributionManager(storageManager);
+
+  const trimTrailingSlashes = (value: string): string =>
+    value.endsWith('/') ? trimTrailingSlashes(value.slice(0, -1)) : value;
+
+  const resolveUrl = (): string => {
+    const config = configWithDefaults;
+    if (config.proxyUrl) return config.proxyUrl;
+    if (config.proxy) return `${config.proxy}/api/tracking`;
+    const base = config.host
+      ? trimTrailingSlashes(config.host)
+      : 'https://api.tinybird.co';
+    return `${base}/v0/events?name=${config.datasource}&token=${config.token}`;
+  };
+
+  const parseEvent = (json: string): TinybirdEvent => {
+    const parsed: unknown = JSON.parse(json);
+    return parsed as TinybirdEvent;
+  };
 
   const sendEvent = (eventName: string, event: TinybirdEvent): void => {
     const config = configWithDefaults;
@@ -259,18 +277,7 @@ const tinybirdAnalytics = (
       return;
     }
 
-    // Determine URL
-    let url: string;
-    if (config.proxyUrl) {
-      url = config.proxyUrl;
-    } else if (config.proxy) {
-      url = `${config.proxy}/api/tracking`;
-    } else if (config.host) {
-      const cleanHost = config.host.replace(/\/+$/gm, '');
-      url = `${cleanHost}/v0/events?name=${config.datasource}&token=${config.token}`;
-    } else {
-      url = `https://api.tinybird.co/v0/events?name=${config.datasource}&token=${config.token}`;
-    }
+    const url = resolveUrl();
 
     // Process payload
     let processedPayload: TinybirdEvent | string;
@@ -278,7 +285,7 @@ const tinybirdAnalytics = (
       processedPayload = _maskSuspiciousAttributes(event);
       processedPayload = Object.assign(
         {},
-        JSON.parse(processedPayload),
+        parseEvent(processedPayload),
         config.globalAttributes,
         { storage: config.storage }
       );
@@ -297,7 +304,7 @@ const tinybirdAnalytics = (
         return;
       }
 
-      processedPayload = JSON.parse(maskedStr);
+      processedPayload = parseEvent(maskedStr);
     }
 
     const sessionId = sessionManager.getSessionId() || crypto.randomUUID();

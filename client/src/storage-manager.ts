@@ -55,7 +55,7 @@ class LocalStorageStore implements Store {
 
   isAvailable(): boolean {
     try {
-      return 'localStorage' in window && localStorage !== null
+      return 'localStorage' in window
     } catch {
       return false
     }
@@ -91,7 +91,7 @@ class SessionStorageStore implements Store {
 
   isAvailable(): boolean {
     try {
-      return 'sessionStorage' in window && sessionStorage !== null
+      return 'sessionStorage' in window
     } catch {
       return false
     }
@@ -209,7 +209,7 @@ export function createStorageManager(
   ])
 
   const availableStores = methods
-    .map((method) => ({ method, store: stores.get(method as StorageMethod) }))
+    .map((method) => ({ method, store: stores.get(method) }))
     .filter(({ store }) => store?.isAvailable())
     .map(({ store }) => store!)
 

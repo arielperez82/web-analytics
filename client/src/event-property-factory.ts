@@ -1,5 +1,3 @@
-export type LinkType = string | 'email' | 'media' | 'social' | 'web'
-
 export interface LinkClickProperties {
   link_url: string
   link_text: string
@@ -7,7 +5,7 @@ export interface LinkClickProperties {
   link_path: string
   link_params: string
   link_hash: string
-  link_type: LinkType
+  link_type: string
   is_external: boolean
 }
 
@@ -39,7 +37,7 @@ const getPlatformFromHostname = (hostname: string) => {
 
 const linkClickPropertyGenerator = (
   link: HTMLAnchorElement,
-  linkType: LinkType = 'web'
+  linkType = 'web'
 ): LinkClickProperties => {
   const url = new URL(link.href, window.location.origin)
   const mappedSearchParams = new URLSearchParams()
@@ -60,7 +58,7 @@ const linkClickPropertyGenerator = (
 }
 
 class EventPropertyFactory {
-  private generators = new Map<LinkType, PropertyGenerator>([
+  private generators = new Map<string, PropertyGenerator>([
     ['web', (link: HTMLAnchorElement) => linkClickPropertyGenerator(link, 'web')],
     [
       'email',
@@ -99,7 +97,7 @@ class EventPropertyFactory {
     ]
   ])
 
-  createGenerator(linkType: LinkType): PropertyGenerator {
+  createGenerator(linkType: string): PropertyGenerator {
     return this.generators.get(linkType) || ((link: HTMLAnchorElement) => linkClickPropertyGenerator(link, linkType))
   }
 
