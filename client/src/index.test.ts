@@ -33,7 +33,7 @@ describe('initTinybirdAnalytics', () => {
     beforeEach(() => {
       server.use(
         http.post('http://test.com/v0/events', async ({ request }) => {
-          capturedBody = await request.clone().json() // save the body for assertion
+          capturedBody = (await request.clone().json()) as TinybirdEvent // test-owned endpoint: body shape is asserted below
           parsedBody = {
             ...capturedBody,
             parsedPayload: JSON.parse(capturedBody?.['payload'] as string)
