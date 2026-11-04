@@ -1,47 +1,52 @@
-// eslint.config.js
 import js from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
+import vitest from "@vitest/eslint-plugin";
+import { defineConfig } from "eslint/config";
 import prettier from "eslint-config-prettier/flat";
+import security from "eslint-plugin-security";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+import { configs as sonarConfigs } from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
-export default [
+export default defineConfig(
+  { ignores: ["dist/**", "node_modules/**"] },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
+  tseslint.configs.recommended,
   {
-    ignores: ["dist/**", "node_modules/**"],
-  },
-  {
-    // Simple import/export sorting
     plugins: { "simple-import-sort": simpleImportSort },
     rules: {
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",
     },
   },
-  // Type-aware rules only for TS/TSX in src/ folder
   {
     files: ["src/**/*.ts"],
+    extends: [tseslint.configs.recommendedTypeChecked],
     languageOptions: {
-      parser: tsParser,
       parserOptions: {
         project: "./tsconfig.json",
       },
     },
     rules: {
-      ...tseslint.configs.recommendedTypeChecked.rules,
       "@typescript-eslint/triple-slash-reference": "off",
       "@typescript-eslint/sort-type-constituents": "error",
     },
   },
-  // Import resolver for TypeScript path aliases
   {
-    settings: {
-      "import/resolver": {
-        typescript: {},
-      },
+    ...security.configs.recommended,
+    rules: {
+      ...security.configs.recommended.rules,
+      "security/detect-object-injection": "off",
     },
   },
-  // Prettier
+  sonarConfigs.recommended,
+  {
+    files: ["src/**/*.test.ts", "src/__tests__/**/*.ts"],
+    plugins: { vitest },
+    rules: {
+      ...vitest.configs.recommended.rules,
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "sonarjs/no-clear-text-protocols": "off",
+    },
+  },
   prettier,
-];
+);
