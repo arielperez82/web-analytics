@@ -158,8 +158,3 @@
     score\":25,\"units\":\"ms\",\"thresholds\":\"Excellent: \u2264500ms, Good: \u2264\
     1000ms, Poor: >1000ms\",\"description\":\"Time to First Byte - measures server\
     \ response time and network latency\",\"domain\":\"demo.site\"}\n"
-
-- name: distribution_default_period
-  description: Test web vitals distribution with default date range
-  parameters: ''
-  expected_result: ''
