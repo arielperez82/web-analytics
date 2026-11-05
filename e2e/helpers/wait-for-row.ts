@@ -4,7 +4,7 @@ type WaitForRowOptions = {
 };
 
 const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+  new Promise(resolve => setTimeout(resolve, ms));
 
 export const waitForRow = async <T>(
   query: () => Promise<readonly T[]>,
@@ -15,7 +15,9 @@ export const waitForRow = async <T>(
     const data = await query();
     if (predicate(data)) return data;
     if (n >= maxAttempts) {
-      throw new Error(`waitForRow: predicate not satisfied after ${String(maxAttempts)} attempts`);
+      throw new Error(
+        `waitForRow: predicate not satisfied after ${String(maxAttempts)} attempts`
+      );
     }
     await sleep(delayMs);
     return attempt(n + 1);

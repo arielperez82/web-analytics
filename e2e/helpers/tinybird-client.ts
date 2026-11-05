@@ -12,7 +12,9 @@ const authHeaders = (env: TinybirdEnv): Record<string, string> => ({
 
 const assertOk = async (response: Response, action: string): Promise<void> => {
   if (response.ok) return;
-  throw new Error(`${action} failed with ${String(response.status)}: ${await response.text()}`);
+  throw new Error(
+    `${action} failed with ${String(response.status)}: ${await response.text()}`
+  );
 };
 
 export const ingestEvents = async (
@@ -20,11 +22,14 @@ export const ingestEvents = async (
   rows: readonly object[],
   fetchImpl: FetchLike = fetch
 ): Promise<void> => {
-  const response = await fetchImpl(`${env.host}/v0/events?name=${DATASOURCE}&wait=true`, {
-    method: 'POST',
-    headers: authHeaders(env),
-    body: rows.map((row) => JSON.stringify(row)).join('\n'),
-  });
+  const response = await fetchImpl(
+    `${env.host}/v0/events?name=${DATASOURCE}&wait=true`,
+    {
+      method: 'POST',
+      headers: authHeaders(env),
+      body: rows.map(row => JSON.stringify(row)).join('\n'),
+    }
+  );
   await assertOk(response, 'ingest');
 };
 
@@ -35,11 +40,17 @@ export const queryPipe = async <T>(
   fetchImpl: FetchLike = fetch
 ): Promise<{ readonly data: readonly T[] }> => {
   const query = new URLSearchParams(
-    Object.entries(params).map(([key, value]) => [key, String(value)])
+    Object.entries(params).map(([key, value]): [string, string] => [
+      key,
+      String(value),
+    ])
   );
-  const response = await fetchImpl(`${env.host}/v0/pipes/${pipe}.json?${query.toString()}`, {
-    headers: authHeaders(env),
-  });
+  const response = await fetchImpl(
+    `${env.host}/v0/pipes/${pipe}.json?${query.toString()}`,
+    {
+      headers: authHeaders(env),
+    }
+  );
   await assertOk(response, `query ${pipe}`);
   return (await response.json()) as { readonly data: readonly T[] };
 };

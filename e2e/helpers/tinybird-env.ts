@@ -31,7 +31,9 @@ const parseApi = (raw: string): string => {
 };
 
 const parseAdminToken = (raw: string): string => {
-  const match = new RegExp(`name: ${ADMIN_TOKEN_NAME}\\s*\\ntoken: (\\S+)`).exec(raw);
+  const match = new RegExp(
+    `name: ${ADMIN_TOKEN_NAME}\\s*\\ntoken: (\\S+)`
+  ).exec(raw);
   if (!match?.[1]) throw new Error(`tb token ls listed no ${ADMIN_TOKEN_NAME}`);
   return match[1];
 };
@@ -41,7 +43,8 @@ export const resolveTinybirdEnv = ({
   readLocalInfo = () => runTb(['--output', 'json', 'info']),
   readTokens = () => runTb(['token', 'ls']),
 }: ResolveOptions = {}): TinybirdEnv => {
-  if (env.TB_HOST && env.TB_TOKEN) return { host: env.TB_HOST, token: env.TB_TOKEN };
+  if (env.TB_HOST && env.TB_TOKEN)
+    return { host: env.TB_HOST, token: env.TB_TOKEN };
   return {
     host: env.TB_HOST ?? parseApi(readLocalInfo()),
     token: env.TB_TOKEN ?? parseAdminToken(readTokens()),

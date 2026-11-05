@@ -1,7 +1,7 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { createWebVitalEvent, uniqueId } from './helpers/factories';
 import { ingestEvents, queryPipe } from './helpers/tinybird-client';
+import { createWebVitalEvent, uniqueId } from './helpers/factories';
 import { waitForRow } from './helpers/wait-for-row';
 
 type RouteRow = {
@@ -67,16 +67,31 @@ describe('web_vitals_routes pipe', () => {
             ...params,
           })
         ).data,
-      (data) => data.length >= expectedRows
+      data => data.length >= expectedRows
     );
 
   describe('route analysis', () => {
     it('scores each route by its first path segment and sorts by overall score', async () => {
       const scope = newScope();
       await ingestEvents(env, [
-        ...lcpEvents({ ...scope, pathname: '/fast/a', value: EXCELLENT_LCP, count: 2 }),
-        ...lcpEvents({ ...scope, pathname: '/fast/b', value: EXCELLENT_LCP, count: 1 }),
-        ...lcpEvents({ ...scope, pathname: '/slow', value: POOR_LCP, count: MEASUREMENTS_REQUIRED }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/fast/a',
+          value: EXCELLENT_LCP,
+          count: 2,
+        }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/fast/b',
+          value: EXCELLENT_LCP,
+          count: 1,
+        }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/slow',
+          value: POOR_LCP,
+          count: MEASUREMENTS_REQUIRED,
+        }),
       ]);
 
       const ascending = await queryRoutes<RouteRow>(
@@ -90,8 +105,8 @@ describe('web_vitals_routes pipe', () => {
         2
       );
 
-      expect(ascending.map((row) => row.route)).toEqual(['slow', 'fast']);
-      expect(descending.map((row) => row.route)).toEqual(['fast', 'slow']);
+      expect(ascending.map(row => row.route)).toEqual(['slow', 'fast']);
+      expect(descending.map(row => row.route)).toEqual(['fast', 'slow']);
       expect(ascending[0]).toMatchObject({
         route: 'slow',
         overall_score: 25,
@@ -111,13 +126,27 @@ describe('web_vitals_routes pipe', () => {
     it('ignores routes with fewer than three measurements per metric', async () => {
       const scope = newScope();
       await ingestEvents(env, [
-        ...lcpEvents({ ...scope, pathname: '/steady', value: GOOD_LCP, count: MEASUREMENTS_REQUIRED }),
-        ...lcpEvents({ ...scope, pathname: '/rare', value: GOOD_LCP, count: MEASUREMENTS_REQUIRED - 1 }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/steady',
+          value: GOOD_LCP,
+          count: MEASUREMENTS_REQUIRED,
+        }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/rare',
+          value: GOOD_LCP,
+          count: MEASUREMENTS_REQUIRED - 1,
+        }),
       ]);
 
-      const rows = await queryRoutes<RouteRow>(scope, { analysis_type: 'routes' }, 1);
+      const rows = await queryRoutes<RouteRow>(
+        scope,
+        { analysis_type: 'routes' },
+        1
+      );
 
-      expect(rows.map((row) => row.route)).toEqual(['steady']);
+      expect(rows.map(row => row.route)).toEqual(['steady']);
       expect(rows[0]?.overall_score).toBe(75);
     });
   });
@@ -126,9 +155,24 @@ describe('web_vitals_routes pipe', () => {
     it('lists full pathnames of a route and honors limit', async () => {
       const scope = newScope();
       await ingestEvents(env, [
-        ...lcpEvents({ ...scope, pathname: '/shop/a', value: EXCELLENT_LCP, count: MEASUREMENTS_REQUIRED }),
-        ...lcpEvents({ ...scope, pathname: '/shop/b', value: GOOD_LCP, count: MEASUREMENTS_REQUIRED }),
-        ...lcpEvents({ ...scope, pathname: '/blog/x', value: POOR_LCP, count: MEASUREMENTS_REQUIRED }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/shop/a',
+          value: EXCELLENT_LCP,
+          count: MEASUREMENTS_REQUIRED,
+        }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/shop/b',
+          value: GOOD_LCP,
+          count: MEASUREMENTS_REQUIRED,
+        }),
+        ...lcpEvents({
+          ...scope,
+          pathname: '/blog/x',
+          value: POOR_LCP,
+          count: MEASUREMENTS_REQUIRED,
+        }),
       ]);
 
       const all = await queryRoutes<PathnameRow>(
@@ -138,18 +182,23 @@ describe('web_vitals_routes pipe', () => {
       );
       const limited = await queryRoutes<PathnameRow>(
         scope,
-        { analysis_type: 'pathnames', route: 'shop', sort_order: 'desc', limit: 1 },
+        {
+          analysis_type: 'pathnames',
+          route: 'shop',
+          sort_order: 'desc',
+          limit: 1,
+        },
         1
       );
 
-      expect(all.map((row) => row.pathname)).toEqual(['/shop/a', '/shop/b']);
+      expect(all.map(row => row.pathname)).toEqual(['/shop/a', '/shop/b']);
       expect(all[0]).toMatchObject({
         full_pathname: '/shop/a',
         route_part: 'shop',
         overall_score: 100,
         analysis_type: 'pathnames',
       });
-      expect(limited.map((row) => row.pathname)).toEqual(['/shop/a']);
+      expect(limited.map(row => row.pathname)).toEqual(['/shop/a']);
     });
   });
 });

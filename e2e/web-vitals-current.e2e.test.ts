@@ -1,7 +1,7 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { createWebVitalEvent, uniqueId } from './helpers/factories';
 import { ingestEvents, queryPipe } from './helpers/tinybird-client';
+import { createWebVitalEvent, uniqueId } from './helpers/factories';
 import { waitForRow } from './helpers/wait-for-row';
 
 type CurrentVitalRow = {
@@ -21,7 +21,13 @@ describe('web_vitals_current pipe', () => {
     const tenantId = uniqueId('tenant');
     const domain = `${uniqueId('site')}.example.com`;
     const lcp = (value: number) =>
-      createWebVitalEvent({ tenantId, domain, name: 'LCP', value, pathname: '/home' });
+      createWebVitalEvent({
+        tenantId,
+        domain,
+        name: 'LCP',
+        value,
+        pathname: '/home',
+      });
 
     await ingestEvents(env, [lcp(1000), lcp(2000), lcp(3000)]);
 
@@ -34,7 +40,7 @@ describe('web_vitals_current pipe', () => {
             domain,
           })
         ).data,
-      (data) => data.length > 0 && data.every((row) => row.measurements === 3)
+      data => data.length > 0 && data.every(row => row.measurements === 3)
     );
 
     expect(rows).toEqual([

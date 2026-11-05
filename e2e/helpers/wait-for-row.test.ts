@@ -16,7 +16,9 @@ describe('waitForRow', () => {
   it('returns immediately when the predicate holds on the first query', async () => {
     const { query, callCount } = sequence([[1]]);
 
-    const rows = await waitForRow(query, (data) => data.length > 0, { delayMs: 1 });
+    const rows = await waitForRow(query, data => data.length > 0, {
+      delayMs: 1,
+    });
 
     expect(rows).toEqual([1]);
     expect(callCount()).toBe(1);
@@ -25,7 +27,9 @@ describe('waitForRow', () => {
   it('polls until the predicate holds', async () => {
     const { query, callCount } = sequence([[], [], [1, 2]]);
 
-    const rows = await waitForRow(query, (data) => data.length === 2, { delayMs: 1 });
+    const rows = await waitForRow(query, data => data.length === 2, {
+      delayMs: 1,
+    });
 
     expect(rows).toEqual([1, 2]);
     expect(callCount()).toBe(3);
@@ -35,7 +39,7 @@ describe('waitForRow', () => {
     const { query, callCount } = sequence([[]]);
 
     await expect(
-      waitForRow(query, (data) => data.length > 0, { delayMs: 1, maxAttempts: 3 })
+      waitForRow(query, data => data.length > 0, { delayMs: 1, maxAttempts: 3 })
     ).rejects.toThrow(/after 3 attempts/);
     expect(callCount()).toBe(3);
   });

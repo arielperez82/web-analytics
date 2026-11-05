@@ -20,7 +20,8 @@ const failingReader = (): string => {
   throw new Error('must not be read');
 };
 
-const localInfo = () => infoJson({ api: 'http://localhost:7181', token: 'p.build-ws' });
+const localInfo = () =>
+  infoJson({ api: 'http://localhost:7181', token: 'p.build-ws' });
 const localTokens = () =>
   tokensText([
     ['tracker', 'p.tracker'],
@@ -35,7 +36,10 @@ describe('resolveTinybirdEnv', () => {
       readTokens: failingReader,
     });
 
-    expect(env).toEqual({ host: 'http://tb.example:1234', token: 'p.explicit' });
+    expect(env).toEqual({
+      host: 'http://tb.example:1234',
+      token: 'p.explicit',
+    });
   });
 
   it('takes the api from tb info and the branch workspace admin token from tb token ls', () => {
@@ -45,7 +49,10 @@ describe('resolveTinybirdEnv', () => {
       readTokens: localTokens,
     });
 
-    expect(env).toEqual({ host: 'http://localhost:7181', token: 'p.branch-admin' });
+    expect(env).toEqual({
+      host: 'http://localhost:7181',
+      token: 'p.branch-admin',
+    });
   });
 
   it('lets TB_HOST override the api reported by tb info', () => {
@@ -55,7 +62,10 @@ describe('resolveTinybirdEnv', () => {
       readTokens: localTokens,
     });
 
-    expect(env).toEqual({ host: 'http://localhost:7999', token: 'p.branch-admin' });
+    expect(env).toEqual({
+      host: 'http://localhost:7999',
+      token: 'p.branch-admin',
+    });
   });
 
   it('fails when no workspace admin token is listed', () => {

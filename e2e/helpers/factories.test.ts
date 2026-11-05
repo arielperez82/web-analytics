@@ -6,14 +6,16 @@ describe('uniqueId', () => {
   it('prefixes the id and never repeats', () => {
     const ids = Array.from({ length: 50 }, () => uniqueId('tenant'));
 
-    expect(ids.every((id) => id.startsWith('tenant-'))).toBe(true);
+    expect(ids.every(id => id.startsWith('tenant-'))).toBe(true);
     expect(new Set(ids).size).toBe(50);
   });
 });
 
 describe('formatTimestamp', () => {
   it('renders a UTC DateTime string Tinybird accepts', () => {
-    expect(formatTimestamp(new Date('2026-11-05T08:57:08.676Z'))).toBe('2026-11-05 08:57:08');
+    expect(formatTimestamp(new Date('2026-11-05T08:57:08.676Z'))).toBe(
+      '2026-11-05 08:57:08'
+    );
   });
 });
 

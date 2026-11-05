@@ -17,7 +17,9 @@ const env = { host: 'http://tb.example:7181', token: 'p.token' };
 
 describe('ingestEvents', () => {
   it('posts newline-delimited JSON to the analytics_events datasource and waits for ingestion', async () => {
-    const { fetchImpl, requests } = recordingFetch(new Response('{}', { status: 200 }));
+    const { fetchImpl, requests } = recordingFetch(
+      new Response('{}', { status: 200 })
+    );
 
     await ingestEvents(env, [{ a: 1 }, { a: 2 }], fetchImpl);
 
@@ -26,14 +28,20 @@ describe('ingestEvents', () => {
       'http://tb.example:7181/v0/events?name=analytics_events&wait=true'
     );
     expect(requests[0]?.init?.method).toBe('POST');
-    expect(requests[0]?.init?.headers).toEqual({ Authorization: 'Bearer p.token' });
+    expect(requests[0]?.init?.headers).toEqual({
+      Authorization: 'Bearer p.token',
+    });
     expect(requests[0]?.init?.body).toBe('{"a":1}\n{"a":2}');
   });
 
   it('reports the response body when ingestion fails', async () => {
-    const { fetchImpl } = recordingFetch(new Response('bad schema', { status: 400 }));
+    const { fetchImpl } = recordingFetch(
+      new Response('bad schema', { status: 400 })
+    );
 
-    await expect(ingestEvents(env, [{ a: 1 }], fetchImpl)).rejects.toThrow(/400.*bad schema/);
+    await expect(ingestEvents(env, [{ a: 1 }], fetchImpl)).rejects.toThrow(
+      /400.*bad schema/
+    );
   });
 });
 
@@ -54,12 +62,18 @@ describe('queryPipe', () => {
     expect(requests[0]?.url).toBe(
       'http://tb.example:7181/v0/pipes/web_vitals_current.json?days=1&domain=a.example.com'
     );
-    expect(requests[0]?.init?.headers).toEqual({ Authorization: 'Bearer p.token' });
+    expect(requests[0]?.init?.headers).toEqual({
+      Authorization: 'Bearer p.token',
+    });
   });
 
   it('reports the response body when the query fails', async () => {
-    const { fetchImpl } = recordingFetch(new Response('no such pipe', { status: 404 }));
+    const { fetchImpl } = recordingFetch(
+      new Response('no such pipe', { status: 404 })
+    );
 
-    await expect(queryPipe(env, 'missing', {}, fetchImpl)).rejects.toThrow(/404.*no such pipe/);
+    await expect(queryPipe(env, 'missing', {}, fetchImpl)).rejects.toThrow(
+      /404.*no such pipe/
+    );
   });
 });
