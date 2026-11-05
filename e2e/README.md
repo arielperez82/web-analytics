@@ -13,6 +13,15 @@ ingests its own events with timestamps relative to now, under a unique
 
 ## Run
 
+One command that starts Tinybird Local if needed, runs the suite, and stops
+it again (an instance that was already running is left running):
+
+```bash
+pnpm test:e2e:local
+```
+
+Or, with Tinybird Local already running:
+
 ```bash
 pnpm test:e2e
 ```
