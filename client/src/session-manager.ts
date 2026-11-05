@@ -31,7 +31,7 @@ function isSessionExpired(sessionData: SessionItem): boolean {
  */
 function parseSessionData(data: string): SessionItem | null {
   try {
-    const parsed = JSON.parse(data)
+    const parsed: unknown = JSON.parse(data)
     if (
       parsed &&
       typeof parsed === 'object' &&

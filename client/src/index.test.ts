@@ -57,7 +57,7 @@ describe('initTinybirdAnalytics', () => {
 
     it('sends expected fields with track call', async () => {
      // Call track method
-      analytics?.track('button_clicked', { button: 'signup' });
+      void analytics?.track('button_clicked', { button: 'signup' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -69,7 +69,7 @@ describe('initTinybirdAnalytics', () => {
 
     it('sends expected fields with identify call', async () => {
       // Call identify method
-      analytics?.identify('user123', { name: 'John Doe' });
+      void analytics?.identify('user123', { name: 'John Doe' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -81,7 +81,7 @@ describe('initTinybirdAnalytics', () => {
 
     it('sends expected fields with page call', async () => {
       // Call page method
-      analytics?.page({ title: 'Home Page' });
+      void analytics?.page({ title: 'Home Page' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -92,7 +92,7 @@ describe('initTinybirdAnalytics', () => {
     });
 
     it('merges global attributes into every event', async () => {
-      analytics?.track('some_event');
+      void analytics?.track('some_event');
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -104,7 +104,7 @@ describe('initTinybirdAnalytics', () => {
 
     it('includes common properties in every event', async () => {
       // Call track method
-      analytics?.track('test_event', { custom: 'data' });
+      void analytics?.track('test_event', { custom: 'data' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -125,7 +125,7 @@ describe('initTinybirdAnalytics', () => {
       vi.spyOn(window, 'location', 'get').mockReturnValue({ search: '?utm_source=s&utm_medium=m&utm_campaign=c&utm_term=t&utm_content=c' } as unknown as Location);
 
       // Call track method
-      analytics?.track('test_event', { custom: 'data' });
+      void analytics?.track('test_event', { custom: 'data' });
 
       await vi.waitFor(() => {
         expect(parsedBody).toMatchObject({
@@ -176,7 +176,7 @@ describe('initTinybirdAnalytics', () => {
       }
 
       expect(() => {
-        initTinybirdAnalytics(configWithoutToken as unknown as Parameters<typeof initTinybirdAnalytics>[0])
+        initTinybirdAnalytics(configWithoutToken)
       }).toThrow('Tinybird Analytics requires a token')
     })
 
@@ -187,7 +187,7 @@ describe('initTinybirdAnalytics', () => {
       }
 
       expect(() => {
-        initTinybirdAnalytics(configWithoutHost as unknown as Parameters<typeof initTinybirdAnalytics>[0])
+        initTinybirdAnalytics(configWithoutHost)
       }).toThrow('Tinybird Analytics requires a host')
     })
 
@@ -198,7 +198,7 @@ describe('initTinybirdAnalytics', () => {
       }
 
       expect(() => {
-        initTinybirdAnalytics(configWithoutDomain as unknown as Parameters<typeof initTinybirdAnalytics>[0])
+        initTinybirdAnalytics(configWithoutDomain)
       }).toThrow('Tinybird Analytics requires a domain')
     })
 

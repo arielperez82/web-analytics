@@ -1,5 +1,5 @@
 // src/scripts/analytics/click-tracker.ts
-import { eventPropertyFactory, type LinkType } from './event-property-factory'
+import { eventPropertyFactory } from './event-property-factory'
 
 const socialPlatforms = [
   'linkedin.com',
@@ -19,22 +19,17 @@ const mediaPlatforms = [
   'github.com'
 ]
 
-const inferLinkType = (url: string): LinkType => {
+const inferLinkType = (url: string): string => {
   const fullUrl = new URL(url)
-  const linkType =
-    fullUrl.protocol === 'mailto:'
-      ? 'email'
-      : socialPlatforms.some((p) => fullUrl.hostname.includes(p))
-        ? 'social'
-        : mediaPlatforms.some((p) => fullUrl.hostname.includes(p))
-          ? 'media'
-          : 'web'
-  return linkType
+  if (fullUrl.protocol === 'mailto:') return 'email'
+  if (socialPlatforms.some((p) => fullUrl.hostname.includes(p))) return 'social'
+  if (mediaPlatforms.some((p) => fullUrl.hostname.includes(p))) return 'media'
+  return 'web'
 }
 
 // Collect all tracking data attributes from the hierarchy
-const collectTrackingData = (element: HTMLElement): Record<string, unknown> => {
-  const trackingData: Record<string, unknown> = {}
+const collectTrackingData = (element: HTMLElement): Record<string, string | undefined> => {
+  const trackingData: Record<string, string | undefined> = {}
 
   // First, find the highest ancestor with data-track
   let topTrackElement: HTMLElement | null = null
@@ -130,7 +125,7 @@ export const createClickTracker = () => {
     })
 
     if (window.analytics) {
-      window.analytics.track(eventType, properties)
+      void window.analytics.track(eventType, properties)
     }
   }
 
