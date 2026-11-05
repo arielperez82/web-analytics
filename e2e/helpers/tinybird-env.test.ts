@@ -2,47 +2,79 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveTinybirdEnv } from './tinybird-env';
 
-type FetchLike = (url: string) => Promise<Response>;
+const infoJson = (local: Readonly<Record<string, string>>): string =>
+  JSON.stringify({ cloud: {}, local });
 
-const jsonResponse = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body), { status });
+const tokensText = (entries: readonly (readonly [string, string])[]): string =>
+  [
+    '** Tokens:',
+    ...entries.flatMap(([name, token]) => [
+      '-'.repeat(20),
+      `id: ${name}-id`,
+      `name: ${name}`,
+      `token: ${token}`,
+    ]),
+  ].join('\n');
 
-const failingFetch: FetchLike = () => Promise.reject(new Error('fetch must not be called'));
+const failingReader = (): string => {
+  throw new Error('must not be read');
+};
+
+const localInfo = () => infoJson({ api: 'http://localhost:7181', token: 'p.build-ws' });
+const localTokens = () =>
+  tokensText([
+    ['tracker', 'p.tracker'],
+    ['workspace admin token', 'p.branch-admin'],
+  ]);
 
 describe('resolveTinybirdEnv', () => {
-  it('uses TB_HOST and TB_TOKEN from the environment without calling Tinybird', async () => {
-    const env = await resolveTinybirdEnv({
+  it('uses TB_HOST and TB_TOKEN from the environment without reading the CLI', () => {
+    const env = resolveTinybirdEnv({
       env: { TB_HOST: 'http://tb.example:1234', TB_TOKEN: 'p.explicit' },
-      fetchImpl: failingFetch,
+      readLocalInfo: failingReader,
+      readTokens: failingReader,
     });
 
     expect(env).toEqual({ host: 'http://tb.example:1234', token: 'p.explicit' });
   });
 
-  it('fetches the workspace admin token from Tinybird Local when TB_TOKEN is unset', async () => {
-    const requested: string[] = [];
-    const fetchImpl: FetchLike = (url) => {
-      requested.push(url);
-      return Promise.resolve(jsonResponse({ workspace_admin_token: 'p.local-admin' }));
-    };
+  it('takes the api from tb info and the branch workspace admin token from tb token ls', () => {
+    const env = resolveTinybirdEnv({
+      env: {},
+      readLocalInfo: localInfo,
+      readTokens: localTokens,
+    });
 
-    const env = await resolveTinybirdEnv({ env: {}, fetchImpl });
-
-    expect(env).toEqual({ host: 'http://localhost:7181', token: 'p.local-admin' });
-    expect(requested).toEqual(['http://localhost:7181/tokens']);
+    expect(env).toEqual({ host: 'http://localhost:7181', token: 'p.branch-admin' });
   });
 
-  it('fails when Tinybird Local answers with an error status', async () => {
-    const fetchImpl: FetchLike = () => Promise.resolve(jsonResponse({}, 503));
+  it('lets TB_HOST override the api reported by tb info', () => {
+    const env = resolveTinybirdEnv({
+      env: { TB_HOST: 'http://localhost:7999' },
+      readLocalInfo: localInfo,
+      readTokens: localTokens,
+    });
 
-    await expect(resolveTinybirdEnv({ env: {}, fetchImpl })).rejects.toThrow(/503/);
+    expect(env).toEqual({ host: 'http://localhost:7999', token: 'p.branch-admin' });
   });
 
-  it('fails when the response carries no workspace admin token', async () => {
-    const fetchImpl: FetchLike = () => Promise.resolve(jsonResponse({}));
+  it('fails when no workspace admin token is listed', () => {
+    expect(() =>
+      resolveTinybirdEnv({
+        env: {},
+        readLocalInfo: localInfo,
+        readTokens: () => tokensText([['tracker', 'p.tracker']]),
+      })
+    ).toThrow(/workspace admin token/);
+  });
 
-    await expect(resolveTinybirdEnv({ env: {}, fetchImpl })).rejects.toThrow(
-      /workspace_admin_token/
-    );
+  it('fails when tb info reports no local api', () => {
+    expect(() =>
+      resolveTinybirdEnv({
+        env: {},
+        readLocalInfo: () => infoJson({ token: 'p.build-ws' }),
+        readTokens: localTokens,
+      })
+    ).toThrow(/local api/);
   });
 });

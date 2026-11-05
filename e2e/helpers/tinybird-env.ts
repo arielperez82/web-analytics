@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
 export type TinybirdEnv = {
   readonly host: string;
   readonly token: string;
@@ -5,31 +8,42 @@ export type TinybirdEnv = {
 
 type ResolveOptions = {
   readonly env?: Readonly<Record<string, string | undefined>>;
-  readonly fetchImpl?: (url: string) => Promise<Response>;
+  readonly readLocalInfo?: () => string;
+  readonly readTokens?: () => string;
 };
 
-type TokensResponse = { readonly workspace_admin_token?: string };
+type LocalInfo = { readonly local?: { readonly api?: string } };
 
-const DEFAULT_LOCAL_HOST = 'http://localhost:7181';
+const TINYBIRD_DIR = resolve(import.meta.dirname, '../../tinybird');
+const ADMIN_TOKEN_NAME = 'workspace admin token';
 
-const fetchLocalAdminToken = async (
-  host: string,
-  fetchImpl: (url: string) => Promise<Response>
-): Promise<string> => {
-  const response = await fetchImpl(`${host}/tokens`);
-  if (!response.ok) {
-    throw new Error(`Tinybird Local /tokens responded ${String(response.status)}`);
-  }
-  const { workspace_admin_token: token } = (await response.json()) as TokensResponse;
-  if (!token) throw new Error('Tinybird Local /tokens returned no workspace_admin_token');
-  return token;
+const runTb = (args: readonly string[]): string =>
+  execFileSync('tb', [...args], {
+    cwd: TINYBIRD_DIR,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+
+const parseApi = (raw: string): string => {
+  const { local } = JSON.parse(raw) as LocalInfo;
+  if (!local?.api) throw new Error('tb info reported no local api');
+  return local.api;
 };
 
-export const resolveTinybirdEnv = async ({
+const parseAdminToken = (raw: string): string => {
+  const match = new RegExp(`name: ${ADMIN_TOKEN_NAME}\\s*\\ntoken: (\\S+)`).exec(raw);
+  if (!match?.[1]) throw new Error(`tb token ls listed no ${ADMIN_TOKEN_NAME}`);
+  return match[1];
+};
+
+export const resolveTinybirdEnv = ({
   env = process.env,
-  fetchImpl = fetch,
-}: ResolveOptions = {}): Promise<TinybirdEnv> => {
-  const host = env.TB_HOST ?? DEFAULT_LOCAL_HOST;
-  const token = env.TB_TOKEN ?? (await fetchLocalAdminToken(host, fetchImpl));
-  return { host, token };
+  readLocalInfo = () => runTb(['--output', 'json', 'info']),
+  readTokens = () => runTb(['token', 'ls']),
+}: ResolveOptions = {}): TinybirdEnv => {
+  if (env.TB_HOST && env.TB_TOKEN) return { host: env.TB_HOST, token: env.TB_TOKEN };
+  return {
+    host: env.TB_HOST ?? parseApi(readLocalInfo()),
+    token: env.TB_TOKEN ?? parseAdminToken(readTokens()),
+  };
 };
