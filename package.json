@@ -17,6 +17,7 @@
     "lint:code:fix": "pnpm --filter tinybird-analytics lint:code:fix",
     "test:tinybird": "cd tinybird && tb test run",
     "test:client": "pnpm --filter tinybird-analytics test",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test": "pnpm run test:client && pnpm run test:tinybird",
     "build:tinybird": "cd tinybird && tb build"
   },
@@ -27,6 +28,8 @@
     "lint-staged": "^17.6.0",
     "markdownlint-cli": "^0.50.0",
     "prettier": "^3.9.10",
-    "tsx": "4.23.15"
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "^5.1.0"
   }
 }
