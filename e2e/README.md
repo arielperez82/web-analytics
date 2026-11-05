@@ -44,4 +44,6 @@ there.
 ## Not in the default `pnpm test`
 
 E2E needs a running container and is slower than the unit tests, so it is a
-separate command.
+separate command. It does not run in pre-commit; run `pnpm test:e2e` manually
+when changing pipes. CI runs it on every pull request and push to `main`
+(`.github/workflows/e2e.yml`).

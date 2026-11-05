@@ -13,8 +13,7 @@ export default {
       "pnpm run lint:code:e2e:fix"
     ],
     "tinybird/**/*.{pipe,datasource,njjson,json,sql,yaml}":  () => [
-      "pnpm run test:tinybird",
-      "pnpm run test:e2e"
+      "pnpm run test:tinybird"
     ],
     "tinybird/**/*.{pipe,datasource}": () => [
       "pnpm run check:tinybird"
