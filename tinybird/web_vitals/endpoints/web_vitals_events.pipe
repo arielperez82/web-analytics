@@ -67,7 +67,7 @@ SQL >
         {% end %}
         AND JSONExtractString(payload, 'name') IN ('LCP', 'TTFB', 'FCP', 'INP', 'CLS')
         AND JSONExtractString(payload, 'pathname') != ''
-        -- Filter out unrealistic values that are clearly errors
+        -- Heuristic sanity caps (not from a published standard) to drop implausible values
         AND JSONExtractFloat(payload, 'value') > 0
         AND JSONExtractFloat(payload, 'value') < 60000  -- Max 60 seconds for any metric
         -- Additional metric-specific validation
