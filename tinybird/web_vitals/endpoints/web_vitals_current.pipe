@@ -6,7 +6,7 @@ TOKEN "dashboard" READ
 NODE daily_vitals
 DESCRIPTION >
     Get web vital metrics aggregated over the specified time period with averages and metadata.
-    Note: Unrealistic values (>60s for timing metrics, >1 for CLS) are filtered out as they indicate measurement errors.
+    Note: web_vitals_events drops values <= 0 and sanity-caps outliers before this node: LCP/TTFB/FCP >= 30s, INP >= 10s, CLS >= 1. These caps are heuristics, not taken from a published standard.
 
 SQL >
 
