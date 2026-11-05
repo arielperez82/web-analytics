@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { runTb } from './tb-cli';
 
 export type TinybirdEnv = {
   readonly host: string;
@@ -14,15 +13,7 @@ type ResolveOptions = {
 
 type LocalInfo = { readonly local?: { readonly api?: string } };
 
-const TINYBIRD_DIR = resolve(import.meta.dirname, '../../tinybird');
 const ADMIN_TOKEN_NAME = 'workspace admin token';
-
-const runTb = (args: readonly string[]): string =>
-  execFileSync('tb', [...args], {
-    cwd: TINYBIRD_DIR,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
 
 const parseApi = (raw: string): string => {
   const { local } = JSON.parse(raw) as LocalInfo;
