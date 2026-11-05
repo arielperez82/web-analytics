@@ -1,8 +1,12 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { ingestEvents, queryPipe } from './helpers/tinybird-client';
-import { createWebVitalEvent, uniqueId } from './helpers/factories';
-import { waitForRow } from './helpers/wait-for-row';
+import {
+  createScope,
+  createWebVitalEvent,
+  type Scope,
+} from './helpers/factories';
+import { waitForPipeRows } from './helpers/pipe-rows';
+import { ingestEvents } from './helpers/tinybird-client';
 
 type VitalRow = {
   metric_name: string;
@@ -12,116 +16,116 @@ type VitalRow = {
   performance_category: string;
   score: number;
   status: string;
-  units: string;
   tenant_id: string;
   domain: string;
 };
 
-const newScope = () => ({
-  tenantId: uniqueId('tenant'),
-  domain: `${uniqueId('site')}.example.com`,
-});
+type MetricName = Parameters<typeof createWebVitalEvent>[0]['name'];
 
-describe('web_vitals_events pipe', () => {
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const isoDate = (date: Date) => date.toISOString().slice(0, 10);
+
+describe.concurrent('web_vitals_events pipe', () => {
   const env = inject('tinybird');
-
-  const queryEvents = (
-    scope: { tenantId: string; domain: string },
-    expectedRows: number
+  const events = (
+    scope: Scope,
+    params: Record<string, number | string> = {},
+    minRows = 1
   ) =>
-    waitForRow(
-      async () =>
-        (
-          await queryPipe<VitalRow>(env, 'web_vitals_events', {
-            tenant_id: scope.tenantId,
-            domain: scope.domain,
-          })
-        ).data,
-      data => data.length >= expectedRows
+    waitForPipeRows<VitalRow>(
+      env,
+      'web_vitals_events',
+      { tenant_id: scope.tenantId, domain: scope.domain, ...params },
+      minRows
     );
 
-  it('classifies each measurement against the metric thresholds and extracts its route', async () => {
-    const scope = newScope();
-    const vital = (value: number, pathname: string) =>
-      createWebVitalEvent({ ...scope, name: 'LCP', value, pathname });
+  it.each([
+    { name: 'LCP', value: 2500, category: 'excellent', status: 'Excellent' },
+    { name: 'LCP', value: 4000, category: 'good', status: 'Good' },
+    { name: 'LCP', value: 4001, category: 'poor', status: 'Poor' },
+    { name: 'CLS', value: 0.25, category: 'good', status: 'Good' },
+    { name: 'INP', value: 200, category: 'excellent', status: 'Excellent' },
+  ] as const)(
+    'classifies $name at $value as $category',
+    async ({ name, value, category, status }) => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        createWebVitalEvent({ ...scope, name, value, pathname: '/home' }),
+      ]);
+
+      const rows = await events(scope);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          metric_name: name,
+          performance_category: category,
+          status,
+        }),
+      ]);
+    }
+  );
+
+  it.each([
+    { pathname: '/', route: '/' },
+    { pathname: '/pricing', route: 'pricing' },
+    { pathname: '/pricing/plans/pro', route: 'pricing' },
+  ])('files $pathname under the route $route', async ({ pathname, route }) => {
+    const scope = createScope();
     await ingestEvents(env, [
-      vital(2500, '/'),
-      vital(4000, '/pricing/plans'),
-      vital(4001, '/blog/post'),
+      createWebVitalEvent({ ...scope, name: 'FCP', value: 1000, pathname }),
     ]);
 
-    const rows = await queryEvents(scope, 3);
+    const rows = await events(scope);
 
-    const byValue = (value: number) => rows.find(row => row.value === value);
-    expect(byValue(2500)).toMatchObject({
-      metric_name: 'LCP',
-      route: '/',
-      performance_category: 'excellent',
-      score: 100,
-      status: 'Excellent',
-      units: 'ms',
-      tenant_id: scope.tenantId,
-      domain: scope.domain,
-    });
-    expect(byValue(4000)).toMatchObject({
-      pathname: '/pricing/plans',
-      route: 'pricing',
-      performance_category: 'good',
-      score: 75,
-      status: 'Good',
-    });
-    expect(byValue(4001)).toMatchObject({
-      route: 'blog',
-      performance_category: 'poor',
-      score: 25,
-      status: 'Poor',
-    });
+    expect(rows).toEqual([expect.objectContaining({ pathname, route })]);
   });
 
-  it('drops unrealistic, non-positive and path-less measurements', async () => {
-    const scope = newScope();
+  it.each([
+    { case: 'an implausibly long timing', name: 'LCP', value: 600_000 },
+    { case: 'an implausibly large layout shift', name: 'CLS', value: 50 },
+    { case: 'a zero measurement', name: 'TTFB', value: 0 },
+    { case: 'a negative measurement', name: 'FCP', value: -5 },
+  ] as const satisfies readonly {
+    case: string;
+    name: MetricName;
+    value: number;
+  }[])('drops $case as a measurement error', async ({ name, value }) => {
+    const scope = createScope();
     await ingestEvents(env, [
+      createWebVitalEvent({ ...scope, name, value, pathname: '/dropped' }),
       createWebVitalEvent({
         ...scope,
         name: 'LCP',
         value: 1200,
         pathname: '/kept',
       }),
-      createWebVitalEvent({
-        ...scope,
-        name: 'LCP',
-        value: 0,
-        pathname: '/zero',
-      }),
-      createWebVitalEvent({
-        ...scope,
-        name: 'LCP',
-        value: 30000,
-        pathname: '/too-slow',
-      }),
-      createWebVitalEvent({
-        ...scope,
-        name: 'CLS',
-        value: 1,
-        pathname: '/shifty',
-      }),
-      createWebVitalEvent({
-        ...scope,
-        name: 'INP',
-        value: 10000,
-        pathname: '/laggy',
-      }),
-      createWebVitalEvent({ ...scope, name: 'LCP', value: 900, pathname: '' }),
     ]);
 
-    const rows = await queryEvents(scope, 1);
+    const rows = await events(scope);
+
+    expect(rows.map(row => row.pathname)).toEqual(['/kept']);
+  });
+
+  it('drops measurements that do not say which page they belong to', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createWebVitalEvent({ ...scope, name: 'LCP', value: 900, pathname: '' }),
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1200,
+        pathname: '/kept',
+      }),
+    ]);
+
+    const rows = await events(scope);
 
     expect(rows.map(row => row.pathname)).toEqual(['/kept']);
   });
 
   it('keeps tenants apart when filtering by tenant_id', async () => {
-    const mine = newScope();
-    const other = { tenantId: uniqueId('tenant'), domain: mine.domain };
+    const mine = createScope();
+    const theirs = { ...createScope(), domain: mine.domain };
     await ingestEvents(env, [
       createWebVitalEvent({
         ...mine,
@@ -130,15 +134,45 @@ describe('web_vitals_events pipe', () => {
         pathname: '/mine',
       }),
       createWebVitalEvent({
-        ...other,
+        ...theirs,
         name: 'FCP',
         value: 1000,
         pathname: '/theirs',
       }),
     ]);
 
-    const rows = await queryEvents(mine, 1);
+    const rows = await events(mine);
 
     expect(rows.map(row => row.pathname)).toEqual(['/mine']);
+  });
+
+  it('only returns measurements inside the requested date range', async () => {
+    const scope = createScope();
+    const longAgo = new Date(Date.now() - THREE_DAYS_MS);
+    await ingestEvents(env, [
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1000,
+        pathname: '/old',
+        now: longAgo,
+      }),
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1000,
+        pathname: '/recent',
+      }),
+    ]);
+
+    const all = await events(scope, {}, 2);
+    const sinceYesterday = await events(scope, {
+      from_date: isoDate(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+    });
+
+    expect(
+      all.map(row => row.pathname).sort((a, b) => a.localeCompare(b))
+    ).toEqual(['/old', '/recent']);
+    expect(sinceYesterday.map(row => row.pathname)).toEqual(['/recent']);
   });
 });

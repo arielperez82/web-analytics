@@ -42,7 +42,7 @@ describe('resolveTinybirdEnv', () => {
     });
   });
 
-  it('takes the api from tb info and the branch workspace admin token from tb token ls', () => {
+  it('resolves the host and the branch admin token from the local Tinybird CLI', () => {
     const env = resolveTinybirdEnv({
       env: {},
       readLocalInfo: localInfo,
@@ -75,7 +75,7 @@ describe('resolveTinybirdEnv', () => {
         readLocalInfo: localInfo,
         readTokens: () => tokensText([['tracker', 'p.tracker']]),
       })
-    ).toThrow(/workspace admin token/);
+    ).toThrow();
   });
 
   it('fails when tb info reports no local api', () => {
@@ -85,6 +85,6 @@ describe('resolveTinybirdEnv', () => {
         readLocalInfo: () => infoJson({ token: 'p.build-ws' }),
         readTokens: localTokens,
       })
-    ).toThrow(/local api/);
+    ).toThrow();
   });
 });

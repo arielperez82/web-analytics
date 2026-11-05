@@ -43,3 +43,13 @@ export const createWebVitalEvent = ({
   tenant_id: tenantId,
   domain,
 });
+
+export type Scope = {
+  readonly tenantId: string;
+  readonly domain: string;
+};
+
+export const createScope = (): Scope => ({
+  tenantId: uniqueId('tenant'),
+  domain: `${uniqueId('site')}.example.com`,
+});

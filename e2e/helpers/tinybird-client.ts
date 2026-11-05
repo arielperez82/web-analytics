@@ -2,7 +2,7 @@ import type { TinybirdEnv } from './tinybird-env';
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-type PipeParams = Readonly<Record<string, string | number | boolean>>;
+export type PipeParams = Readonly<Record<string, boolean | number | string>>;
 
 const DATASOURCE = 'analytics_events';
 

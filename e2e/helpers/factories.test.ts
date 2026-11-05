@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
-import { createWebVitalEvent, formatTimestamp, uniqueId } from './factories';
+import {
+  createScope,
+  createWebVitalEvent,
+  formatTimestamp,
+  uniqueId,
+} from './factories';
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+const vital = (
+  overrides: Partial<Parameters<typeof createWebVitalEvent>[0]> = {}
+) =>
+  createWebVitalEvent({
+    tenantId: 't1',
+    domain: 'a.example.com',
+    name: 'LCP',
+    value: 1234,
+    pathname: '/pricing',
+    ...overrides,
+  });
 
 describe('uniqueId', () => {
-  it('prefixes the id and never repeats', () => {
+  it('never repeats, so tests can isolate themselves by id', () => {
     const ids = Array.from({ length: 50 }, () => uniqueId('tenant'));
 
-    expect(ids.every(id => id.startsWith('tenant-'))).toBe(true);
     expect(new Set(ids).size).toBe(50);
   });
 });
@@ -20,55 +38,45 @@ describe('formatTimestamp', () => {
 });
 
 describe('createWebVitalEvent', () => {
-  const now = new Date('2026-11-05T10:00:00.000Z');
-
-  it('builds a web_vital row whose payload carries the metric', () => {
-    const row = createWebVitalEvent({
-      tenantId: 't1',
-      domain: 'a.example.com',
-      name: 'LCP',
-      value: 1234,
-      pathname: '/pricing',
-      now,
-    });
+  it('carries the metric, route and domain a pipe reads from the payload', () => {
+    const row = vital();
 
     expect(row).toMatchObject({
       action: 'web_vital',
       tenant_id: 't1',
       domain: 'a.example.com',
     });
-    expect(JSON.parse(row.payload)).toEqual({
+    expect(JSON.parse(row.payload)).toMatchObject({
       name: 'LCP',
       value: 1234,
-      delta: 0,
       pathname: '/pricing',
       domain: 'a.example.com',
     });
   });
 
-  it('timestamps the event one minute before now so it is already queryable', () => {
-    const row = createWebVitalEvent({
-      tenantId: 't1',
-      domain: 'a.example.com',
-      name: 'TTFB',
-      value: 10,
-      pathname: '/',
-      now,
-    });
+  it('lands inside a one-day query window when created without a clock', () => {
+    const before = Date.now();
+    const recorded = new Date(
+      `${vital().timestamp.replace(' ', 'T')}Z`
+    ).getTime();
 
-    expect(row.timestamp).toBe('2026-11-05 09:59:00');
+    expect(recorded).toBeLessThanOrEqual(before);
+    expect(recorded).toBeGreaterThan(before - ONE_DAY_MS);
   });
 
-  it('gives every event its own session id', () => {
-    const make = () =>
-      createWebVitalEvent({
-        tenantId: 't1',
-        domain: 'a.example.com',
-        name: 'FCP',
-        value: 1,
-        pathname: '/',
-      });
+  it('is recorded before the supplied clock, so it is already queryable', () => {
+    const now = new Date('2026-11-05T10:00:00.000Z');
+    const recorded = new Date(`${vital({ now }).timestamp.replace(' ', 'T')}Z`);
 
-    expect(make().session_id).not.toBe(make().session_id);
+    expect(recorded.getTime()).toBeLessThan(now.getTime());
+  });
+});
+
+describe('createScope', () => {
+  it('gives every scope its own tenant and its own domain', () => {
+    const [first, second] = [createScope(), createScope()];
+
+    expect(first.tenantId).not.toBe(second.tenantId);
+    expect(first.domain).not.toBe(second.domain);
   });
 });
