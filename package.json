@@ -22,6 +22,7 @@
     "test:tinybird": "cd tinybird && tb test run",
     "test:client": "pnpm --filter tinybird-analytics test",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:e2e:local": "E2E_MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
     "test": "pnpm run test:client && pnpm run test:tinybird",
     "build:tinybird": "cd tinybird && tb build"
   },
