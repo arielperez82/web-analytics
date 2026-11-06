@@ -16,7 +16,6 @@ tinybird/
 │   ├── web-vitals.ts       # web vitals endpoints
 │   ├── copies.ts           # copy pipes
 │   └── client.ts           # typed client
-├── tests                   # legacy `tb test` fixtures (not run by the SDK flow)
 ├── fixtures
 ├── tinybird.json
 └── package.json
