@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/endpoints/[name]/route.js")
+R.c("server/chunks/1z1d_next_12t5b71__k77i._.js")
+R.c("server/chunks/0x3i_next-auth_0a-kjgf5lg42y._.js")
+R.c("server/chunks/0339_openid-client_1l3w27rfkqdte._.js")
+R.c("server/chunks/1kef_jose_dist_node_cjs_1ef7d59odnny_._.js")
+R.c("server/chunks/node_modules__pnpm_1kr2kd-44xnqw._.js")
+R.c("server/chunks/[root-of-the-server]__0toj7au2hdw9j._.js")
+R.c("server/chunks/0p0l__next-internal_server_app_api_endpoints_[name]_route_actions_05fwgh-atxkwh.js")
+R.m("[project]/node_modules/.pnpm/next@16.4.5_@types+node@26.6.6_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/dashboard/src/app/api/endpoints/[name]/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/node_modules/.pnpm/next@16.4.5_@types+node@26.6.6_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/dashboard/src/app/api/endpoints/[name]/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports
