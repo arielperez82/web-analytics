@@ -33,23 +33,23 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             thresholds_text
         FROM (
             SELECT 'LCP' as metric_name, 2500 as excellent_threshold, 4000 as good_threshold, 'ms' as units,
-                   'Largest Contentful Paint - measures loading performance' as description,
+                   'Largest Contentful Paint - measures loading performance of the largest content element' as description,
                    'Excellent: ≤2500ms, Good: ≤4000ms, Poor: >4000ms' as thresholds_text
             UNION ALL
             SELECT 'TTFB' as metric_name, 500 as excellent_threshold, 1000 as good_threshold, 'ms' as units,
-                   'Time to First Byte - measures server response time' as description,
+                   'Time to First Byte - measures server response time and network latency' as description,
                    'Excellent: ≤500ms, Good: ≤1000ms, Poor: >1000ms' as thresholds_text
             UNION ALL
             SELECT 'FCP' as metric_name, 1800 as excellent_threshold, 3000 as good_threshold, 'ms' as units,
-                   'First Contentful Paint - measures time until first content' as description,
+                   'First Contentful Paint - measures time until first content appears on screen' as description,
                    'Excellent: ≤1800ms, Good: ≤3000ms, Poor: >3000ms' as thresholds_text
             UNION ALL
             SELECT 'INP' as metric_name, 200 as excellent_threshold, 500 as good_threshold, 'ms' as units,
-                   'Interaction to Next Paint - measures responsiveness' as description,
+                   'Interaction to Next Paint - measures responsiveness to user interactions' as description,
                    'Excellent: ≤200ms, Good: ≤500ms, Poor: >500ms' as thresholds_text
             UNION ALL
             SELECT 'CLS' as metric_name, 0.1 as excellent_threshold, 0.25 as good_threshold, 'score' as units,
-                   'Cumulative Layout Shift - measures visual stability' as description,
+                   'Cumulative Layout Shift - measures visual stability and unexpected layout shifts' as description,
                    'Excellent: ≤0.1, Good: ≤0.25, Poor: >0.25' as thresholds_text
         )
       `,

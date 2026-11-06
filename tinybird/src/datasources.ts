@@ -5,6 +5,17 @@
 import { defineDatasource, t, engine, type InferRow } from "@tinybirdco/sdk";
 import { trackerToken } from "./tokens";
 
+/**
+ * AggregateFunction(count) with no argument type, matching what countState()
+ * produces. SDK 0.0.27 cannot express this (aggregateFunction requires an
+ * argument type), so the type string is overridden. Replace with
+ * t.aggregateFunction("count") once the SDK is bumped (0.0.84+ is variadic).
+ */
+const countState = {
+  ...t.aggregateFunction("count", t.uint64()),
+  _tinybirdType: "AggregateFunction(count)",
+} as unknown as ReturnType<typeof t.uint64>;
+
 // ============================================================================
 // Landing Datasource
 // ============================================================================
@@ -52,7 +63,7 @@ export const analyticsPagesMv = defineDatasource("analytics_pages_mv", {
     location: t.string(),
     pathname: t.string(),
     visits: t.aggregateFunction("uniq", t.string()),
-    hits: t.aggregateFunction("count", t.uint64()),
+    hits: countState,
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -83,7 +94,7 @@ export const analyticsSessionsMv = defineDatasource("analytics_sessions_mv", {
     location: t.simpleAggregateFunction("any", t.string()),
     first_hit: t.simpleAggregateFunction("min", t.dateTime()),
     latest_hit: t.simpleAggregateFunction("max", t.dateTime()),
-    hits: t.aggregateFunction("count", t.uint64()),
+    hits: countState,
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -105,7 +116,7 @@ export const analyticsSourcesMv = defineDatasource("analytics_sources_mv", {
     location: t.string(),
     referrer: t.string(),
     visits: t.aggregateFunction("uniq", t.string()),
-    hits: t.aggregateFunction("count", t.uint64()),
+    hits: countState,
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -126,7 +137,7 @@ export const analyticsSourcesMv = defineDatasource("analytics_sources_mv", {
  */
 export const tenantActionsMv = defineDatasource("tenant_actions_mv", {
   description:
-    "Materialized datasource for storing distinct actions by tenant and domain",
+    "Materialized datasource for storing distinct actions by tenant and domain with last payload sample",
   jsonPaths: false,
   schema: {
     tenant_id: t.string(),
@@ -134,7 +145,7 @@ export const tenantActionsMv = defineDatasource("tenant_actions_mv", {
     action: t.string(),
     last_payload: t.simpleAggregateFunction("any", t.string()),
     last_seen: t.simpleAggregateFunction("max", t.dateTime()),
-    total_occurrences: t.aggregateFunction("count", t.uint64()),
+    total_occurrences: countState,
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(last_seen)",
@@ -153,7 +164,7 @@ export const tenantDomainsMv = defineDatasource("tenant_domains_mv", {
     domain: t.string(),
     first_seen: t.simpleAggregateFunction("min", t.dateTime()),
     last_seen: t.simpleAggregateFunction("max", t.dateTime()),
-    total_hits: t.aggregateFunction("count", t.uint64()),
+    total_hits: countState,
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(last_seen)",
