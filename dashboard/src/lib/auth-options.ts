@@ -37,6 +37,7 @@ export const buildAuthOptions = (env: Env): NextAuthOptions => {
   return {
     secret: env.NEXTAUTH_SECRET,
     session: { strategy: "jwt" },
+    pages: { signIn: "/login" },
     providers: [...googleProviders(env), ...devLoginProviders(env)] as Provider[],
     callbacks: {
       signIn: async ({ user, account, profile }) =>

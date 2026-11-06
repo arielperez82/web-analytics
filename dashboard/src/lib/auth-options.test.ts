@@ -72,3 +72,9 @@ describe("signIn callback", () => {
     expect(await signIn(env, { email: "you@gmail.com", provider: "dev-login" })).toBe(false);
   });
 });
+
+describe("pages", () => {
+  it("sends unauthenticated users to the custom login page", () => {
+    expect(buildAuthOptions(baseEnv).pages?.signIn).toBe("/login");
+  });
+});
