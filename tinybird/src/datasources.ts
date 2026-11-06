@@ -28,6 +28,8 @@ export const analyticsEvents = defineDatasource("analytics_events", {
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
+  forwardQuery:
+    "SELECT timestamp, session_id, action, version, payload, 'the-adaptive-alchemist' AS tenant_id, 'adaptivealchemist.com' AS domain",
 });
 
 export type AnalyticsEventsRow = InferRow<typeof analyticsEvents>;
