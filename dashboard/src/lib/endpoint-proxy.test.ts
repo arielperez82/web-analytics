@@ -65,6 +65,14 @@ describe("proxyEndpoint", () => {
     );
   });
 
+  it("forwards the previous-period comparison flag", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(request("top_pages", "include_previous_period=true"), deps);
+    expect(calls[0].url).toBe(
+      "http://tb.test/v0/pipes/top_pages.json?include_previous_period=true",
+    );
+  });
+
   it("maps upstream failures to 502 without leaking the upstream body", async () => {
     const { deps } = createFakeDeps({
       fetch: async () => new Response("secret internals", { status: 500 }),

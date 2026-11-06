@@ -27,6 +27,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "sort_order",
   "limit",
   "skip",
+  "include_previous_period",
 ];
 
 export type ProxyDeps = {
