@@ -882,7 +882,10 @@ export const topPages = defineEndpoint("top_pages", {
       name: "current_period_data",
       sql: `
         SELECT
-            pathname,
+            CASE
+                WHEN pathname = '/' THEN pathname
+                ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
+            END as pathname,
             uniqMerge(visits) as current_visits,
             countMerge(hits) as current_hits
         FROM analytics_pages_mv
@@ -902,7 +905,10 @@ export const topPages = defineEndpoint("top_pages", {
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
-            pathname,
+            CASE
+                WHEN pathname = '/' THEN pathname
+                ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
+            END as pathname,
             uniqMerge(visits) as previous_visits,
             countMerge(hits) as previous_hits
         FROM analytics_pages_mv
