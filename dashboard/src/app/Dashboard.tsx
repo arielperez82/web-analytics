@@ -3,6 +3,7 @@
 import { signOut } from "next-auth/react";
 import { useMemo, useState } from "react";
 
+import { statusClass } from "@/lib/status-class";
 import { rangeToParams } from "@/lib/time-range";
 import { useEndpoint } from "@/lib/use-endpoint";
 
@@ -109,7 +110,7 @@ const SpeedInsights = ({ params }: { params: Record<string, string | undefined> 
         <Status loading={vitals.loading} error={vitals.error} empty={ordered.length === 0} />
         <div className="cards">
           {ordered.map((row) => (
-            <div key={`${row.domain}-${row.metric_name}`} className={`card status-${row.status}`}>
+            <div key={`${row.domain}-${row.metric_name}`} className={`card ${statusClass(row.status)}`}>
               <span>{row.metric_name} p75{multiDomain ? ` · ${row.domain}` : ""}</span>
               <strong>{fmt(row.p75)} <small>{row.units}</small></strong>
               <em>{row.status}</em>

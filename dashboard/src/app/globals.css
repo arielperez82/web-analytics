@@ -10,7 +10,7 @@ nav{display:flex;gap:8px;margin-bottom:16px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
 .card span,.card em{color:var(--muted);font-size:12px;font-style:normal}.card strong{font-size:24px;font-variant-numeric:tabular-nums}.card small{font-size:12px;color:var(--muted)}
-.status-good em{color:var(--good)}.status-needs-improvement em{color:var(--warn)}.status-poor em{color:var(--bad)}
+.status-excellent em,.status-good em{color:var(--good)}.status-needs-improvement em{color:var(--warn)}.status-poor em{color:var(--bad)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px}
 .panel h2{font-size:13px;margin:0 0 8px;color:var(--muted);font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}.grid .panel{margin:0}
