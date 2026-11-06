@@ -8,8 +8,8 @@ ingests its own events with timestamps relative to now, under a unique
 ## Prerequisites
 
 - Docker
-- Tinybird CLI (`tb`) v5 or later
-- Tinybird Local running: `tb local start`
+- Tinybird Local running (or let `pnpm test:e2e:local` start it with the
+  Tinybird CLI `tb` v5 or later)
 
 ## Run
 
@@ -28,17 +28,18 @@ pnpm test:e2e
 
 The global setup:
 
-1. runs `tb build` in `tinybird/` to deploy the project to Tinybird Local
-2. reads the API host from `tb --output json info`
-3. reads the workspace admin token from `tb token ls`
+1. runs `tinybird build --local` (Tinybird TypeScript SDK) in `tinybird/` to
+   deploy the project to Tinybird Local
+2. reads the workspace name the SDK built into from the build output
+3. fetches that workspace's admin token from the Local API
 4. waits until Tinybird answers `SELECT 1`
 
 Tinybird Local scopes resources to a workspace per git branch, so the token
-must come from `tb token ls` (the unauthenticated `/tokens` endpoint returns
-the default workspace, which does not contain this project's datasources).
+must belong to the workspace the SDK just built into (the default workspace
+token from `/tokens` does not contain this project's datasources).
 
 To target another instance, set both `TB_HOST` and `TB_TOKEN`. The setup then
-skips `tb build` and the CLI lookups, so the project must already be deployed
+skips the build and the lookups, so the project must already be deployed
 there.
 
 ## Layout
