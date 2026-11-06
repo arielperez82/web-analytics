@@ -1,6 +1,6 @@
 import type { TestProject } from 'vitest/node';
 
-import { runTb } from './helpers/tb-cli';
+import { buildSdkLocal, runTb } from './helpers/tb-cli';
 import { resolveTinybirdEnv, type TinybirdEnv } from './helpers/tinybird-env';
 import { manageTinybirdLocal } from './helpers/tinybird-local-lifecycle';
 import { waitForRow } from './helpers/wait-for-row';
@@ -20,6 +20,17 @@ const localAnswers = async (): Promise<boolean> =>
     () => false
   );
 
+const fetchLocalJson = async (
+  path: string,
+  bearer?: string
+): Promise<unknown> => {
+  const response = await fetch(`${LOCAL_URL}${path}`, {
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+  });
+  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+  return response.json();
+};
+
 export default async function globalSetup(
   project: TestProject
 ): Promise<() => void> {
@@ -37,8 +48,10 @@ export default async function globalSetup(
     },
   });
   try {
-    if (!process.env.TB_HOST) runTb(['build']);
-    const env = resolveTinybirdEnv();
+    const env = await resolveTinybirdEnv({
+      buildLocal: buildSdkLocal,
+      fetchLocal: fetchLocalJson,
+    });
     await waitForTinybird(env);
     project.provide('tinybird', env);
   } catch (error) {

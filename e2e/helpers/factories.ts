@@ -53,3 +53,29 @@ export const createScope = (): Scope => ({
   tenantId: uniqueId('tenant'),
   domain: `${uniqueId('site')}.example.com`,
 });
+
+type PageHitOptions = {
+  readonly tenantId: string;
+  readonly domain: string;
+  readonly pathname: string;
+  readonly now?: Date;
+};
+
+export const createPageHitEvent = ({
+  tenantId,
+  domain,
+  pathname,
+  now = new Date(),
+}: PageHitOptions): AnalyticsEventRow => ({
+  timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
+  session_id: crypto.randomUUID(),
+  action: 'page_hit',
+  version: 'e2e',
+  payload: JSON.stringify({
+    pathname,
+    domain,
+    href: `https://${domain}${pathname}`,
+  }),
+  tenant_id: tenantId,
+  domain,
+});

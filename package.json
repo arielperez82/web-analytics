@@ -4,7 +4,7 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "check:tinybird": "cd tinybird && tb --cloud deployment create --check",
+    "check:tinybird": "cd tinybird && pnpm exec tinybird deploy --check",
     "prepare": "husky",
     "pre-commit": "lint-staged",
     "lint:md": "markdownlint .",
@@ -19,12 +19,12 @@
     "lint:code:e2e:fix": "eslint --fix e2e vitest.e2e.config.ts eslint.config.js",
     "lint:format:e2e": "prettier --config prettier.e2e.config.js --check 'e2e/**/*.ts' vitest.e2e.config.ts eslint.config.js",
     "lint:format:e2e:fix": "prettier --config prettier.e2e.config.js --write 'e2e/**/*.ts' vitest.e2e.config.ts eslint.config.js",
-    "test:tinybird": "cd tinybird && tb test run",
+    "typecheck:tinybird": "cd tinybird && pnpm exec tsc",
     "test:client": "pnpm --filter tinybird-analytics test",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:local": "E2E_MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
-    "test": "pnpm run test:client && pnpm run test:tinybird",
-    "build:tinybird": "cd tinybird && tb build"
+    "test": "pnpm run test:client && pnpm run typecheck:tinybird",
+    "build:tinybird": "cd tinybird && pnpm exec tinybird build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -10,3 +10,18 @@ export const runTb = (args: readonly string[]): string =>
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+
+const LOCAL_URL = process.env.TB_LOCAL_URL ?? 'http://localhost:7181';
+
+export const buildSdkLocal = (): string =>
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- pnpm is the repo's package manager, resolved from PATH
+  execFileSync('pnpm', ['exec', 'tinybird', 'build', '--local'], {
+    cwd: TINYBIRD_DIR,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      TINYBIRD_HOST: LOCAL_URL,
+      TINYBIRD_TOKEN: process.env.TINYBIRD_TOKEN ?? 'local-placeholder',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
