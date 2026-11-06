@@ -22,6 +22,7 @@ export const GET = async (
         host: process.env.TINYBIRD_HOST ?? "",
         token: process.env.TINYBIRD_TOKEN ?? "",
       },
+      tenantId: process.env.DASHBOARD_TENANT_ID,
       fetch,
     },
   );

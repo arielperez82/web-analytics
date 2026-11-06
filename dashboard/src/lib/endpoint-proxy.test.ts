@@ -73,6 +73,20 @@ describe("proxyEndpoint", () => {
     );
   });
 
+  it("pins tenant_id server-side, overriding any client value", async () => {
+    const { deps, calls } = createFakeDeps({
+      tenantId: "my-tenant",
+    });
+    await proxyEndpoint(request("domains", "tenant_id=someone-else"), deps);
+    await proxyEndpoint(request("top_pages", "domain=a.com"), deps);
+    expect(calls[0].url).toBe(
+      "http://tb.test/v0/pipes/domains.json?tenant_id=my-tenant",
+    );
+    expect(calls[1].url).toBe(
+      "http://tb.test/v0/pipes/top_pages.json?tenant_id=my-tenant&domain=a.com",
+    );
+  });
+
   it("maps upstream failures to 502 without leaking the upstream body", async () => {
     const { deps } = createFakeDeps({
       fetch: async () => new Response("secret internals", { status: 500 }),

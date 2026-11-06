@@ -32,6 +32,7 @@ const FORWARDED_PARAMS: readonly string[] = [
 
 export type ProxyDeps = {
   readonly tinybird: { readonly host: string; readonly token: string };
+  readonly tenantId?: string;
   readonly fetch: (url: string, init?: RequestInit) => Promise<Response>;
 };
 
@@ -43,12 +44,16 @@ type ProxyRequest = {
 
 type ProxyResult = { readonly status: number; readonly body: unknown };
 
-const forwardedQuery = (query: URLSearchParams): string =>
-  new URLSearchParams(
-    FORWARDED_PARAMS.flatMap((key) =>
-      query.has(key) ? [[key, query.get(key) ?? ""] as [string, string]] : [],
-    ),
-  ).toString();
+const forwardedQuery = (
+  query: URLSearchParams,
+  tenantId: string | undefined,
+): string =>
+  new URLSearchParams([
+    ...(tenantId ? [["tenant_id", tenantId] as [string, string]] : []),
+    ...FORWARDED_PARAMS.filter(
+      (key) => query.has(key) && !(tenantId && key === "tenant_id"),
+    ).map((key) => [key, query.get(key) ?? ""] as [string, string]),
+  ]).toString();
 
 const upstreamError: ProxyResult = {
   status: 502,
@@ -57,13 +62,13 @@ const upstreamError: ProxyResult = {
 
 export const proxyEndpoint = async (
   { name, query, authenticated }: ProxyRequest,
-  { tinybird, fetch }: ProxyDeps,
+  { tinybird, tenantId, fetch }: ProxyDeps,
 ): Promise<ProxyResult> => {
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
   if (!ALLOWED_ENDPOINTS.includes(name))
     return { status: 404, body: { error: "Not found" } };
 
-  const qs = forwardedQuery(query);
+  const qs = forwardedQuery(query, tenantId);
   const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;
 
   try {
