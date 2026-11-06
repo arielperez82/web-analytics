@@ -4,7 +4,6 @@
 
 import {
   defineEndpoint,
-  definePipe,
   node,
   t,
   p,
@@ -16,7 +15,7 @@ import { dashboardToken } from "./tokens";
 /**
  * Web vitals events - parsed web_vital events with metadata
  */
-export const webVitalsEvents = definePipe("web_vitals_events", {
+export const webVitalsEvents = defineEndpoint("web_vitals_events", {
   description:
     "Parsed web_vital events with metadata lookup and metric extraction",
   tokens: [{ token: dashboardToken, scope: "READ" }],
@@ -140,6 +139,32 @@ export const webVitalsEvents = definePipe("web_vitals_events", {
       `,
     }),
   ],
+  params: {
+    from_date: p.date().optional().describe("Starting date for filtering a date range"),
+    to_date: p.date().optional().describe("Finishing date for filtering a date range"),
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+  },
+  output: {
+    timestamp: t.dateTime(),
+    action: t.string(),
+    version: t.string(),
+    session_id: t.string(),
+    tenant_id: t.string(),
+    domain: t.string(),
+    metric_name: t.string(),
+    value: t.float64(),
+    delta: t.float64(),
+    pathname: t.string(),
+    href: t.string(),
+    route: t.string(),
+    performance_category: t.string(),
+    score: t.uint8(),
+    units: t.string(),
+    description: t.string(),
+    thresholds_text: t.string(),
+    status: t.string(),
+  },
 });
 
 /**

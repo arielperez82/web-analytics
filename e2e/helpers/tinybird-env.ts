@@ -1,43 +1,48 @@
-import { runTb } from './tb-cli';
-
 export type TinybirdEnv = {
   readonly host: string;
   readonly token: string;
 };
 
+type Workspace = { readonly name: string; readonly token: string };
+
 type ResolveOptions = {
   readonly env?: Readonly<Record<string, string | undefined>>;
-  readonly readLocalInfo?: () => string;
-  readonly readTokens?: () => string;
+  readonly buildLocal: () => string;
+  readonly fetchLocal: (path: string, bearer?: string) => Promise<unknown>;
 };
 
-type LocalInfo = { readonly local?: { readonly api?: string } };
+const DEFAULT_LOCAL_URL = 'http://localhost:7181';
 
-const ADMIN_TOKEN_NAME = 'workspace admin token';
-
-const parseApi = (raw: string): string => {
-  const { local } = JSON.parse(raw) as LocalInfo;
-  if (!local?.api) throw new Error('tb info reported no local api');
-  return local.api;
-};
-
-const parseAdminToken = (raw: string): string => {
-  const match = new RegExp(
-    `name: ${ADMIN_TOKEN_NAME}\\s*\\ntoken: (\\S+)`
-  ).exec(raw);
-  if (!match?.[1]) throw new Error(`tb token ls listed no ${ADMIN_TOKEN_NAME}`);
+const parseWorkspaceName = (buildOutput: string): string => {
+  const match = /Local workspace:\s+(\S+)/.exec(buildOutput);
+  if (!match?.[1])
+    throw new Error('build output named no local workspace to resolve');
   return match[1];
 };
 
-export const resolveTinybirdEnv = ({
+const tokenOf = (name: string, workspaces: readonly Workspace[]): string => {
+  const found = workspaces.find(workspace => workspace.name === name);
+  if (!found) throw new Error(`built workspace ${name} is not listed`);
+  return found.token;
+};
+
+export const resolveTinybirdEnv = async ({
   env = process.env,
-  readLocalInfo = () => runTb(['--output', 'json', 'info']),
-  readTokens = () => runTb(['token', 'ls']),
-}: ResolveOptions = {}): TinybirdEnv => {
+  buildLocal,
+  fetchLocal,
+}: ResolveOptions): Promise<TinybirdEnv> => {
   if (env.TB_HOST && env.TB_TOKEN)
     return { host: env.TB_HOST, token: env.TB_TOKEN };
+  const name = parseWorkspaceName(buildLocal());
+  const { user_token: userToken } = (await fetchLocal('/tokens')) as {
+    user_token: string;
+  };
+  const { workspaces } = (await fetchLocal(
+    '/v1/user/workspaces?with_organization=false',
+    userToken
+  )) as { workspaces: readonly Workspace[] };
   return {
-    host: env.TB_HOST ?? parseApi(readLocalInfo()),
-    token: env.TB_TOKEN ?? parseAdminToken(readTokens()),
+    host: env.TB_LOCAL_URL ?? DEFAULT_LOCAL_URL,
+    token: tokenOf(name, workspaces),
   };
 };
