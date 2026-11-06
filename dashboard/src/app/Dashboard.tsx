@@ -120,11 +120,11 @@ const SpeedInsights = ({ params }: { params: Record<string, string | undefined> 
       <Panel title="Slowest routes (worst first)">
         <Status loading={routes.loading} error={routes.error} empty={routes.data?.length === 0} />
         <table>
-          <thead><tr><th>Route</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th></tr></thead>
+          <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th></tr></thead>
           <tbody>
             {(routes.data ?? []).map((row) => (
               <tr key={`${row.domain}-${row.route}`}>
-                <td>{fmt(row.route)}</td><td className="num">{fmt(row.overall_score)}</td>
+                <td>{fmt(row.route)}</td><td className="muted">{fmt(row.domain)}</td><td className="num">{fmt(row.overall_score)}</td>
                 <td className="num">{fmt(row.lcp_avg)}</td><td className="num">{fmt(row.inp_avg)}</td><td className="num">{fmt(row.cls_avg)}</td>
               </tr>
             ))}
