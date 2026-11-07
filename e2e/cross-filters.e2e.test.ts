@@ -94,4 +94,46 @@ describe.concurrent('cross-filters', () => {
       ).toEqual([]);
     });
   });
+  describe('the other top-N endpoints', () => {
+    it('top_sources keeps only referrers of the given location', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+
+      expect(
+        await filtered('top_sources', scope, { location: 'US' }, 'referrer')
+      ).toEqual(['google.com']);
+    });
+
+    it('top_locations keeps only locations seen on the given device', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+
+      expect(
+        await filtered(
+          'top_locations',
+          scope,
+          { device: 'mobile-ios' },
+          'location'
+        )
+      ).toEqual(['DE']);
+    });
+
+    it('top_devices keeps only devices seen in the given location', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+
+      expect(
+        await filtered('top_devices', scope, { location: 'US' }, 'device')
+      ).toEqual(['desktop']);
+    });
+
+    it('top_browsers keeps only browsers seen in the given location', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+
+      expect(
+        await filtered('top_browsers', scope, { location: 'DE' }, 'browser')
+      ).toEqual(['safari']);
+    });
+  });
 });
