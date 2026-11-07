@@ -28,6 +28,9 @@ const FORWARDED_PARAMS: readonly string[] = [
   "limit",
   "skip",
   "include_previous_period",
+  "location",
+  "device",
+  "browser",
 ];
 
 export type ProxyDeps = {
