@@ -1,6 +1,10 @@
-import { describe, expect, inject, it } from 'vitest';
+import { describe, expect, inject, it, vi } from 'vitest';
 
-import { createPageHitEvent, createScope } from './helpers/factories';
+import {
+  createPageHitEvent,
+  createScope,
+  formatTimestamp,
+} from './helpers/factories';
 import { pipeRows, waitForPipeRows } from './helpers/pipe-rows';
 import { ingestEvents } from './helpers/tinybird-client';
 
@@ -134,6 +138,72 @@ describe.concurrent('cross-filters', () => {
       expect(
         await filtered('top_browsers', scope, { location: 'DE' }, 'browser')
       ).toEqual(['safari']);
+    });
+  });
+  describe('kpis', () => {
+    const DAY_MS = 86_400_000;
+    const eventDay = () =>
+      formatTimestamp(new Date(Date.now() - 60_000)).slice(0, 10);
+    const totalVisits = async (
+      scope: Scope,
+      params: Record<string, string>
+    ) => {
+      const rows = await pipeRows<Row>(env, 'kpis', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        ...params,
+      });
+      return rows.reduce((sum, row) => sum + Number(row.visits), 0);
+    };
+    const waitForTwoVisits = async (
+      scope: Scope,
+      params: Record<string, string>
+    ) => {
+      await waitForPipeRows<Row>(
+        env,
+        'kpis',
+        { tenant_id: scope.tenantId, domain: scope.domain, ...params },
+        1
+      );
+      await vi.waitFor(
+        async () => expect(await totalVisits(scope, params)).toBe(2),
+        { timeout: 10_000, interval: 500 }
+      );
+    };
+    const multiDay = () => ({
+      date_from: formatTimestamp(new Date(Date.now() - DAY_MS)).slice(0, 10),
+      date_to: formatTimestamp(new Date(Date.now() + DAY_MS)).slice(0, 10),
+    });
+    const singleDay = () => ({ date_from: eventDay(), date_to: eventDay() });
+
+    it('counts only visits from the given location over several days', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+      await waitForTwoVisits(scope, multiDay());
+
+      expect(await totalVisits(scope, { ...multiDay(), location: 'US' })).toBe(
+        1
+      );
+    });
+
+    it('counts only visits on the given device over several days', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+      await waitForTwoVisits(scope, multiDay());
+
+      expect(
+        await totalVisits(scope, { ...multiDay(), device: 'mobile-ios' })
+      ).toBe(1);
+    });
+
+    it('counts only visits from the given location within a single day', async () => {
+      const scope = createScope();
+      await seedTwoVisitors(scope);
+      await waitForTwoVisits(scope, singleDay());
+
+      expect(await totalVisits(scope, { ...singleDay(), location: 'DE' })).toBe(
+        1
+      );
     });
   });
 });
