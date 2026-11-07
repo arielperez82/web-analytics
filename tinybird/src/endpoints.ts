@@ -471,6 +471,27 @@ export const trend = defineEndpoint("trend", {
 export type TrendParams = InferParams<typeof trend>;
 export type TrendOutput = InferOutputRow<typeof trend>;
 
+/**
+ * Optional visitor-dimension filters shared by the top-N endpoints.
+ * Pass location (country code), device and/or browser to slice any list.
+ */
+const crossFilters = `
+            {% if defined(location) %}
+            AND location = {{ String(location, description="Filter by visitor country code, e.g. US") }}
+            {% end %}
+            {% if defined(device) %}
+            AND device = {{ String(device, description="Filter by device: desktop, mobile-ios, mobile-android or bot") }}
+            {% end %}
+            {% if defined(browser) %}
+            AND browser = {{ String(browser, description="Filter by browser: chrome, firefox, safari, opera, ie or unknown") }}
+            {% end %}`;
+
+const crossFilterParams = {
+  location: p.string().optional().describe("Filter by visitor country code, e.g. US"),
+  device: p.string().optional().describe("Filter by device: desktop, mobile-ios, mobile-android or bot"),
+  browser: p.string().optional().describe("Filter by browser: chrome, firefox, safari, opera, ie or unknown"),
+};
+
 // ============================================================================
 // Top-N Endpoints
 // ============================================================================
@@ -896,7 +917,7 @@ export const topPages = defineEndpoint("top_pages", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY pathname
       `,
     }),
@@ -919,7 +940,7 @@ export const topPages = defineEndpoint("top_pages", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY pathname
         {% else %}
         SELECT '' as pathname, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -967,6 +988,7 @@ export const topPages = defineEndpoint("top_pages", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
