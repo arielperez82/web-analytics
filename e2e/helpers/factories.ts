@@ -58,6 +58,9 @@ type PageHitOptions = {
   readonly tenantId: string;
   readonly domain: string;
   readonly pathname: string;
+  readonly location?: string;
+  readonly userAgent?: string;
+  readonly referrer?: string;
   readonly now?: Date;
 };
 
@@ -65,6 +68,9 @@ export const createPageHitEvent = ({
   tenantId,
   domain,
   pathname,
+  location,
+  userAgent,
+  referrer,
   now = new Date(),
 }: PageHitOptions): AnalyticsEventRow => ({
   timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
@@ -75,6 +81,9 @@ export const createPageHitEvent = ({
     pathname,
     domain,
     href: `https://${domain}${pathname}`,
+    ...(location === undefined ? {} : { location }),
+    ...(userAgent === undefined ? {} : { 'user-agent': userAgent }),
+    ...(referrer === undefined ? {} : { referrer }),
   }),
   tenant_id: tenantId,
   domain,

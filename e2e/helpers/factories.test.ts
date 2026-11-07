@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createPageHitEvent,
   createScope,
   createWebVitalEvent,
   formatTimestamp,
@@ -78,5 +79,44 @@ describe('createScope', () => {
 
     expect(first.tenantId).not.toBe(second.tenantId);
     expect(first.domain).not.toBe(second.domain);
+  });
+});
+
+describe('createPageHitEvent', () => {
+  const base = {
+    tenantId: 't1',
+    domain: 'a.example.com',
+    pathname: '/pricing',
+  };
+  const payloadOf = (
+    overrides: Partial<Parameters<typeof createPageHitEvent>[0]>
+  ) =>
+    JSON.parse(createPageHitEvent({ ...base, ...overrides }).payload) as Record<
+      string,
+      string
+    >;
+
+  it('describes the visitor through optional location, user agent and referrer', () => {
+    expect(
+      payloadOf({
+        location: 'DE',
+        userAgent: 'Mozilla/5.0 (iPhone) Safari',
+        referrer: 'https://google.com/',
+      })
+    ).toEqual(
+      expect.objectContaining({
+        location: 'DE',
+        'user-agent': 'Mozilla/5.0 (iPhone) Safari',
+        referrer: 'https://google.com/',
+      })
+    );
+  });
+
+  it('omits visitor fields that were not given', () => {
+    const payload = payloadOf({});
+
+    expect(Object.keys(payload)).not.toContain('location');
+    expect(Object.keys(payload)).not.toContain('user-agent');
+    expect(Object.keys(payload)).not.toContain('referrer');
   });
 });
