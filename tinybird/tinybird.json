@@ -1,7 +1,6 @@
 {
   "include": [
     "src/client.ts",
-    "src/copies.ts",
     "src/datasources.ts",
     "src/endpoints.ts",
     "src/pipes.ts",
