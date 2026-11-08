@@ -14,7 +14,6 @@ tinybird/
 │   ├── materializations.ts # analytics_pages / sessions / sources, tenant_*
 │   ├── endpoints.ts        # analytics API endpoints
 │   ├── web-vitals.ts       # web vitals endpoints
-│   ├── copies.ts           # copy pipes
 │   └── client.ts           # typed client
 ├── fixtures
 ├── tinybird.json

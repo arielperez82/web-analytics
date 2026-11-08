@@ -54,7 +54,6 @@ import {
   webVitalsRoutes,
   webVitalsTimeseries,
 } from "./web-vitals";
-import { randomDataGenerator } from "./copies";
 
 /**
  * All datasources defined in this project
@@ -92,8 +91,6 @@ export const pipes = {
   topPages,
   topSources,
   trend,
-  // Copies
-  randomDataGenerator,
   // Web vitals resources
   webVitalsEvents,
   webVitalsCurrent,
