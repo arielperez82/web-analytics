@@ -19,3 +19,4 @@ table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;text-align:left}
 td.label{position:relative;width:70%}.bar{position:absolute;inset:2px auto 2px 0;background:var(--bar);border-radius:3px}.text{position:relative;padding-left:6px;word-break:break-all}
 .chart{display:flex;align-items:flex-end;gap:2px;height:140px}.col{flex:1;height:100%;display:flex;align-items:flex-end}.col div{width:100%;background:var(--accent);border-radius:2px 2px 0 0;min-height:1px}
 .login{max-width:320px;margin:20vh auto;text-align:center}.stack{display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.chips button{border-color:var(--accent);color:var(--accent)}tr.picked .bar{background:var(--accent);opacity:.35}tr[style*=pointer]:hover td{background:var(--bar)}

@@ -278,7 +278,10 @@ const FORWARDED_PARAMS = [
     "sort_order",
     "limit",
     "skip",
-    "include_previous_period"
+    "include_previous_period",
+    "location",
+    "device",
+    "browser"
 ];
 const forwardedQuery = (query, tenantId)=>new URLSearchParams([
         ...tenantId ? [

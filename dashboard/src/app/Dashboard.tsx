@@ -3,6 +3,7 @@
 import { signOut } from "next-auth/react";
 import { useMemo, useState } from "react";
 
+import { activeFilters, toggleFilter, type FilterKey, type Filters } from "@/lib/filters";
 import { statusClass } from "@/lib/status-class";
 import { rangeToParams } from "@/lib/time-range";
 import { useEndpoint } from "@/lib/use-endpoint";
@@ -30,11 +31,17 @@ const RankedTable = ({
   params,
   labelKey,
   heading,
+  filterKey,
+  filters,
+  onPick,
 }: {
   endpoint: string;
   params: Record<string, string | undefined>;
   labelKey: string;
   heading: string;
+  filterKey?: FilterKey;
+  filters?: Filters;
+  onPick?: (key: FilterKey, value: string) => void;
 }) => {
   const { data, loading, error } = useEndpoint<Row>(endpoint, params);
   const max = Math.max(1, ...(data ?? []).map((row) => Number(row.visits ?? 0)));
@@ -44,7 +51,12 @@ const RankedTable = ({
       <table>
         <tbody>
           {(data ?? []).slice(0, 10).map((row) => (
-            <tr key={String(row[labelKey])}>
+            <tr
+              key={String(row[labelKey])}
+              className={filterKey && filters?.[filterKey] === row[labelKey] ? "picked" : undefined}
+              onClick={filterKey && onPick ? () => onPick(filterKey, String(row[labelKey])) : undefined}
+              style={filterKey && onPick ? { cursor: "pointer" } : undefined}
+            >
               <td className="label">
                 <span className="bar" style={{ width: `${(Number(row.visits ?? 0) / max) * 100}%` }} />
                 <span className="text">{fmt(row[labelKey]) || "(direct)"}</span>
@@ -139,15 +151,17 @@ const SpeedInsights = ({ params }: { params: Record<string, string | undefined> 
 export const Dashboard = ({ email }: { email: string }) => {
   const [days, setDays] = useState<number>(7);
   const [domain, setDomain] = useState<string>("");
+  const [filters, setFilters] = useState<Filters>({});
   const [tab, setTab] = useState<"analytics" | "speed">("analytics");
+  const pick = (key: FilterKey, value: string) => setFilters((current) => toggleFilter(current, key, value));
   const domains = useEndpoint<Row>("domains", {});
   const params = useMemo(
     () => ({
       ...rangeToParams({ days }, new Date()),
       domain: domain || undefined,
-      include_previous_period: undefined,
+      ...filters,
     }),
-    [days, domain],
+    [days, domain, filters],
   );
 
   return (
@@ -173,6 +187,16 @@ export const Dashboard = ({ email }: { email: string }) => {
         <button aria-pressed={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</button>
         <button aria-pressed={tab === "speed"} onClick={() => setTab("speed")}>Speed Insights</button>
       </nav>
+      {activeFilters(filters).length > 0 && (
+        <div className="chips">
+          {activeFilters(filters).map(({ key, value }) => (
+            <button key={key} onClick={() => setFilters(toggleFilter(filters, key, value))}>
+              {key}: {value} ×
+            </button>
+          ))}
+          <button onClick={() => setFilters({})}>Clear all</button>
+        </div>
+      )}
       <main>
         {tab === "analytics" ? (
           <>
@@ -180,9 +204,9 @@ export const Dashboard = ({ email }: { email: string }) => {
             <div className="grid">
               <RankedTable endpoint="top_pages" params={params} labelKey="pathname" heading="Top pages" />
               <RankedTable endpoint="top_sources" params={params} labelKey="referrer" heading="Top sources" />
-              <RankedTable endpoint="top_locations" params={params} labelKey="location" heading="Top locations" />
-              <RankedTable endpoint="top_devices" params={params} labelKey="device" heading="Devices" />
-              <RankedTable endpoint="top_browsers" params={params} labelKey="browser" heading="Browsers" />
+              <RankedTable endpoint="top_locations" params={params} labelKey="location" heading="Top locations" filterKey="location" filters={filters} onPick={pick} />
+              <RankedTable endpoint="top_devices" params={params} labelKey="device" heading="Devices" filterKey="device" filters={filters} onPick={pick} />
+              <RankedTable endpoint="top_browsers" params={params} labelKey="browser" heading="Browsers" filterKey="browser" filters={filters} onPick={pick} />
             </div>
           </>
         ) : (

@@ -87,6 +87,17 @@ describe("proxyEndpoint", () => {
     );
   });
 
+  it("forwards the visitor cross-filters", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(
+      request("top_pages", "location=US&device=mobile-ios&browser=safari"),
+      deps,
+    );
+    expect(calls[0].url).toBe(
+      "http://tb.test/v0/pipes/top_pages.json?location=US&device=mobile-ios&browser=safari",
+    );
+  });
+
   it("maps upstream failures to 502 without leaking the upstream body", async () => {
     const { deps } = createFakeDeps({
       fetch: async () => new Response("secret internals", { status: 500 }),

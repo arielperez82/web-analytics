@@ -17,6 +17,28 @@ import { dashboardToken } from "./tokens";
 // ============================================================================
 
 /**
+ * Optional visitor-dimension filters shared by the top-N endpoints.
+ * Pass location (country code), device and/or browser to slice any list.
+ */
+const crossFilters = `
+            {% if defined(location) %}
+            AND location = {{ String(location, description="Filter by visitor country code, e.g. US") }}
+            {% end %}
+            {% if defined(device) %}
+            AND device = {{ String(device, description="Filter by device: desktop, mobile-ios, mobile-android or bot") }}
+            {% end %}
+            {% if defined(browser) %}
+            AND browser = {{ String(browser, description="Filter by browser: chrome, firefox, safari, opera, ie or unknown") }}
+            {% end %}`;
+
+const crossFilterParams = {
+  location: p.string().optional().describe("Filter by visitor country code, e.g. US"),
+  device: p.string().optional().describe("Filter by device: desktop, mobile-ios, mobile-android or bot"),
+  browser: p.string().optional().describe("Filter by browser: chrome, firefox, safari, opera, ie or unknown"),
+};
+
+
+/**
  * Current visitors - realtime visitor count
  */
 export const currentVisitors = defineEndpoint("current_visitors", {
@@ -231,7 +253,7 @@ export const kpis = defineEndpoint("kpis", {
                 {% end %}
                 {% if defined(domain) %}
                 AND domain = {{ String(domain, description="Filter by domain") }}
-                {% end %}
+                {% end %}${crossFilters}
             group by toStartOfHour(timestamp), session_id, tenant_id, domain
         {% else %}
             select
@@ -251,7 +273,7 @@ export const kpis = defineEndpoint("kpis", {
                 {% end %}
                 {% if defined(domain) %}
                 AND domain = {{ String(domain, description="Filter by domain") }}
-                {% end %}
+                {% end %}${crossFilters}
             group by date, session_id, tenant_id, domain
         {% end %}
       `,
@@ -291,7 +313,7 @@ export const kpis = defineEndpoint("kpis", {
                     {% end %}
                     {% if defined(domain) %}
                     AND domain = {{ String(domain, description="Filter by domain") }}
-                    {% end %}
+                    {% end %}${crossFilters}
                 group by toStartOfHour(timestamp), session_id, tenant_id, domain
             {% else %}
                 select
@@ -311,7 +333,7 @@ export const kpis = defineEndpoint("kpis", {
                     {% end %}
                     {% if defined(domain) %}
                     AND domain = {{ String(domain, description="Filter by domain") }}
-                    {% end %}
+                    {% end %}${crossFilters}
                 group by date, session_id, tenant_id, domain
             {% end %}
         {% else %}
@@ -399,6 +421,7 @@ export const kpis = defineEndpoint("kpis", {
     date_to: p.string().optional().describe("Finishing day"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
@@ -517,7 +540,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY browser
       `,
     }),
@@ -538,7 +561,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY browser
         {% else %}
         SELECT '' as browser, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -587,6 +610,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
@@ -644,7 +668,7 @@ export const topDevices = defineEndpoint("top_devices", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY device
       `,
     }),
@@ -664,7 +688,7 @@ export const topDevices = defineEndpoint("top_devices", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY device
         {% else %}
         SELECT '' as device, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -712,6 +736,7 @@ export const topDevices = defineEndpoint("top_devices", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
@@ -769,7 +794,7 @@ export const topLocations = defineEndpoint("top_locations", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY location
       `,
     }),
@@ -789,7 +814,7 @@ export const topLocations = defineEndpoint("top_locations", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY location
         {% else %}
         SELECT '' as location, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -837,6 +862,7 @@ export const topLocations = defineEndpoint("top_locations", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
@@ -896,7 +922,7 @@ export const topPages = defineEndpoint("top_pages", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY pathname
       `,
     }),
@@ -919,7 +945,7 @@ export const topPages = defineEndpoint("top_pages", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY pathname
         {% else %}
         SELECT '' as pathname, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -967,6 +993,7 @@ export const topPages = defineEndpoint("top_pages", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
@@ -1024,7 +1051,7 @@ export const topSources = defineEndpoint("top_sources", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY referrer
       `,
     }),
@@ -1044,7 +1071,7 @@ export const topSources = defineEndpoint("top_sources", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY referrer
         {% else %}
         SELECT '' as referrer, 0 as previous_visits, 0 as previous_hits WHERE 1=0
@@ -1092,6 +1119,7 @@ export const topSources = defineEndpoint("top_sources", {
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    ...crossFilterParams,
     include_previous_period: p
       .string()
       .optional()
