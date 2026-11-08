@@ -21,6 +21,7 @@ export const useDashboardState = () => {
   const params = useMemo<QueryParams>(
     () => ({
       ...rangeToParams(state.range, new Date()),
+      tenant_id: state.tenant,
       domain: state.domain,
       ...state.filters,
     }),

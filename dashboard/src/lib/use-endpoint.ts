@@ -19,7 +19,7 @@ export const useEndpoint = <T,>(
   });
   const query = new URLSearchParams(
     Object.entries(params).flatMap(([key, value]) =>
-      value ? [[key, value] as [string, string]] : [],
+      value !== undefined ? [[key, value] as [string, string]] : [],
     ),
   ).toString();
 
