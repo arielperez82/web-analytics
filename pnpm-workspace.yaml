@@ -1,5 +1,6 @@
 packages:
   - 'client'
+  - 'tinybird'
 
 allowBuilds:
   esbuild: true

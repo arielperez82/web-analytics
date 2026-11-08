@@ -35,8 +35,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Tinybird CLI
-        run: curl https://tinybird.co | sh
-
       - name: Run e2e tests
         run: pnpm run test:e2e

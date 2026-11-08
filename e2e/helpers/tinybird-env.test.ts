@@ -2,38 +2,38 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveTinybirdEnv } from './tinybird-env';
 
-const infoJson = (local: Readonly<Record<string, string>>): string =>
-  JSON.stringify({ cloud: {}, local });
+const LOCAL = 'http://localhost:7181';
 
-const tokensText = (entries: readonly (readonly [string, string])[]): string =>
+const buildOutput = (workspace: string): string =>
   [
-    '** Tokens:',
-    ...entries.flatMap(([name, token]) => [
-      '-'.repeat(20),
-      `id: ${name}-id`,
-      `name: ${name}`,
-      `token: ${token}`,
-    ]),
+    '» Git branch:      feat/tinybird-sdk',
+    `» Local workspace: ${workspace} existing`,
+    '  ↳ https://cloud.tinybird.co/local/7181/x',
+    '✓ Build completed in 3.5s',
   ].join('\n');
 
-const failingReader = (): string => {
-  throw new Error('must not be read');
+const fakeLocal =
+  (
+    workspaces: readonly { name: string; token: string }[]
+  ): ((path: string, bearer?: string) => Promise<unknown>) =>
+  // eslint-disable-next-line @typescript-eslint/require-await -- fake of an async port
+  async (path, bearer) => {
+    if (path === '/tokens') return { user_token: 'p.user' };
+    if (path.startsWith('/v1/user/workspaces') && bearer === 'p.user')
+      return { workspaces };
+    throw new Error(`unexpected request ${path}`);
+  };
+
+const failing = (): never => {
+  throw new Error('must not be called');
 };
 
-const localInfo = () =>
-  infoJson({ api: 'http://localhost:7181', token: 'p.build-ws' });
-const localTokens = () =>
-  tokensText([
-    ['tracker', 'p.tracker'],
-    ['workspace admin token', 'p.branch-admin'],
-  ]);
-
 describe('resolveTinybirdEnv', () => {
-  it('uses TB_HOST and TB_TOKEN from the environment without reading the CLI', () => {
-    const env = resolveTinybirdEnv({
+  it('uses TB_HOST and TB_TOKEN from the environment without building', async () => {
+    const env = await resolveTinybirdEnv({
       env: { TB_HOST: 'http://tb.example:1234', TB_TOKEN: 'p.explicit' },
-      readLocalInfo: failingReader,
-      readTokens: failingReader,
+      buildLocal: failing,
+      fetchLocal: failing,
     });
 
     expect(env).toEqual({
@@ -42,49 +42,46 @@ describe('resolveTinybirdEnv', () => {
     });
   });
 
-  it('resolves the host and the branch admin token from the local Tinybird CLI', () => {
-    const env = resolveTinybirdEnv({
+  it('builds locally and returns the token of the workspace the SDK built into', async () => {
+    const env = await resolveTinybirdEnv({
       env: {},
-      readLocalInfo: localInfo,
-      readTokens: localTokens,
+      buildLocal: () => buildOutput('feat_tinybird_sdk'),
+      fetchLocal: fakeLocal([
+        { name: 'other', token: 'p.other' },
+        { name: 'feat_tinybird_sdk', token: 'p.branch-admin' },
+      ]),
     });
 
-    expect(env).toEqual({
-      host: 'http://localhost:7181',
-      token: 'p.branch-admin',
-    });
+    expect(env).toEqual({ host: LOCAL, token: 'p.branch-admin' });
   });
 
-  it('lets TB_HOST override the api reported by tb info', () => {
-    const env = resolveTinybirdEnv({
-      env: { TB_HOST: 'http://localhost:7999' },
-      readLocalInfo: localInfo,
-      readTokens: localTokens,
+  it('honours TB_LOCAL_URL for the host', async () => {
+    const env = await resolveTinybirdEnv({
+      env: { TB_LOCAL_URL: 'http://localhost:7999' },
+      buildLocal: () => buildOutput('ws'),
+      fetchLocal: fakeLocal([{ name: 'ws', token: 'p.ws' }]),
     });
 
-    expect(env).toEqual({
-      host: 'http://localhost:7999',
-      token: 'p.branch-admin',
-    });
+    expect(env.host).toBe('http://localhost:7999');
   });
 
-  it('fails when no workspace admin token is listed', () => {
-    expect(() =>
+  it('fails when the build output names no local workspace', async () => {
+    await expect(
       resolveTinybirdEnv({
         env: {},
-        readLocalInfo: localInfo,
-        readTokens: () => tokensText([['tracker', 'p.tracker']]),
+        buildLocal: () => 'Build completed',
+        fetchLocal: fakeLocal([]),
       })
-    ).toThrow();
+    ).rejects.toThrow(/workspace/);
   });
 
-  it('fails when tb info reports no local api', () => {
-    expect(() =>
+  it('fails when the built workspace is not listed', async () => {
+    await expect(
       resolveTinybirdEnv({
         env: {},
-        readLocalInfo: () => infoJson({ token: 'p.build-ws' }),
-        readTokens: localTokens,
+        buildLocal: () => buildOutput('missing'),
+        fetchLocal: fakeLocal([{ name: 'other', token: 'p.other' }]),
       })
-    ).toThrow();
+    ).rejects.toThrow(/missing/);
   });
 });
