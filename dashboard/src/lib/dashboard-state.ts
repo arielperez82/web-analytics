@@ -55,3 +55,16 @@ export const toSearch = ({ range, domain, filters }: DashboardState): string =>
       return value ? [[key, value]] : [];
     }),
   ]).toString();
+
+export const drillDay = (state: DashboardState, day: string): DashboardState => ({
+  ...state,
+  range:
+    "from" in state.range && state.range.from === day && state.range.to === day
+      ? { days: DEFAULT_DAYS }
+      : { from: day, to: day },
+});
+
+export const hrefFor = (pathname: string, state: DashboardState): string => {
+  const search = toSearch(state);
+  return search ? `${pathname}?${search}` : pathname;
+};

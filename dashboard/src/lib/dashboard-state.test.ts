@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseState, toSearch } from "./dashboard-state";
+import { drillDay, hrefFor, parseState, toSearch } from "./dashboard-state";
 
 const parse = (search: string) => parseState(new URLSearchParams(search));
 
@@ -57,5 +57,34 @@ describe("toSearch", () => {
 
   it("writes days when not the default", () => {
     expect(toSearch({ range: { days: 30 }, filters: {} })).toBe("days=30");
+  });
+});
+
+describe("drillDay", () => {
+  it("narrows the range to the clicked day and keeps other state", () => {
+    expect(
+      drillDay({ range: { days: 30 }, domain: "a.com", filters: { device: "bot" } }, "2026-11-05"),
+    ).toEqual({
+      range: { from: "2026-11-05", to: "2026-11-05" },
+      domain: "a.com",
+      filters: { device: "bot" },
+    });
+  });
+
+  it("clicking the selected day again returns to the default range", () => {
+    const state = { range: { from: "2026-11-05", to: "2026-11-05" }, filters: {} };
+    expect(drillDay(state, "2026-11-05").range).toEqual({ days: 7 });
+  });
+});
+
+describe("hrefFor", () => {
+  it("appends the state as a query string", () => {
+    expect(hrefFor("/reports/pages", { range: { days: 30 }, filters: { location: "DE" } })).toBe(
+      "/reports/pages?days=30&location=DE",
+    );
+  });
+
+  it("omits the question mark for default state", () => {
+    expect(hrefFor("/", { range: { days: 7 }, filters: {} })).toBe("/");
   });
 });
