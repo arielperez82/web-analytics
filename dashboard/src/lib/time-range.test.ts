@@ -28,4 +28,16 @@ describe("rangeToParams", () => {
       days: "30",
     });
   });
+
+  it("passes a custom range through with its inclusive day count", () => {
+    expect(rangeToParams({ from: "2026-11-01", to: "2026-11-03" }, now)).toEqual({
+      date_from: "2026-11-01",
+      date_to: "2026-11-03",
+      days: "3",
+    });
+  });
+
+  it("counts a single custom day as one day", () => {
+    expect(rangeToParams({ from: "2026-11-05", to: "2026-11-05" }, now)).toMatchObject({ days: "1" });
+  });
 });
