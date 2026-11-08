@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { REPORTS, reportBySlug } from "./reports";
+import { FILTER_REPORTS, LIST_REPORTS, REPORTS, reportBySlug } from "./reports";
 
 describe("reportBySlug", () => {
   it("finds a report by its slug", () => {
@@ -19,5 +19,12 @@ describe("reportBySlug", () => {
   it("has unique slugs", () => {
     const slugs = REPORTS.map((report) => report.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+});
+
+describe("filter and list widgets", () => {
+  it("splits reports into filter widgets and plain lists", () => {
+    expect(FILTER_REPORTS.map((r) => r.slug)).toEqual(["locations", "devices", "browsers"]);
+    expect(LIST_REPORTS.map((r) => r.slug)).toEqual(["pages", "sources"]);
   });
 });

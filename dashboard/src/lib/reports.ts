@@ -18,3 +18,7 @@ export const REPORTS: readonly Report[] = [
 
 export const reportBySlug = (slug: string): Report | undefined =>
   REPORTS.find((report) => report.slug === slug);
+
+export const FILTER_REPORTS: readonly Report[] = REPORTS.filter((report) => report.filterKey);
+
+export const LIST_REPORTS: readonly Report[] = REPORTS.filter((report) => !report.filterKey);
