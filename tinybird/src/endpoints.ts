@@ -106,11 +106,46 @@ export const domain = defineEndpoint("domain", {
 export type DomainOutput = InferOutputRow<typeof domain>;
 
 /**
- * Domains - list domains for a tenant
+ * Tenants - every tenant with its domain count and total hits. Events that
+ * carry no tenant appear with an empty tenant_id.
+ */
+export const tenants = defineEndpoint("tenants", {
+  description:
+    "Returns every tenant with its domain count, total hits and last seen. Events without a tenant appear with an empty tenant_id",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "endpoint",
+      description: "Aggregate tenant_domains_mv by tenant",
+      sql: `
+        SELECT
+            tenant_id,
+            uniqExact(domain) AS domains,
+            countMerge(total_hits) AS total_hits,
+            max(last_seen) AS last_seen
+        FROM tenant_domains_mv
+        GROUP BY tenant_id
+        ORDER BY total_hits DESC, tenant_id ASC
+      `,
+    }),
+  ],
+  params: {},
+  output: {
+    tenant_id: t.string(),
+    domains: t.uint64(),
+    total_hits: t.uint64(),
+    last_seen: t.dateTime(),
+  },
+});
+
+export type TenantsOutput = InferOutputRow<typeof tenants>;
+
+/**
+ * Domains - list domains, optionally for one tenant
  */
 export const domains = defineEndpoint("domains", {
   description:
-    "Returns domains for a tenant with first/last seen and total hits",
+    "Returns domains with first/last seen and total hits. Without tenant_id, domains of every tenant; with an empty tenant_id, only events that carry no tenant",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -123,14 +158,20 @@ export const domains = defineEndpoint("domains", {
             maxSimpleState(last_seen) AS last_seen,
             countMerge(total_hits) AS total_hits
         FROM tenant_domains_mv
-        WHERE tenant_id = {{ String(tenant_id, description="Tenant ID to filter", default="") }}
+        WHERE 1
+        {% if defined(tenant_id) %}
+        AND tenant_id = {{ String(tenant_id, description="Tenant ID to filter") }}
+        {% end %}
         GROUP BY domain
         ORDER BY total_hits DESC, domain ASC
       `,
     }),
   ],
   params: {
-    tenant_id: p.string().optional("").describe("Tenant ID to filter"),
+    tenant_id: p
+      .string()
+      .optional()
+      .describe("Tenant ID to filter; empty string means no tenant"),
   },
   output: {
     domain: t.string(),

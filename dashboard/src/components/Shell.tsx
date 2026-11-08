@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { DEFAULT_DAYS, hrefFor } from "@/lib/dashboard-state";
+import { DEFAULT_DAYS, hrefFor, tenantLabel } from "@/lib/dashboard-state";
 import { activeFilters, toggleFilter } from "@/lib/filters";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
@@ -13,12 +13,16 @@ import { useEndpoint } from "@/lib/use-endpoint";
 import { DateRangePicker } from "./DateRangePicker";
 import { fmt, type Row } from "./ui";
 
+const ALL_TENANTS = "__all";
+
 export const Shell = ({ email, children }: { email: string; children: ReactNode }) => {
   const { state, update } = useDashboardState();
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
-  const domains = useEndpoint<Row>("domains", {});
-  const online = useEndpoint<Row>("current_visitors", { domain: state.domain });
+  const tenants = useEndpoint<Row>("tenants", {});
+  const domains = useEndpoint<Row>("domains", { tenant_id: state.tenant });
+  const online = useEndpoint<Row>("current_visitors", { tenant_id: state.tenant, domain: state.domain });
+  const showTenants = !tenants.error && (tenants.data?.length ?? 0) > 0;
   const filters = activeFilters(state.filters);
   const custom = "from" in state.range ? state.range : undefined;
   const nav = [
@@ -31,6 +35,26 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
         <h1>Web Analytics</h1>
         <span className="live">● {fmt(online.data?.[0]?.visits ?? 0)} online</span>
         <span className="spacer" />
+        {showTenants && (
+          <select
+            aria-label="Tenant"
+            value={state.tenant ?? ALL_TENANTS}
+            onChange={(e) =>
+              update({
+                ...state,
+                tenant: e.target.value === ALL_TENANTS ? undefined : e.target.value,
+                domain: undefined,
+              })
+            }
+          >
+            <option value={ALL_TENANTS}>All tenants</option>
+            {(tenants.data ?? []).map((row) => (
+              <option key={String(row.tenant_id)} value={String(row.tenant_id)}>
+                {tenantLabel(String(row.tenant_id))} · {fmt(row.total_hits)} hits
+              </option>
+            ))}
+          </select>
+        )}
         <select
           aria-label="Domain"
           value={state.domain ?? ""}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { drillDay, hrefFor, parseState, toSearch } from "./dashboard-state";
+import { drillDay, hrefFor, parseState, tenantLabel, toSearch } from "./dashboard-state";
 
 const parse = (search: string) => parseState(new URLSearchParams(search));
 
@@ -86,5 +86,40 @@ describe("hrefFor", () => {
 
   it("omits the question mark for default state", () => {
     expect(hrefFor("/", { range: { days: 7 }, filters: {} })).toBe("/");
+  });
+});
+
+describe("tenant", () => {
+  it("is all tenants when absent", () => {
+    expect(parse("").tenant).toBeUndefined();
+  });
+
+  it("reads a named tenant", () => {
+    expect(parse("tenant=acme").tenant).toBe("acme");
+  });
+
+  it("reads an empty value as the no-tenant selection", () => {
+    expect(parse("tenant=").tenant).toBe("");
+  });
+
+  it("round-trips a named tenant and the no-tenant selection", () => {
+    for (const tenant of ["acme", ""]) {
+      const state = { range: { days: 7 }, tenant, filters: {} };
+      expect(parseState(new URLSearchParams(toSearch(state)))).toEqual(state);
+    }
+  });
+
+  it("writes nothing for all tenants", () => {
+    expect(toSearch({ range: { days: 7 }, filters: {} })).toBe("");
+  });
+});
+
+describe("tenantLabel", () => {
+  it("names the empty tenant No Tenant", () => {
+    expect(tenantLabel("")).toBe("No Tenant");
+  });
+
+  it("shows other tenants as they are", () => {
+    expect(tenantLabel("acme")).toBe("acme");
   });
 });

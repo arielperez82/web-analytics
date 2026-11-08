@@ -1,6 +1,7 @@
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
   "domains",
+  "tenants",
   "kpis",
   "trend",
   "top_pages",
@@ -13,6 +14,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "web_vitals_routes",
   "web_vitals_timeseries",
 ];
+
+const UNPINNED_ONLY: readonly string[] = ["tenants"];
 
 const FORWARDED_PARAMS: readonly string[] = [
   "date_from",
@@ -68,7 +71,7 @@ export const proxyEndpoint = async (
   { tinybird, tenantId, fetch }: ProxyDeps,
 ): Promise<ProxyResult> => {
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
-  if (!ALLOWED_ENDPOINTS.includes(name))
+  if (!ALLOWED_ENDPOINTS.includes(name) || (tenantId && UNPINNED_ONLY.includes(name)))
     return { status: 404, body: { error: "Not found" } };
 
   const qs = forwardedQuery(query, tenantId);

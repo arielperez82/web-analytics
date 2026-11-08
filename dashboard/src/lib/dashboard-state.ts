@@ -9,6 +9,7 @@ export type Range =
 
 export type DashboardState = {
   readonly range: Range;
+  readonly tenant?: string;
   readonly domain?: string;
   readonly filters: Filters;
 };
@@ -30,8 +31,10 @@ const parseRange = (search: URLSearchParams): Range => {
 
 export const parseState = (search: URLSearchParams): DashboardState => {
   const domain = search.get("domain");
+  const tenant = search.get("tenant");
   return {
     range: parseRange(search),
+    ...(tenant !== null ? { tenant } : {}),
     ...(domain ? { domain } : {}),
     filters: Object.fromEntries(
       FILTER_KEYS.flatMap((key) => {
@@ -42,13 +45,14 @@ export const parseState = (search: URLSearchParams): DashboardState => {
   };
 };
 
-export const toSearch = ({ range, domain, filters }: DashboardState): string =>
+export const toSearch = ({ range, tenant, domain, filters }: DashboardState): string =>
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
       : range.days === DEFAULT_DAYS
         ? []
         : [["days", String(range.days)]]),
+    ...(tenant !== undefined ? [["tenant", tenant]] : []),
     ...(domain ? [["domain", domain]] : []),
     ...FILTER_KEYS.flatMap((key) => {
       const value = filters[key];
@@ -68,3 +72,5 @@ export const hrefFor = (pathname: string, state: DashboardState): string => {
   const search = toSearch(state);
   return search ? `${pathname}?${search}` : pathname;
 };
+
+export const tenantLabel = (tenant: string): string => (tenant === "" ? "No Tenant" : tenant);

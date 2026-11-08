@@ -114,4 +114,23 @@ describe("proxyEndpoint", () => {
     });
     expect((await proxyEndpoint(request("trend"), deps)).status).toBe(502);
   });
+
+  it("lists tenants when the deployment is not pinned to one", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("tenants"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/tenants.json");
+  });
+
+  it("hides the tenants endpoint when the deployment is pinned to a tenant", async () => {
+    const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
+    expect((await proxyEndpoint(request("tenants"), deps)).status).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("forwards an empty tenant_id so events without a tenant can be selected", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(request("top_pages", "tenant_id="), deps);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/top_pages.json?tenant_id=");
+  });
 });
