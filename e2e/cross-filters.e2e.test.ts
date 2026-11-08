@@ -12,7 +12,7 @@ const CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh) Chrome/120';
 const SAFARI_IPHONE = 'Mozilla/5.0 (iPhone) Safari';
 
 type Scope = ReturnType<typeof createScope>;
-type Row = Record<string, string | number>;
+type Row = Record<string, number | string>;
 
 describe.concurrent('cross-filters', () => {
   const env = inject('tinybird');
@@ -53,7 +53,9 @@ describe.concurrent('cross-filters', () => {
       domain: scope.domain,
       ...filter,
     });
-    return rows.map(row => row[column]).sort();
+    return rows
+      .map(row => String(row[column]))
+      .sort((a, b) => a.localeCompare(b));
   };
 
   describe('top_pages', () => {
