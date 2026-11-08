@@ -3,7 +3,7 @@
 import { Kpis } from "@/components/Kpis";
 import { RankedTable } from "@/components/RankedTable";
 import { toggleFilter, type FilterKey } from "@/lib/filters";
-import { REPORTS } from "@/lib/reports";
+import { FILTER_REPORTS, LIST_REPORTS } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
 export const OverviewView = () => {
@@ -12,8 +12,15 @@ export const OverviewView = () => {
   return (
     <>
       <Kpis state={state} params={params} onChange={update} />
+      <h2 className="section">Filters <small>click a row to slice every widget</small></h2>
       <div className="grid">
-        {REPORTS.map((report) => (
+        {FILTER_REPORTS.map((report) => (
+          <RankedTable key={report.slug} report={report} state={state} params={params} onPick={pick} />
+        ))}
+      </div>
+      <h2 className="section">Lists</h2>
+      <div className="grid">
+        {LIST_REPORTS.map((report) => (
           <RankedTable key={report.slug} report={report} state={state} params={params} onPick={pick} />
         ))}
       </div>

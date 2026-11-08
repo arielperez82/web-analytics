@@ -5,16 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { DEFAULT_DAYS, hrefFor, RANGE_OPTIONS } from "@/lib/dashboard-state";
+import { DEFAULT_DAYS, hrefFor } from "@/lib/dashboard-state";
 import { activeFilters, toggleFilter } from "@/lib/filters";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 
+import { DateRangePicker } from "./DateRangePicker";
 import { fmt, type Row } from "./ui";
-
-const CustomRangeOption = ({ from, to }: { from: string; to: string }) => (
-  <option value="custom">{from === to ? from : `${from} → ${to}`}</option>
-);
 
 export const Shell = ({ email, children }: { email: string; children: ReactNode }) => {
   const { state, update } = useDashboardState();
@@ -44,16 +41,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             <option key={String(row.domain)} value={String(row.domain)}>{String(row.domain)}</option>
           ))}
         </select>
-        <select
-          aria-label="Time range"
-          value={custom ? "custom" : "days" in state.range ? state.range.days : DEFAULT_DAYS}
-          onChange={(e) => e.target.value !== "custom" && update({ ...state, range: { days: Number(e.target.value) } })}
-        >
-          {custom && <CustomRangeOption from={custom.from} to={custom.to} />}
-          {RANGE_OPTIONS.map((value) => (
-            <option key={value} value={value}>{value === 1 ? "Today" : `Last ${value} days`}</option>
-          ))}
-        </select>
+        <DateRangePicker range={state.range} onChange={(range) => update({ ...state, range })} />
         <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
       </header>
       <nav>
