@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createCustomEvent,
   createPageHitEvent,
   createScope,
   createWebVitalEvent,
@@ -68,6 +69,41 @@ describe('createWebVitalEvent', () => {
   it('is recorded before the supplied clock, so it is already queryable', () => {
     const now = new Date('2026-11-05T10:00:00.000Z');
     const recorded = new Date(`${vital({ now }).timestamp.replace(' ', 'T')}Z`);
+
+    expect(recorded.getTime()).toBeLessThan(now.getTime());
+  });
+});
+
+describe('createCustomEvent', () => {
+  const custom = (
+    overrides: Partial<Parameters<typeof createCustomEvent>[0]> = {}
+  ) =>
+    createCustomEvent({
+      tenantId: 't1',
+      domain: 'a.example.com',
+      action: 'book_session',
+      ...overrides,
+    });
+
+  it('records the action under the tenant and domain it was sent for', () => {
+    expect(custom()).toMatchObject({
+      action: 'book_session',
+      tenant_id: 't1',
+      domain: 'a.example.com',
+    });
+  });
+
+  it('carries the given payload as JSON', () => {
+    const row = custom({ payload: { href: 'https://a.example.com/' } });
+
+    expect(JSON.parse(row.payload)).toEqual({ href: 'https://a.example.com/' });
+  });
+
+  it('is recorded before the supplied clock, so it is already queryable', () => {
+    const now = new Date('2026-11-05T10:00:00.000Z');
+    const recorded = new Date(
+      `${custom({ now }).timestamp.replace(' ', 'T')}Z`
+    );
 
     expect(recorded.getTime()).toBeLessThan(now.getTime());
   });

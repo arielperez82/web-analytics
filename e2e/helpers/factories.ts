@@ -44,6 +44,30 @@ export const createWebVitalEvent = ({
   domain,
 });
 
+type CustomEventOptions = {
+  readonly tenantId: string;
+  readonly domain: string;
+  readonly action: string;
+  readonly payload?: Readonly<Record<string, unknown>>;
+  readonly now?: Date;
+};
+
+export const createCustomEvent = ({
+  tenantId,
+  domain,
+  action,
+  payload = {},
+  now = new Date(),
+}: CustomEventOptions): AnalyticsEventRow => ({
+  timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
+  session_id: crypto.randomUUID(),
+  action,
+  version: 'e2e',
+  payload: JSON.stringify(payload),
+  tenant_id: tenantId,
+  domain,
+});
+
 export type Scope = {
   readonly tenantId: string;
   readonly domain: string;
