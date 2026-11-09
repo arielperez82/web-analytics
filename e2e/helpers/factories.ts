@@ -44,6 +44,30 @@ export const createWebVitalEvent = ({
   domain,
 });
 
+type CustomEventOptions = {
+  readonly tenantId: string;
+  readonly domain: string;
+  readonly action: string;
+  readonly payload?: Readonly<Record<string, unknown>>;
+  readonly now?: Date;
+};
+
+export const createCustomEvent = ({
+  tenantId,
+  domain,
+  action,
+  payload = {},
+  now = new Date(),
+}: CustomEventOptions): AnalyticsEventRow => ({
+  timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
+  session_id: crypto.randomUUID(),
+  action,
+  version: 'e2e',
+  payload: JSON.stringify(payload),
+  tenant_id: tenantId,
+  domain,
+});
+
 export type Scope = {
   readonly tenantId: string;
   readonly domain: string;
@@ -54,6 +78,16 @@ export const createScope = (): Scope => ({
   domain: `${uniqueId('site')}.example.com`,
 });
 
+export const createSiblingSite = (scope: Scope): Scope => ({
+  ...createScope(),
+  tenantId: scope.tenantId,
+});
+
+export const createRivalTenant = (scope: Scope): Scope => ({
+  ...createScope(),
+  domain: scope.domain,
+});
+
 type PageHitOptions = {
   readonly tenantId: string;
   readonly domain: string;
@@ -61,6 +95,9 @@ type PageHitOptions = {
   readonly location?: string;
   readonly userAgent?: string;
   readonly referrer?: string;
+  readonly sessionId?: string;
+  readonly utm?: Readonly<Record<string, string>>;
+  readonly offsetSeconds?: number;
   readonly now?: Date;
 };
 
@@ -71,10 +108,15 @@ export const createPageHitEvent = ({
   location,
   userAgent,
   referrer,
+  sessionId = crypto.randomUUID(),
+  utm = {},
+  offsetSeconds = 0,
   now = new Date(),
 }: PageHitOptions): AnalyticsEventRow => ({
-  timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
-  session_id: crypto.randomUUID(),
+  timestamp: formatTimestamp(
+    new Date(now.getTime() - ONE_MINUTE_MS + offsetSeconds * 1000)
+  ),
+  session_id: sessionId,
   action: 'page_hit',
   version: 'e2e',
   payload: JSON.stringify({
@@ -84,6 +126,7 @@ export const createPageHitEvent = ({
     ...(location === undefined ? {} : { location }),
     ...(userAgent === undefined ? {} : { 'user-agent': userAgent }),
     ...(referrer === undefined ? {} : { referrer }),
+    ...utm,
   }),
   tenant_id: tenantId,
   domain,

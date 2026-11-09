@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createCustomEvent,
   createPageHitEvent,
+  createRivalTenant,
   createScope,
+  createSiblingSite,
   createWebVitalEvent,
   formatTimestamp,
   uniqueId,
@@ -73,6 +76,59 @@ describe('createWebVitalEvent', () => {
   });
 });
 
+describe('createCustomEvent', () => {
+  const custom = (
+    overrides: Partial<Parameters<typeof createCustomEvent>[0]> = {}
+  ) =>
+    createCustomEvent({
+      tenantId: 't1',
+      domain: 'a.example.com',
+      action: 'book_session',
+      ...overrides,
+    });
+
+  it('records the action under the tenant and domain it was sent for', () => {
+    expect(custom()).toMatchObject({
+      action: 'book_session',
+      tenant_id: 't1',
+      domain: 'a.example.com',
+    });
+  });
+
+  it('carries the given payload as JSON', () => {
+    const row = custom({ payload: { href: 'https://a.example.com/' } });
+
+    expect(JSON.parse(row.payload)).toEqual({ href: 'https://a.example.com/' });
+  });
+
+  it('is recorded before the supplied clock, so it is already queryable', () => {
+    const now = new Date('2026-11-05T10:00:00.000Z');
+    const recorded = new Date(
+      `${custom({ now }).timestamp.replace(' ', 'T')}Z`
+    );
+
+    expect(recorded.getTime()).toBeLessThan(now.getTime());
+  });
+});
+
+describe('scopes that differ in one dimension only', () => {
+  it('gives a sibling site the same tenant and a new domain', () => {
+    const scope = createScope();
+    const sibling = createSiblingSite(scope);
+
+    expect(sibling.tenantId).toBe(scope.tenantId);
+    expect(sibling.domain).not.toBe(scope.domain);
+  });
+
+  it('gives a rival tenant the same domain and a new tenant', () => {
+    const scope = createScope();
+    const rival = createRivalTenant(scope);
+
+    expect(rival.domain).toBe(scope.domain);
+    expect(rival.tenantId).not.toBe(scope.tenantId);
+  });
+});
+
 describe('createScope', () => {
   it('gives every scope its own tenant and its own domain', () => {
     const [first, second] = [createScope(), createScope()];
@@ -118,5 +174,42 @@ describe('createPageHitEvent', () => {
     expect(Object.keys(payload)).not.toContain('location');
     expect(Object.keys(payload)).not.toContain('user-agent');
     expect(Object.keys(payload)).not.toContain('referrer');
+  });
+
+  const hit = (
+    overrides: Partial<Parameters<typeof createPageHitEvent>[0]> = {}
+  ) => createPageHitEvent({ ...base, ...overrides });
+
+  it('uses the supplied session id so several hits can share a session', () => {
+    expect(hit({ sessionId: 's1' }).session_id).toBe('s1');
+    expect(hit({ sessionId: 's1' }).session_id).toBe(
+      hit({ sessionId: 's1' }).session_id
+    );
+  });
+
+  it('gives each hit its own session when none is supplied', () => {
+    expect(hit().session_id).not.toBe(hit().session_id);
+  });
+
+  it('carries UTM parameters in the payload the way the tracker sends them', () => {
+    const payload = JSON.parse(
+      hit({ utm: { utm_source: 'linkedin', utm_medium: 'paid-social' } })
+        .payload
+    );
+
+    expect(payload).toMatchObject({
+      utm_source: 'linkedin',
+      utm_medium: 'paid-social',
+    });
+  });
+
+  it('places a hit the requested number of seconds after its siblings', () => {
+    const now = new Date('2026-11-05T10:00:00.000Z');
+    const first = hit({ now, offsetSeconds: 0 });
+    const later = hit({ now, offsetSeconds: 30 });
+
+    expect(Date.parse(`${later.timestamp.replace(' ', 'T')}Z`)).toBe(
+      Date.parse(`${first.timestamp.replace(' ', 'T')}Z`) + 30_000
+    );
   });
 });
