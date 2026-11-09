@@ -35,7 +35,6 @@ import {
 import {
   channels,
   currentVisitors,
-  domain,
   domains,
   tenants,
   actions,
@@ -84,7 +83,6 @@ export const pipes = {
   // Endpoints
   channels,
   currentVisitors,
-  domain,
   domains,
   tenants,
   actions,
@@ -140,7 +138,6 @@ export type {
   ChannelsOutput,
   CurrentVisitorsParams,
   CurrentVisitorsOutput,
-  DomainOutput,
   DomainsParams,
   DomainsOutput,
   ActionsParams,

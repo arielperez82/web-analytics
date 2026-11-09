@@ -72,40 +72,6 @@ export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
 /**
- * Domain - get the current active domain
- */
-export const domain = defineEndpoint("domain", {
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "get_current_domain",
-      sql: `
-        WITH (
-        SELECT nullif(domainWithoutWWW(href),'') as domain
-        FROM analytics_hits
-        WHERE timestamp >= now() - interval 1 hour
-        GROUP BY domain
-        ORDER BY count(1) DESC
-        LIMIT 1
-        ) AS top_domain,
-        (
-        SELECT domainWithoutWWW(href)
-        FROM analytics_hits
-        WHERE href NOT LIKE '%localhost%'
-        LIMIT 1
-        ) AS some_domain
-        SELECT coalesce(top_domain, some_domain) AS domain
-      `,
-    }),
-  ],
-  output: {
-    domain: t.string(),
-  },
-});
-
-export type DomainOutput = InferOutputRow<typeof domain>;
-
-/**
  * Tenants - every tenant with its domain count and total hits. Events that
  * carry no tenant appear with an empty tenant_id.
  */
