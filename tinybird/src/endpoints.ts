@@ -1177,3 +1177,78 @@ export const topSources = defineEndpoint("top_sources", {
 
 export type TopSourcesParams = InferParams<typeof topSources>;
 export type TopSourcesOutput = InferOutputRow<typeof topSources>;
+
+/**
+ * Channels - visits grouped by the channel of each visit's first page view
+ */
+export const channels = defineEndpoint("channels", {
+  description:
+    "Visits and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "first_touch",
+      description: "First page view of each visit, with its UTMs and referrer",
+      sql: `
+        WITH
+            {% if defined(date_from) and defined(date_to) %}
+                toDate({{ String(date_from) }}) as current_start,
+                toDate({{ String(date_to) }}) as current_end
+            {% else %}
+                toDate(timestampAdd(today(), interval -7 day)) as current_start,
+                toDate(today()) as current_end
+            {% end %}
+        SELECT
+            session_id,
+            argMin(lower(utm_medium), timestamp) as utm_medium,
+            argMin(domainWithoutWWW(referrer), timestamp) as referrer_domain,
+            argMin(current_domain, timestamp) as site_domain,
+            count() as hits
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= current_start
+            AND toDate(timestamp) <= current_end
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+        GROUP BY session_id
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            multiIf(
+                match(utm_medium, '^(cpc|ppc|paid.*|display|cpm|retargeting)$'), 'Paid',
+                match(utm_medium, '^(e-?mail|newsletter)$'), 'Email',
+                match(utm_medium, '^(social|social-media|sm)$'), 'Social',
+                referrer_domain = '' OR referrer_domain = site_domain, 'Direct',
+                match(referrer_domain, '(^|\\.)(google|bing|duckduckgo|yahoo|baidu|ecosia|yandex)\\.') OR referrer_domain = 'search.brave.com', 'Organic Search',
+                match(referrer_domain, '(^|\\.)(facebook|instagram|linkedin|twitter|reddit|pinterest|tiktok|youtube)\\.com$') OR referrer_domain IN ('t.co', 'x.com', 'lnkd.in', 'news.ycombinator.com'), 'Social',
+                'Referral'
+            ) as channel,
+            count() as visits,
+            sum(hits) as hits
+        FROM first_touch
+        GROUP BY channel
+        ORDER BY visits DESC
+      `,
+    }),
+  ],
+  params: {
+    date_from: p.string().optional().describe("Start date"),
+    date_to: p.string().optional().describe("End date"),
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+  },
+  output: {
+    channel: t.string(),
+    visits: t.uint64(),
+    hits: t.uint64(),
+  },
+});
+
+export type ChannelsParams = InferParams<typeof channels>;
+export type ChannelsOutput = InferOutputRow<typeof channels>;

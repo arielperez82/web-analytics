@@ -33,6 +33,7 @@ import {
 
 // Endpoints
 import {
+  channels,
   currentVisitors,
   domain,
   domains,
@@ -81,6 +82,7 @@ export const pipes = {
   tenantActions,
   tenantDomains,
   // Endpoints
+  channels,
   currentVisitors,
   domain,
   domains,
@@ -134,6 +136,8 @@ export type AnalyticsClient = ReturnType<typeof createAnalyticsClient>;
 
 // Re-export types for convenience
 export type {
+  ChannelsParams,
+  ChannelsOutput,
   CurrentVisitorsParams,
   CurrentVisitorsOutput,
   DomainOutput,
