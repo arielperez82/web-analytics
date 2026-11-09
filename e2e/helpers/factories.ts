@@ -78,6 +78,16 @@ export const createScope = (): Scope => ({
   domain: `${uniqueId('site')}.example.com`,
 });
 
+export const createSiblingSite = (scope: Scope): Scope => ({
+  ...createScope(),
+  tenantId: scope.tenantId,
+});
+
+export const createRivalTenant = (scope: Scope): Scope => ({
+  ...createScope(),
+  domain: scope.domain,
+});
+
 type PageHitOptions = {
   readonly tenantId: string;
   readonly domain: string;

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   createCustomEvent,
   createPageHitEvent,
+  createRivalTenant,
   createScope,
+  createSiblingSite,
   createWebVitalEvent,
   formatTimestamp,
   uniqueId,
@@ -106,6 +108,24 @@ describe('createCustomEvent', () => {
     );
 
     expect(recorded.getTime()).toBeLessThan(now.getTime());
+  });
+});
+
+describe('scopes that differ in one dimension only', () => {
+  it('gives a sibling site the same tenant and a new domain', () => {
+    const scope = createScope();
+    const sibling = createSiblingSite(scope);
+
+    expect(sibling.tenantId).toBe(scope.tenantId);
+    expect(sibling.domain).not.toBe(scope.domain);
+  });
+
+  it('gives a rival tenant the same domain and a new tenant', () => {
+    const scope = createScope();
+    const rival = createRivalTenant(scope);
+
+    expect(rival.domain).toBe(scope.domain);
+    expect(rival.tenantId).not.toBe(scope.tenantId);
   });
 });
 
