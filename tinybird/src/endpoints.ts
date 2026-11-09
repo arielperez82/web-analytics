@@ -205,7 +205,7 @@ export const actions = defineEndpoint("actions", {
         FROM tenant_actions_mv
         WHERE tenant_id = {{ String(tenant_id, description="Tenant ID to filter", default="") }}
         {% if defined(action_filter) %}
-            AND action like {{String(action_filter, description="A like filter for actions", example="%cli_%")}}
+            AND positionCaseInsensitive(action, {{String(action_filter, description="Text the action name must contain", example="click")}}) > 0
         {% end %}
         GROUP BY domain, action
         ORDER BY last_seen DESC, domain ASC, action ASC
@@ -214,7 +214,7 @@ export const actions = defineEndpoint("actions", {
   ],
   params: {
     tenant_id: p.string().optional("").describe("Tenant ID to filter"),
-    action_filter: p.string().optional().describe("Like filter for actions"),
+    action_filter: p.string().optional().describe("Text the action name must contain"),
   },
   output: {
     domain: t.string(),
