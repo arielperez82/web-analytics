@@ -51,6 +51,18 @@ there.
 - `*.e2e.test.ts`: one file per pipe
 - `helpers/*.test.ts`: unit tests for the helpers (use plain fakes)
 
+## Writing tests
+
+Test behavior, not implementation. Each test states one outcome a dashboard
+user can see, and queries the endpoint only.
+
+- Name a test by its outcome, for example "a visit counts once however many
+  pages it viewed". Do not name columns, queries, or tables.
+- Do not read internal tables or depend on how a result is computed.
+- Mention an internal detail only for a corner case, and say why in the test
+  name.
+- Isolate each test with `createScope`. Never depend on fixture dates.
+
 ## Not in the default `pnpm test`
 
 E2E needs a running container and is slower than the unit tests, so it is a
