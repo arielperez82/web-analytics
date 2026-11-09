@@ -58,9 +58,9 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             {% if defined(like_filter) %}
             AND payload like {{ String(like_filter, description="Filter to apply to the payload JSON string", example="%utm_%") }}
             {% end %}
-        {% if defined(limit) %}
-            LIMIT {{Int32(limit, 20)}}
-            OFFSET {{Int32(page, 0) * Int32(limit, 20)}}
+        {% if defined(hits_limit) %}
+            LIMIT {{Int32(hits_limit, 20)}}
+            OFFSET {{Int32(hits_page, 0) * Int32(hits_limit, 20)}}
         {% end %}
       `,
     }),
@@ -116,8 +116,8 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
       .string()
       .optional()
       .describe("Filter to apply to the payload JSON string"),
-    limit: p.int32().optional(20).describe("Limit for pagination"),
-    page: p.int32().optional(0).describe("Page number for pagination"),
+    hits_limit: p.int32().optional(20).describe("Limit for pagination"),
+    hits_page: p.int32().optional(0).describe("Page number for pagination"),
   },
   output: {
     timestamp: t.dateTime(),

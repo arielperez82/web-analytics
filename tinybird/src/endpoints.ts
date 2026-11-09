@@ -1218,3 +1218,90 @@ export const channels = defineEndpoint("channels", {
 
 export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
+
+const normalizedPath = `
+    CASE
+        WHEN pathname = '/' THEN pathname
+        ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
+    END`;
+
+const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax", description: string) =>
+  defineEndpoint(name, {
+    description,
+    tokens: [{ token: dashboardToken, scope: "READ" }],
+    nodes: [
+      node({
+        name: "edge_of_visits",
+        description: "One page per visit: the first or last one viewed",
+        sql: `
+          WITH
+              {% if defined(date_from) and defined(date_to) %}
+                  toDate({{ String(date_from) }}) as current_start,
+                  toDate({{ String(date_to) }}) as current_end
+              {% else %}
+                  toDate(timestampAdd(today(), interval -7 day)) as current_start,
+                  toDate(today()) as current_end
+              {% end %}
+          SELECT
+              session_id,
+              ${pick}(${normalizedPath}, timestamp) as pathname
+          FROM analytics_hits
+          WHERE toDate(timestamp) >= current_start
+              AND toDate(timestamp) <= current_end
+              {% if defined(tenant_id) %}
+              AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+              {% end %}
+              {% if defined(domain) %}
+              AND domain = {{ String(domain, description="Filter by domain") }}
+              {% end %}${crossFilters}
+          GROUP BY session_id
+        `,
+      }),
+      node({
+        name: "endpoint",
+        sql: `
+          SELECT pathname, count() as visits
+          FROM edge_of_visits
+          GROUP BY pathname
+          ORDER BY visits DESC, pathname ASC
+          LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
+        `,
+      }),
+    ],
+    params: {
+      date_from: p.string().optional().describe("Start date"),
+      date_to: p.string().optional().describe("End date"),
+      tenant_id: p.string().optional().describe("Filter by tenant ID"),
+      domain: p.string().optional().describe("Filter by domain"),
+      ...crossFilterParams,
+      skip: p.int32().optional(0).describe("Skip for pagination"),
+      limit: p.int32().optional(50).describe("Limit for pagination"),
+    },
+    output: {
+      pathname: t.string(),
+      visits: t.uint64(),
+    },
+  });
+
+/**
+ * Entry pages - the page each visit started on, most visits first
+ */
+export const entryPages = edgePages(
+  "entry_pages",
+  "argMin",
+  "Pages where visits start, ordered by most visits"
+);
+
+/**
+ * Exit pages - the page each visit ended on, most visits first
+ */
+export const exitPages = edgePages(
+  "exit_pages",
+  "argMax",
+  "Pages where visits end, ordered by most visits"
+);
+
+export type EntryPagesParams = InferParams<typeof entryPages>;
+export type EntryPagesOutput = InferOutputRow<typeof entryPages>;
+export type ExitPagesParams = InferParams<typeof exitPages>;
+export type ExitPagesOutput = InferOutputRow<typeof exitPages>;
