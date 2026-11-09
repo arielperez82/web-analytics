@@ -1,11 +1,16 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { createPageHitEvent, createScope } from './helpers/factories';
+import {
+  createPageHitEvent,
+  createRivalTenant,
+  createScope,
+  createSiblingSite,
+  type Scope,
+} from './helpers/factories';
 import { pipeRows } from './helpers/pipe-rows';
 import { ingestEvents } from './helpers/tinybird-client';
 import { waitForRow } from './helpers/wait-for-row';
 
-type Scope = ReturnType<typeof createScope>;
 type VisitorsRow = { visits: number | string };
 
 const minutesAgo = (minutes: number): Date =>
@@ -14,20 +19,19 @@ const minutesAgo = (minutes: number): Date =>
 describe.concurrent('current visitors', () => {
   const env = inject('tinybird');
 
-  const online = async (
-    scope: Partial<Scope> & Pick<Scope, 'tenantId'>,
-    expected: number
-  ) => {
+  const online = async (scope: Scope, expected: number) => {
     const rows = await waitForRow(
       () =>
         pipeRows<VisitorsRow>(env, 'current_visitors', {
           tenant_id: scope.tenantId,
-          ...(scope.domain === undefined ? {} : { domain: scope.domain }),
+          domain: scope.domain,
         }),
       data => Number(data[0]?.visits) === expected
     );
     return Number(rows[0]?.visits);
   };
+  const hitAt = (scope: Scope, minutes: number) =>
+    createPageHitEvent({ ...scope, pathname: '/', now: minutesAgo(minutes) });
 
   it('counts a visitor who browsed a moment ago as online', async () => {
     const scope = createScope();
@@ -36,12 +40,20 @@ describe.concurrent('current visitors', () => {
     expect(await online(scope, 1)).toBe(1);
   });
 
-  it('does not count a visitor who left a while ago', async () => {
+  it('does not count visitors who left a while ago', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       createPageHitEvent({ ...scope, pathname: '/' }),
-      createPageHitEvent({ ...scope, pathname: '/', now: minutesAgo(20) }),
+      hitAt(scope, 20),
+      hitAt(scope, 25),
     ]);
+
+    expect(await online(scope, 1)).toBe(1);
+  });
+
+  it('counts a visitor from a few minutes ago but not one from more than five', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [hitAt(scope, 3), hitAt(scope, 7)]);
 
     expect(await online(scope, 1)).toBe(1);
   });
@@ -59,9 +71,32 @@ describe.concurrent('current visitors', () => {
     expect(await online(scope, 1)).toBe(1);
   });
 
-  it('never counts the visitors of another site of the same tenant', async () => {
+  it('counts every online visitor of a busy site, with no cap', async () => {
+    const scope = createScope();
+    await ingestEvents(
+      env,
+      Array.from({ length: 25 }, () =>
+        createPageHitEvent({ ...scope, pathname: '/' })
+      )
+    );
+
+    expect(await online(scope, 25)).toBe(25);
+  });
+
+  it('shows zero when nobody is online', async () => {
+    const scope = createScope();
+
+    const rows = await pipeRows<VisitorsRow>(env, 'current_visitors', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => Number(row.visits))).toEqual([0]);
+  });
+
+  it('never counts the visitors of a sibling site', async () => {
     const mine = createScope();
-    const sibling = { ...createScope(), tenantId: mine.tenantId };
+    const sibling = createSiblingSite(mine);
     await ingestEvents(env, [
       createPageHitEvent({ ...mine, pathname: '/' }),
       createPageHitEvent({ ...sibling, pathname: '/' }),
@@ -71,12 +106,13 @@ describe.concurrent('current visitors', () => {
     expect(await online(mine, 1)).toBe(1);
   });
 
-  it('never counts the visitors of another tenant', async () => {
-    const [mine, other] = [createScope(), createScope()];
+  it('never counts the visitors of another tenant, even on the same domain', async () => {
+    const mine = createScope();
+    const rival = createRivalTenant(mine);
     await ingestEvents(env, [
       createPageHitEvent({ ...mine, pathname: '/' }),
-      createPageHitEvent({ ...other, pathname: '/' }),
-      createPageHitEvent({ ...other, pathname: '/' }),
+      createPageHitEvent({ ...rival, pathname: '/' }),
+      createPageHitEvent({ ...rival, pathname: '/' }),
     ]);
 
     expect(await online(mine, 1)).toBe(1);
