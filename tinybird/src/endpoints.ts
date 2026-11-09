@@ -241,6 +241,23 @@ export const kpis = defineEndpoint("kpis", {
       `,
     }),
     node({
+      name: "engaged_sessions",
+      description: "Visits where the visitor did something besides view pages (clicks, custom events). Automatic web vitals do not count.",
+      sql: `
+        SELECT DISTINCT coalesce(session_id, '0') AS session_id
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
       name: "hits",
       description: "Group by sessions and calculate metrics",
       sql: `
@@ -250,7 +267,7 @@ export const kpis = defineEndpoint("kpis", {
                 session_id,
                 uniq(session_id) as visits,
                 count() as pageviews,
-                case when min(timestamp) = max(timestamp) then 1 else 0 end as is_bounce,
+                case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                 max(timestamp) as latest_hit_aux,
                 min(timestamp) as first_hit_aux
             from analytics_hits
@@ -268,7 +285,7 @@ export const kpis = defineEndpoint("kpis", {
                 session_id,
                 uniq(session_id) as visits,
                 countMerge(hits) as pageviews,
-                case when min(first_hit) = max(latest_hit) then 1 else 0 end as is_bounce,
+                case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                 max(latest_hit) as latest_hit_aux,
                 min(first_hit) as first_hit_aux
             from analytics_sessions_mv
@@ -293,7 +310,7 @@ export const kpis = defineEndpoint("kpis", {
             date,
             uniq(session_id) as current_visits,
             sum(pageviews) as current_pageviews,
-            sum(case when latest_hit_aux = first_hit_aux then 1 end) / uniq(session_id) as current_bounce_rate,
+            sum(is_bounce) / uniq(session_id) as current_bounce_rate,
             avg(latest_hit_aux - first_hit_aux) as current_avg_session_sec
         from hits
         group by date
@@ -310,7 +327,7 @@ export const kpis = defineEndpoint("kpis", {
                     session_id,
                     uniq(session_id) as visits,
                     count() as pageviews,
-                    case when min(timestamp) = max(timestamp) then 1 else 0 end as is_bounce,
+                    case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                     max(timestamp) as latest_hit_aux,
                     min(timestamp) as first_hit_aux
                 from analytics_hits
@@ -328,7 +345,7 @@ export const kpis = defineEndpoint("kpis", {
                     session_id,
                     uniq(session_id) as visits,
                     countMerge(hits) as pageviews,
-                    case when min(first_hit) = max(latest_hit) then 1 else 0 end as is_bounce,
+                    case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                     max(latest_hit) as latest_hit_aux,
                     min(first_hit) as first_hit_aux
                 from analytics_sessions_mv
@@ -359,7 +376,7 @@ export const kpis = defineEndpoint("kpis", {
             date,
             uniq(session_id) as previous_visits,
             sum(pageviews) as previous_pageviews,
-            sum(case when latest_hit_aux = first_hit_aux then 1 end) / uniq(session_id) as previous_bounce_rate,
+            sum(is_bounce) / uniq(session_id) as previous_bounce_rate,
             avg(latest_hit_aux - first_hit_aux) as previous_avg_session_sec
         from previous_period_hits
         group by date
