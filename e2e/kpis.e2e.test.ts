@@ -17,6 +17,7 @@ type KpiRow = {
   pageviews: number | string | null;
   bounce_rate: number | string | null;
   avg_session_sec: number | string | null;
+  views_per_visit: number | string | null;
   previous_visits?: number | string;
   visits_growth_percentage?: number | string;
 };
@@ -111,6 +112,33 @@ describe.concurrent('kpis', () => {
     const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
 
     expect(Number(busiestDay(rows)?.avg_session_sec)).toBe(60);
+  });
+
+  it('shows how many pages a visit viewed on average', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0]),
+      ...visit(scope, [0, 30, 60]),
+    ]);
+
+    const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
+
+    expect(Number(busiestDay(rows)?.views_per_visit)).toBe(2);
+  });
+
+  it('shows no pages per visit on a day without traffic', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [createPageHitEvent({ ...scope, pathname: '/' })]);
+
+    const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 1);
+
+    const quietDays = rows.filter(row => row.date < dayString(0));
+    expect(quietDays.length).toBeGreaterThan(0);
+    expect(
+      quietDays.every(
+        row => row.views_per_visit !== null && Number(row.views_per_visit) === 0
+      )
+    ).toBe(true);
   });
 
   it.each([

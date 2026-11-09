@@ -381,6 +381,7 @@ export const kpis = defineEndpoint("kpis", {
             coalesce(b.current_pageviews, 0) as pageviews,
             coalesce(b.current_bounce_rate, 0) as bounce_rate,
             coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
+            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit,
             coalesce(p.previous_visits, 0) as previous_visits,
             coalesce(p.previous_pageviews, 0) as previous_pageviews,
             coalesce(p.previous_bounce_rate, 0) as previous_bounce_rate,
@@ -416,7 +417,8 @@ export const kpis = defineEndpoint("kpis", {
             coalesce(b.current_visits, 0) as visits,
             coalesce(b.current_pageviews, 0) as pageviews,
             coalesce(b.current_bounce_rate, 0) as bounce_rate,
-            coalesce(b.current_avg_session_sec, 0) as avg_session_sec
+            coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
+            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit
         FROM timeseries a
         LEFT JOIN current_period_data b USING date
         {% end %}
@@ -440,6 +442,7 @@ export const kpis = defineEndpoint("kpis", {
     pageviews: t.uint64(),
     bounce_rate: t.float64(),
     avg_session_sec: t.float64(),
+    views_per_visit: t.float64(),
   },
 });
 
