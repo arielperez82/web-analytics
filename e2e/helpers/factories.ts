@@ -61,6 +61,9 @@ type PageHitOptions = {
   readonly location?: string;
   readonly userAgent?: string;
   readonly referrer?: string;
+  readonly sessionId?: string;
+  readonly utm?: Readonly<Record<string, string>>;
+  readonly offsetSeconds?: number;
   readonly now?: Date;
 };
 
@@ -71,10 +74,15 @@ export const createPageHitEvent = ({
   location,
   userAgent,
   referrer,
+  sessionId = crypto.randomUUID(),
+  utm = {},
+  offsetSeconds = 0,
   now = new Date(),
 }: PageHitOptions): AnalyticsEventRow => ({
-  timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
-  session_id: crypto.randomUUID(),
+  timestamp: formatTimestamp(
+    new Date(now.getTime() - ONE_MINUTE_MS + offsetSeconds * 1000)
+  ),
+  session_id: sessionId,
   action: 'page_hit',
   version: 'e2e',
   payload: JSON.stringify({
@@ -84,6 +92,7 @@ export const createPageHitEvent = ({
     ...(location === undefined ? {} : { location }),
     ...(userAgent === undefined ? {} : { 'user-agent': userAgent }),
     ...(referrer === undefined ? {} : { referrer }),
+    ...utm,
   }),
   tenant_id: tenantId,
   domain,

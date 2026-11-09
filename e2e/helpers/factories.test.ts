@@ -119,4 +119,41 @@ describe('createPageHitEvent', () => {
     expect(Object.keys(payload)).not.toContain('user-agent');
     expect(Object.keys(payload)).not.toContain('referrer');
   });
+
+  const hit = (
+    overrides: Partial<Parameters<typeof createPageHitEvent>[0]> = {}
+  ) => createPageHitEvent({ ...base, ...overrides });
+
+  it('uses the supplied session id so several hits can share a session', () => {
+    expect(hit({ sessionId: 's1' }).session_id).toBe('s1');
+    expect(hit({ sessionId: 's1' }).session_id).toBe(
+      hit({ sessionId: 's1' }).session_id
+    );
+  });
+
+  it('gives each hit its own session when none is supplied', () => {
+    expect(hit().session_id).not.toBe(hit().session_id);
+  });
+
+  it('carries UTM parameters in the payload the way the tracker sends them', () => {
+    const payload = JSON.parse(
+      hit({ utm: { utm_source: 'linkedin', utm_medium: 'paid-social' } })
+        .payload
+    );
+
+    expect(payload).toMatchObject({
+      utm_source: 'linkedin',
+      utm_medium: 'paid-social',
+    });
+  });
+
+  it('places a hit the requested number of seconds after its siblings', () => {
+    const now = new Date('2026-11-05T10:00:00.000Z');
+    const first = hit({ now, offsetSeconds: 0 });
+    const later = hit({ now, offsetSeconds: 30 });
+
+    expect(Date.parse(`${later.timestamp.replace(' ', 'T')}Z`)).toBe(
+      Date.parse(`${first.timestamp.replace(' ', 'T')}Z`) + 30_000
+    );
+  });
 });
