@@ -3,7 +3,9 @@ import { describe, expect, inject, it } from 'vitest';
 import {
   type AnalyticsEventRow,
   createPageHitEvent,
+  createRivalTenant,
   createScope,
+  createSiblingSite,
   type Scope,
 } from './helpers/factories';
 import { pipeRows } from './helpers/pipe-rows';
@@ -180,32 +182,58 @@ describe.concurrent.each(entries)('top $label', entry => {
     ]);
   });
 
-  it('shows the change against the period before when asked', async () => {
+  it.each([
+    ['grew', 3, 2, 50],
+    ['fell', 1, 2, -50],
+    ['started from nothing', 2, 0, 100],
+  ])(
+    'shows the change as a percentage when visits %s against the period before',
+    async (_label, current, previous, expected) => {
+      const scope = createScope();
+      const sessions = (count: number, now: Date) =>
+        Array.from({ length: count }, () => hit(scope, 0, { now }));
+      await ingestEvents(env, [
+        ...sessions(previous, daysFromNow(-3)),
+        ...sessions(current, daysFromNow(-1)),
+      ]);
+
+      const rows = await list(
+        scope,
+        {
+          date_from: dayString(-1),
+          date_to: dayString(0),
+          include_previous_period: 'true',
+        },
+        r =>
+          Number(r[0]?.visits) === current &&
+          Number(r[0]?.previous_visits) === previous
+      );
+
+      expect(Number(rows[0]?.visits_growth_percentage)).toBe(expected);
+    }
+  );
+
+  it('ranks by visitors, not by page views', async () => {
     const scope = createScope();
+    const heavy = crypto.randomUUID();
     await ingestEvents(env, [
-      hit(scope, 0, { now: daysFromNow(-3) }),
-      hit(scope, 0, { now: daysFromNow(-1) }),
-      hit(scope, 0, { now: daysFromNow(-1) }),
+      ...[0, 1, 2, 3, 4].map(offsetSeconds =>
+        hit(scope, 0, { sessionId: heavy, offsetSeconds })
+      ),
+      hit(scope, 1),
+      hit(scope, 1),
     ]);
 
-    const rows = await list(
-      scope,
-      {
-        date_from: dayString(-1),
-        date_to: dayString(0),
-        include_previous_period: 'true',
-      },
-      r => Number(r[0]?.visits) === 2 && Number(r[0]?.previous_visits) === 1
-    );
+    const rows = await list(scope, {}, r => r.length >= 2);
 
-    expect(Number(rows[0]?.visits_growth_percentage)).toBe(100);
+    expect(names(rows)).toEqual([second, first]);
   });
 
-  it('leaves out visits outside the chosen period', async () => {
+  it('leaves out visits from the day just before the chosen period', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       hit(scope, 0),
-      hit(scope, 1, { now: daysFromNow(-5) }),
+      hit(scope, 1, { now: daysFromNow(-2) }),
     ]);
 
     const rows = await list(
@@ -236,12 +264,98 @@ describe.concurrent.each(entries)('top $label', entry => {
     expect(pages.flatMap(names)).toEqual([first, second, third]);
   });
 
-  it('never shows the rows of another tenant', async () => {
-    const [mine, other] = [createScope(), createScope()];
-    await ingestEvents(env, [hit(mine, 0), hit(other, 1), hit(other, 2)]);
+  it('never shows the rows of another tenant, even on the same domain', async () => {
+    const mine = createScope();
+    const rival = createRivalTenant(mine);
+    await ingestEvents(env, [hit(mine, 0), hit(rival, 1), hit(rival, 2)]);
 
     const rows = await list(mine, {}, r => r.length >= 1);
 
     expect(names(rows)).toEqual([first]);
+  });
+
+  it('never shows the rows of a sibling site', async () => {
+    const mine = createScope();
+    const sibling = createSiblingSite(mine);
+    await ingestEvents(env, [hit(mine, 0), hit(sibling, 1), hit(sibling, 2)]);
+
+    const rows = await list(mine, {}, r => r.length >= 1);
+
+    expect(names(rows)).toEqual([first]);
+  });
+});
+
+describe.concurrent('top lists: real-world corner cases', () => {
+  const env = inject('tinybird');
+  const only = async (
+    pipe: string,
+    column: string,
+    event: (scope: Scope) => AnalyticsEventRow
+  ) => {
+    const scope = createScope();
+    await ingestEvents(env, [event(scope)]);
+    const rows = await waitForRow(
+      () =>
+        pipeRows<Row>(env, pipe, {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+        }),
+      r => r.length >= 1
+    );
+    return rows.map(row => String(row[column]));
+  };
+
+  it('counts a real Chrome user agent, which also names Safari, as Chrome', async () => {
+    const browsers = await only('top_browsers', 'browser', scope =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent:
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      })
+    );
+
+    expect(browsers).toEqual(['chrome']);
+  });
+
+  it('counts a crawler as a bot even when it names Android', async () => {
+    const devices = await only('top_devices', 'device', scope =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1',
+      })
+    );
+
+    expect(devices).toEqual(['bot']);
+  });
+
+  it('counts a link from www.example.org and example.org as one source', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        referrer: 'https://www.partner.example.org/a',
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        referrer: 'https://partner.example.org/b',
+      }),
+    ]);
+
+    const rows = await waitForRow(
+      () =>
+        pipeRows<Row>(env, 'top_sources', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+        }),
+      r => Number(r[0]?.visits) === 2
+    );
+
+    expect(rows.map(row => String(row.referrer))).toEqual([
+      'partner.example.org',
+    ]);
   });
 });
