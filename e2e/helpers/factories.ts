@@ -15,6 +15,7 @@ type WebVitalOptions = {
   readonly value: number;
   readonly pathname: string;
   readonly delta?: number;
+  readonly sessionId?: string;
   readonly now?: Date;
 };
 
@@ -33,10 +34,11 @@ export const createWebVitalEvent = ({
   value,
   pathname,
   delta = 0,
+  sessionId = crypto.randomUUID(),
   now = new Date(),
 }: WebVitalOptions): AnalyticsEventRow => ({
   timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
-  session_id: crypto.randomUUID(),
+  session_id: sessionId,
   action: 'web_vital',
   version: 'e2e',
   payload: JSON.stringify({ name, value, delta, pathname, domain }),
@@ -49,6 +51,7 @@ type CustomEventOptions = {
   readonly domain: string;
   readonly action: string;
   readonly payload?: Readonly<Record<string, unknown>>;
+  readonly sessionId?: string;
   readonly now?: Date;
 };
 
@@ -57,10 +60,11 @@ export const createCustomEvent = ({
   domain,
   action,
   payload = {},
+  sessionId = crypto.randomUUID(),
   now = new Date(),
 }: CustomEventOptions): AnalyticsEventRow => ({
   timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
-  session_id: crypto.randomUUID(),
+  session_id: sessionId,
   action,
   version: 'e2e',
   payload: JSON.stringify(payload),

@@ -58,6 +58,10 @@ describe('createWebVitalEvent', () => {
     });
   });
 
+  it('belongs to the supplied session so it can follow a page view', () => {
+    expect(vital({ sessionId: 's1' }).session_id).toBe('s1');
+  });
+
   it('lands inside a one-day query window when created without a clock', () => {
     const before = Date.now();
     const recorded = new Date(
@@ -99,6 +103,10 @@ describe('createCustomEvent', () => {
     const row = custom({ payload: { href: 'https://a.example.com/' } });
 
     expect(JSON.parse(row.payload)).toEqual({ href: 'https://a.example.com/' });
+  });
+
+  it('belongs to the supplied session so it can follow a page view', () => {
+    expect(custom({ sessionId: 's1' }).session_id).toBe('s1');
   });
 
   it('is recorded before the supplied clock, so it is already queryable', () => {

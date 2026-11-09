@@ -241,6 +241,23 @@ export const kpis = defineEndpoint("kpis", {
       `,
     }),
     node({
+      name: "engaged_sessions",
+      description: "Visits where the visitor did something besides view pages (clicks, custom events). Automatic web vitals do not count.",
+      sql: `
+        SELECT DISTINCT coalesce(session_id, '0') AS session_id
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
       name: "hits",
       description: "Group by sessions and calculate metrics",
       sql: `
@@ -250,7 +267,7 @@ export const kpis = defineEndpoint("kpis", {
                 session_id,
                 uniq(session_id) as visits,
                 count() as pageviews,
-                case when min(timestamp) = max(timestamp) then 1 else 0 end as is_bounce,
+                case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                 max(timestamp) as latest_hit_aux,
                 min(timestamp) as first_hit_aux
             from analytics_hits
@@ -268,7 +285,7 @@ export const kpis = defineEndpoint("kpis", {
                 session_id,
                 uniq(session_id) as visits,
                 countMerge(hits) as pageviews,
-                case when min(first_hit) = max(latest_hit) then 1 else 0 end as is_bounce,
+                case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                 max(latest_hit) as latest_hit_aux,
                 min(first_hit) as first_hit_aux
             from analytics_sessions_mv
@@ -293,7 +310,7 @@ export const kpis = defineEndpoint("kpis", {
             date,
             uniq(session_id) as current_visits,
             sum(pageviews) as current_pageviews,
-            sum(case when latest_hit_aux = first_hit_aux then 1 end) / uniq(session_id) as current_bounce_rate,
+            sum(is_bounce) / uniq(session_id) as current_bounce_rate,
             avg(latest_hit_aux - first_hit_aux) as current_avg_session_sec
         from hits
         group by date
@@ -310,7 +327,7 @@ export const kpis = defineEndpoint("kpis", {
                     session_id,
                     uniq(session_id) as visits,
                     count() as pageviews,
-                    case when min(timestamp) = max(timestamp) then 1 else 0 end as is_bounce,
+                    case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                     max(timestamp) as latest_hit_aux,
                     min(timestamp) as first_hit_aux
                 from analytics_hits
@@ -328,7 +345,7 @@ export const kpis = defineEndpoint("kpis", {
                     session_id,
                     uniq(session_id) as visits,
                     countMerge(hits) as pageviews,
-                    case when min(first_hit) = max(latest_hit) then 1 else 0 end as is_bounce,
+                    case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
                     max(latest_hit) as latest_hit_aux,
                     min(first_hit) as first_hit_aux
                 from analytics_sessions_mv
@@ -359,7 +376,7 @@ export const kpis = defineEndpoint("kpis", {
             date,
             uniq(session_id) as previous_visits,
             sum(pageviews) as previous_pageviews,
-            sum(case when latest_hit_aux = first_hit_aux then 1 end) / uniq(session_id) as previous_bounce_rate,
+            sum(is_bounce) / uniq(session_id) as previous_bounce_rate,
             avg(latest_hit_aux - first_hit_aux) as previous_avg_session_sec
         from previous_period_hits
         group by date
@@ -381,6 +398,7 @@ export const kpis = defineEndpoint("kpis", {
             coalesce(b.current_pageviews, 0) as pageviews,
             coalesce(b.current_bounce_rate, 0) as bounce_rate,
             coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
+            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit,
             coalesce(p.previous_visits, 0) as previous_visits,
             coalesce(p.previous_pageviews, 0) as previous_pageviews,
             coalesce(p.previous_bounce_rate, 0) as previous_bounce_rate,
@@ -416,7 +434,8 @@ export const kpis = defineEndpoint("kpis", {
             coalesce(b.current_visits, 0) as visits,
             coalesce(b.current_pageviews, 0) as pageviews,
             coalesce(b.current_bounce_rate, 0) as bounce_rate,
-            coalesce(b.current_avg_session_sec, 0) as avg_session_sec
+            coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
+            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit
         FROM timeseries a
         LEFT JOIN current_period_data b USING date
         {% end %}
@@ -440,6 +459,7 @@ export const kpis = defineEndpoint("kpis", {
     pageviews: t.uint64(),
     bounce_rate: t.float64(),
     avg_session_sec: t.float64(),
+    views_per_visit: t.float64(),
   },
 });
 
@@ -1218,3 +1238,90 @@ export const channels = defineEndpoint("channels", {
 
 export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
+
+const normalizedPath = `
+    CASE
+        WHEN pathname = '/' THEN pathname
+        ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
+    END`;
+
+const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax", description: string) =>
+  defineEndpoint(name, {
+    description,
+    tokens: [{ token: dashboardToken, scope: "READ" }],
+    nodes: [
+      node({
+        name: "edge_of_visits",
+        description: "One page per visit: the first or last one viewed",
+        sql: `
+          WITH
+              {% if defined(date_from) and defined(date_to) %}
+                  toDate({{ String(date_from) }}) as current_start,
+                  toDate({{ String(date_to) }}) as current_end
+              {% else %}
+                  toDate(timestampAdd(today(), interval -7 day)) as current_start,
+                  toDate(today()) as current_end
+              {% end %}
+          SELECT
+              session_id,
+              ${pick}(${normalizedPath}, timestamp) as pathname
+          FROM analytics_hits
+          WHERE toDate(timestamp) >= current_start
+              AND toDate(timestamp) <= current_end
+              {% if defined(tenant_id) %}
+              AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+              {% end %}
+              {% if defined(domain) %}
+              AND domain = {{ String(domain, description="Filter by domain") }}
+              {% end %}${crossFilters}
+          GROUP BY session_id
+        `,
+      }),
+      node({
+        name: "endpoint",
+        sql: `
+          SELECT pathname, count() as visits
+          FROM edge_of_visits
+          GROUP BY pathname
+          ORDER BY visits DESC, pathname ASC
+          LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
+        `,
+      }),
+    ],
+    params: {
+      date_from: p.string().optional().describe("Start date"),
+      date_to: p.string().optional().describe("End date"),
+      tenant_id: p.string().optional().describe("Filter by tenant ID"),
+      domain: p.string().optional().describe("Filter by domain"),
+      ...crossFilterParams,
+      skip: p.int32().optional(0).describe("Skip for pagination"),
+      limit: p.int32().optional(50).describe("Limit for pagination"),
+    },
+    output: {
+      pathname: t.string(),
+      visits: t.uint64(),
+    },
+  });
+
+/**
+ * Entry pages - the page each visit started on, most visits first
+ */
+export const entryPages = edgePages(
+  "entry_pages",
+  "argMin",
+  "Pages where visits start, ordered by most visits"
+);
+
+/**
+ * Exit pages - the page each visit ended on, most visits first
+ */
+export const exitPages = edgePages(
+  "exit_pages",
+  "argMax",
+  "Pages where visits end, ordered by most visits"
+);
+
+export type EntryPagesParams = InferParams<typeof entryPages>;
+export type EntryPagesOutput = InferOutputRow<typeof entryPages>;
+export type ExitPagesParams = InferParams<typeof exitPages>;
+export type ExitPagesOutput = InferOutputRow<typeof exitPages>;

@@ -1,10 +1,12 @@
 import { describe, expect, inject, it } from 'vitest';
 
 import {
+  createCustomEvent,
   createPageHitEvent,
   createRivalTenant,
   createScope,
   createSiblingSite,
+  createWebVitalEvent,
   type Scope,
 } from './helpers/factories';
 import { pipeRows } from './helpers/pipe-rows';
@@ -17,7 +19,9 @@ type KpiRow = {
   pageviews: number | string | null;
   bounce_rate: number | string | null;
   avg_session_sec: number | string | null;
+  views_per_visit: number | string | null;
   previous_visits?: number | string;
+  previous_bounce_rate?: number | string;
   visits_growth_percentage?: number | string;
 };
 
@@ -111,6 +115,134 @@ describe.concurrent('kpis', () => {
     const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
 
     expect(Number(busiestDay(rows)?.avg_session_sec)).toBe(60);
+  });
+
+  it('shows how many pages a visit viewed on average', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0]),
+      ...visit(scope, [0, 30, 60]),
+    ]);
+
+    const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
+
+    expect(Number(busiestDay(rows)?.views_per_visit)).toBe(2);
+  });
+
+  it('shows no pages per visit on a day without traffic', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [createPageHitEvent({ ...scope, pathname: '/' })]);
+
+    const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 1);
+
+    const quietDays = rows.filter(row => row.date < dayString(0));
+    expect(quietDays.length).toBeGreaterThan(0);
+    expect(
+      quietDays.every(
+        row => row.views_per_visit !== null && Number(row.views_per_visit) === 0
+      )
+    ).toBe(true);
+  });
+
+  describe('bounce rate', () => {
+    const today = () => ({ date_from: dayString(0), date_to: dayString(0) });
+    const clicked = (scope: Scope, now?: Date) => {
+      const sessionId = crypto.randomUUID();
+      return [
+        createPageHitEvent({
+          ...scope,
+          pathname: '/',
+          sessionId,
+          ...(now === undefined ? {} : { now }),
+        }),
+        createCustomEvent({
+          ...scope,
+          action: 'link_click',
+          sessionId,
+          ...(now === undefined ? {} : { now }),
+        }),
+      ];
+    };
+    const measured = (scope: Scope) => {
+      const sessionId = crypto.randomUUID();
+      return [
+        createPageHitEvent({ ...scope, pathname: '/', sessionId }),
+        createWebVitalEvent({
+          ...scope,
+          name: 'LCP',
+          value: 1200,
+          pathname: '/',
+          sessionId,
+        }),
+      ];
+    };
+    const bounceRate = (rows: readonly KpiRow[]) =>
+      Number(busiestDay(rows)?.bounce_rate);
+
+    it('does not count a visit that viewed two pages as a bounce, however quickly', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [...visit(scope, [0, 0]), ...visit(scope, [0])]);
+
+      const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
+
+      expect(bounceRate(rows)).toBe(0.5);
+    });
+
+    it('does not count a one-page visit as a bounce when the visitor clicked something', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [...clicked(scope), ...visit(scope, [0])]);
+
+      const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 2);
+
+      expect(bounceRate(rows)).toBe(0.5);
+    });
+
+    it('still counts a one-page visit as a bounce when only automatic measurements arrived', async () => {
+      const scope = createScope();
+      await ingestEvents(env, measured(scope));
+
+      const rows = await kpis(scope, lastWeek(), r => total(r, 'visits') === 1);
+
+      expect(bounceRate(rows)).toBe(1);
+    });
+
+    it('applies the same rule when looking at a single day', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        ...clicked(scope),
+        ...measured(scope),
+        ...visit(scope, [0, 0]),
+        ...visit(scope, [0]),
+      ]);
+
+      const rows = await kpis(scope, today(), r => total(r, 'visits') === 4);
+
+      expect(bounceRate(rows)).toBe(0.5);
+    });
+
+    it('applies the same rule to the period before', async () => {
+      const scope = createScope();
+      const before = daysFromNow(-3);
+      await ingestEvents(env, [
+        ...clicked(scope, before),
+        ...visit(scope, [0], before),
+        ...visit(scope, [0, 0], before),
+        ...visit(scope, [0], before),
+      ]);
+
+      const rows = await kpis(
+        scope,
+        {
+          date_from: dayString(-1),
+          date_to: dayString(0),
+          include_previous_period: 'true',
+        },
+        r => r.some(row => Number(row.previous_visits) === 4)
+      );
+
+      const compared = rows.find(row => Number(row.previous_visits) === 4);
+      expect(Number(compared?.previous_bounce_rate)).toBe(0.5);
+    });
   });
 
   it.each([
