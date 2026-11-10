@@ -75,6 +75,25 @@ describe("handleTracking site identity", () => {
   });
 });
 
+describe("handleTracking with several sites", () => {
+  it("stamps each event with the tenant of its own origin, never another site's", async () => {
+    const { deps, forwarded } = createFakeDeps({
+      sites: [
+        { origin: "https://example.com", tenantId: "acme" },
+        { origin: "https://other.example", tenantId: "beta" },
+      ],
+    });
+    await handleTracking(
+      post(anonymousEvent, { origin: "https://other.example" }),
+      deps,
+    );
+    expect(forwarded[0]?.body).toMatchObject({
+      tenant_id: "beta",
+      domain: "other.example",
+    });
+  });
+});
+
 describe("handleTracking anonymous events", () => {
   it("mints ids server side and marks the event daily_proxy", async () => {
     const { deps, forwarded } = createFakeDeps();
