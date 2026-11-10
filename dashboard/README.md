@@ -9,6 +9,7 @@ Self-hosted (for example on Vercel); nothing in the code is specific to one orga
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `TINYBIRD_HOST`, `TINYBIRD_TOKEN`          | Tinybird workspace and a read token. Server-side only.                                                           |
 | `DASHBOARD_TENANT_ID`                      | Pins every query to one tenant; the browser cannot override it.                                                  |
+| `DASHBOARD_GOALS`                          | JSON `[{"name","path"}]`: one conversions panel per goal (max 10). Paths start with `/`, no `%`, `?` or `#`.     |
 | `ALLOWED_EMAIL_DOMAINS`                    | Comma-separated domains allowed to sign in, for example `example.com`. Exact match, subdomains are not admitted. |
 | `ALLOWED_EMAILS`                           | Comma-separated individual addresses allowed in addition to the domains.                                         |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth client for the deployment.                                                                          |
