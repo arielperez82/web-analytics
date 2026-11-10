@@ -11,8 +11,10 @@ const isBareOrigin = (value: string): boolean => {
 export const parseSites = (raw: string | undefined): readonly Site[] =>
   (raw ?? "")
     .split(",")
-    .map((entry) => {
-      const [origin = "", tenantId = ""] = entry.split("=").map((part) => part.trim());
-      return { origin, tenantId };
-    })
-    .filter(({ origin, tenantId }) => tenantId !== "" && isBareOrigin(origin));
+    .map((entry) => entry.split("=").map((part) => part.trim()))
+    .flatMap((parts) => {
+      const [origin = "", tenantId = ""] = parts;
+      return parts.length === 2 && tenantId !== "" && isBareOrigin(origin)
+        ? [{ origin, tenantId }]
+        : [];
+    });

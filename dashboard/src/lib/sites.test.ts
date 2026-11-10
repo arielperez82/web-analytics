@@ -12,6 +12,12 @@ describe("parseSites", () => {
     ]);
   });
 
+  it("drops an entry with extra separators instead of truncating its tenant", () => {
+    expect(
+      parseSites("https://a.example=acme=oops,https://b.example=beta"),
+    ).toEqual([{ origin: "https://b.example", tenantId: "beta" }]);
+  });
+
   it("drops entries without a tenant or with something other than a bare origin", () => {
     expect(
       parseSites(
