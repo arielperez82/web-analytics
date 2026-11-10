@@ -30,7 +30,7 @@
     "test:e2e:browser": "playwright test -c playwright.e2e.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
-    "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts",
+    "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts && pnpm run check:workspace",
     "build:tinybird": "cd tinybird && pnpm exec tinybird build",
     "test:scripts": "vitest run --dir scripts",
     "check:workspace": "node scripts/workspace/check-workspace.ts"
