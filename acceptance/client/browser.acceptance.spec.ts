@@ -21,6 +21,8 @@ const collectEvents = async (page: Page): Promise<readonly TrackedEvent[]> => {
   return events;
 };
 
+const settle = (page: Page) => page.waitForLoadState('networkidle');
+
 test.describe('client embedded in a real page', () => {
   test('sends a page hit with the visit UTM parameters', async ({ page }) => {
     const events = await collectEvents(page);
@@ -36,5 +38,20 @@ test.describe('client embedded in a real page', () => {
         utm_medium: 'email',
       },
     });
+  });
+
+  test('records the named goal alongside the page hit on the goal page', async ({
+    page,
+  }) => {
+    const events = await collectEvents(page);
+
+    await page.goto('/welcome/done');
+    await expect.poll(() => events.length).toBe(2);
+    await settle(page);
+
+    expect(events.map(event => event.action)).toEqual([
+      'page_hit',
+      'signed_up',
+    ]);
   });
 });
