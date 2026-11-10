@@ -1,4 +1,8 @@
 export type ConsentState = 'denied' | 'granted' | 'unknown';
+export type ConsentSource = {
+  readonly getState: () => ConsentState;
+  readonly subscribe?: (listener: () => void) => () => void;
+};
 export type AnonymousIdentity = 'client' | 'proxy';
 export type IdMode = 'anonymous' | 'daily_direct' | 'persistent';
 

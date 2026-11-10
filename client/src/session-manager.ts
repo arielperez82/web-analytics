@@ -10,7 +10,7 @@ export interface SessionManager {
   setSessionId(sessionId: string): void
 }
 
-const STORAGE_KEY = 'session-id'
+export const SESSION_STORAGE_KEY = 'session-id'
 
 /**
  * Generate uuid to identify the session.
@@ -55,7 +55,7 @@ export function createSessionManager(
   return {
     getSessionId(): string | null {
       // Try to get from storage
-      const stored = storageManager.get(STORAGE_KEY)
+      const stored = storageManager.get(SESSION_STORAGE_KEY)
 
       if (stored) {
         const sessionData = parseSessionData(stored)
@@ -77,7 +77,7 @@ export function createSessionManager(
       }
 
       const success = storageManager.set(
-        STORAGE_KEY,
+        SESSION_STORAGE_KEY,
         JSON.stringify(sessionData),
         { expiry: 1800 } // 30 minutes
       )
