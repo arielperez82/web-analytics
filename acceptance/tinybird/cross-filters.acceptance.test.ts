@@ -4,9 +4,12 @@ import {
   createPageHitEvent,
   createScope,
   formatTimestamp,
-} from './helpers/factories';
-import { pipeRows, waitForPipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
+} from '../../testing/tinybird/helpers/factories';
+import {
+  pipeRows,
+  waitForPipeRows,
+} from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 const CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh) Chrome/120';
 const SAFARI_IPHONE = 'Mozilla/5.0 (iPhone) Safari';

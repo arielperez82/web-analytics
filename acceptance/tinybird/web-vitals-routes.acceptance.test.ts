@@ -4,9 +4,12 @@ import {
   createScope,
   createWebVitalEvent,
   type Scope,
-} from './helpers/factories';
-import { pipeRows, waitForPipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
+} from '../../testing/tinybird/helpers/factories';
+import {
+  pipeRows,
+  waitForPipeRows,
+} from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 type RouteRow = {
   route: string;

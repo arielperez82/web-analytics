@@ -1,8 +1,11 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { createPageHitEvent, createScope } from './helpers/factories';
-import { waitForPipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
+import {
+  createPageHitEvent,
+  createScope,
+} from '../../testing/tinybird/helpers/factories';
+import { waitForPipeRows } from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 type TopPageRow = { pathname: string; visits: number; hits: number };
 

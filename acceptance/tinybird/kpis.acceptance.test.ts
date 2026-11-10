@@ -8,10 +8,10 @@ import {
   createSiblingSite,
   createWebVitalEvent,
   type Scope,
-} from './helpers/factories';
-import { pipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
-import { waitForRow } from './helpers/wait-for-row';
+} from '../../testing/tinybird/helpers/factories';
+import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
+import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type KpiRow = {
   date: string;
