@@ -12,6 +12,10 @@ export default {
       "pnpm run lint:format:e2e:fix",
       "pnpm run lint:code:e2e:fix"
     ],
+    "dashboard/src/**/*.{ts,tsx}": () => [
+      "pnpm run typecheck:dashboard",
+      "pnpm run test:dashboard"
+    ],
     "tinybird/src/**/*.ts": () => [
       "pnpm run typecheck:tinybird"
     ]
