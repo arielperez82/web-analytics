@@ -6,6 +6,14 @@ export type WorkspacePackage = {
 
 const isApp = ({ dir }: WorkspacePackage): boolean => dir.startsWith('apps/');
 
+const isPackage = ({ dir }: WorkspacePackage): boolean =>
+  dir.startsWith('packages/');
+
+const placementGaps = (pkg: WorkspacePackage): readonly string[] =>
+  isApp(pkg) || isPackage(pkg)
+    ? []
+    : [`${pkg.dir}: move it under apps/ (deployed) or packages/ (imported)`];
+
 const appDependencyGaps = (
   { dir, dependencies }: WorkspacePackage,
   appNames: ReadonlySet<string>
@@ -21,5 +29,8 @@ export const workspaceGaps = (
   packages: readonly WorkspacePackage[]
 ): readonly string[] => {
   const appNames = new Set(packages.filter(isApp).map(({ name }) => name));
-  return packages.flatMap(pkg => appDependencyGaps(pkg, appNames));
+  return packages.flatMap(pkg => [
+    ...placementGaps(pkg),
+    ...appDependencyGaps(pkg, appNames),
+  ]);
 };
