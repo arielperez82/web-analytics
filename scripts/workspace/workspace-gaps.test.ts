@@ -29,4 +29,17 @@ describe('workspaceGaps', () => {
       'dashboard: move it under apps/ (deployed) or packages/ (imported)',
     ]);
   });
+
+  it('flags an internal dependency that the package is not allowed to have', () => {
+    const client = pkg({ dir: 'packages/client', name: 'tinybird-analytics' });
+    const ingest = pkg({
+      dir: 'packages/ingest',
+      name: '@web-analytics/ingest',
+      dependencies: ['tinybird-analytics'],
+    });
+
+    expect(workspaceGaps([client, ingest])).toEqual([
+      'packages/ingest: may not depend on tinybird-analytics; allowed internal dependencies: @web-analytics/contracts',
+    ]);
+  });
 });
