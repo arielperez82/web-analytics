@@ -1164,17 +1164,10 @@ export const topSources = defineEndpoint("top_sources", {
 export type TopSourcesParams = InferParams<typeof topSources>;
 export type TopSourcesOutput = InferOutputRow<typeof topSources>;
 
-/**
- * Channels - visits grouped by the channel of each visit's first page view
- */
-export const channels = defineEndpoint("channels", {
-  description:
-    "Visits and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      sql: `
+const channelDateNode = () =>
+  node({
+    name: "date_calculations",
+    sql: `
         WITH
             {% if defined(date_from) and defined(date_to) %}
                 toDate({{ String(date_from) }}) as current_start,
@@ -1185,11 +1178,18 @@ export const channels = defineEndpoint("channels", {
             {% end %}
         SELECT current_start, current_end
       `,
-    }),
-    node({
-      name: "visits",
-      description: "First page view of each visit, with its UTMs and referrer",
-      sql: `
+  });
+
+const pathKey = (expression: string): string => {
+  const decoded = `decodeURLComponent(${expression})`;
+  return `if(trimRight(${decoded}, '/') = '', '/', trimRight(${decoded}, '/'))`;
+};
+
+const channelVisitsNode = (extraColumns = "") =>
+  node({
+    name: "visits",
+    description: "First page view of each visit, with its UTMs and referrer",
+    sql: `
         SELECT
             tenant_id,
             domain,
@@ -1200,7 +1200,7 @@ export const channels = defineEndpoint("channels", {
             argMin(lower(utm_medium), timestamp) as utm_medium,
             argMin(domainWithoutWWW(referrer), timestamp) as referrer_domain,
             argMin(current_domain, timestamp) as site_domain,
-            count() as hits
+            count() as hits${extraColumns}
         FROM analytics_hits
         WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
             AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
@@ -1212,11 +1212,13 @@ export const channels = defineEndpoint("channels", {
             {% end %}
         GROUP BY tenant_id, domain, session_id
       `,
-    }),
-    node({
-      name: "visitor_campaigns",
-      description: "The first campaign each anonymous visitor arrived with. Daily ids only: stored ids already carry their campaign in the browser.",
-      sql: `
+  });
+
+const channelVisitorCampaignsNode = () =>
+  node({
+    name: "visitor_campaigns",
+    description: "The first campaign each anonymous visitor arrived with. Daily ids only: stored ids already carry their campaign in the browser.",
+    sql: `
         SELECT
             tenant_id,
             domain,
@@ -1237,11 +1239,13 @@ export const channels = defineEndpoint("channels", {
         GROUP BY tenant_id, domain, visitor_id
         HAVING countIf(utm_medium != '') > 0
       `,
-    }),
-    node({
-      name: "first_touch",
-      description: "Each visit with its campaign: its own, or the one its anonymous visitor arrived with earlier",
-      sql: `
+  });
+
+const channelFirstTouchNode = (extraColumns = "") =>
+  node({
+    name: "first_touch",
+    description: "Each visit with its campaign: its own, or the one its anonymous visitor arrived with earlier",
+    sql: `
         SELECT
             v.session_id as session_id,
             if(
@@ -1250,17 +1254,14 @@ export const channels = defineEndpoint("channels", {
             ) as utm_medium,
             v.referrer_domain as referrer_domain,
             v.site_domain as site_domain,
-            v.hits as hits
+            v.hits as hits${extraColumns}
         FROM visits v
         LEFT JOIN visitor_campaigns c
             ON v.tenant_id = c.tenant_id AND v.domain = c.domain AND v.visitor_id = c.visitor_id
       `,
-    }),
-    node({
-      name: "endpoint",
-      sql: `
-        SELECT
-            multiIf(
+  });
+
+const channelSql = `multiIf(
                 match(utm_medium, '^(cpc|ppc|paid.*|display|cpm|retargeting)$'), 'Paid',
                 match(utm_medium, '^(e-?mail|newsletter)$'), 'Email',
                 match(utm_medium, '^(social|social-media|sm)$'), 'Social',
@@ -1268,7 +1269,32 @@ export const channels = defineEndpoint("channels", {
                 match(referrer_domain, '(^|\\.)(google|bing|duckduckgo|yahoo|baidu|ecosia|yandex)\\.') OR referrer_domain = 'search.brave.com', 'Organic Search',
                 match(referrer_domain, '(^|\\.)(facebook|instagram|linkedin|twitter|reddit|pinterest|tiktok|youtube)\\.com$') OR referrer_domain IN ('t.co', 'x.com', 'lnkd.in', 'news.ycombinator.com'), 'Social',
                 'Referral'
-            ) as channel,
+            )`;
+
+const channelParams = {
+  date_from: p.string().optional().describe("Start date"),
+  date_to: p.string().optional().describe("End date"),
+  tenant_id: p.string().optional().describe("Filter by tenant ID"),
+  domain: p.string().optional().describe("Filter by domain"),
+};
+
+/**
+ * Channels - visits grouped by the channel of each visit's first page view
+ */
+export const channels = defineEndpoint("channels", {
+  description:
+    "Visits and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    channelDateNode(),
+    channelVisitsNode(),
+    channelVisitorCampaignsNode(),
+    channelFirstTouchNode(),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            ${channelSql} as channel,
             count() as visits,
             sum(hits) as hits
         FROM first_touch
@@ -1277,12 +1303,7 @@ export const channels = defineEndpoint("channels", {
       `,
     }),
   ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-  },
+  params: channelParams,
   output: {
     channel: t.string(),
     visits: t.uint64(),
@@ -1292,6 +1313,53 @@ export const channels = defineEndpoint("channels", {
 
 export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
+
+/**
+ * Conversions - the visits that reached a goal page, grouped like channels
+ */
+export const conversions = defineEndpoint("conversions", {
+  description:
+    "For one goal page: visits, visits that reached it, and the conversion rate, grouped by the acquisition channel of each visit. The goal page is a query parameter, so each site chooses its own.",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    channelDateNode(),
+    channelVisitsNode(`,
+            max(${pathKey("pathname")} = ${pathKey(
+              '{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed", required=True) }}',
+            )}) as converted`),
+    channelVisitorCampaignsNode(),
+    channelFirstTouchNode(`,
+            v.converted as converted`),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            ${channelSql} as channel,
+            count() as visits,
+            sum(converted) as conversions,
+            sum(converted) / count() as conversion_rate
+        FROM first_touch
+        GROUP BY channel
+        ORDER BY visits DESC
+      `,
+    }),
+  ],
+  params: {
+    ...channelParams,
+    goal_path: p
+      .string()
+      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
+  },
+  output: {
+    channel: t.string(),
+    visits: t.uint64(),
+    conversions: t.uint64(),
+    conversion_rate: t.float64(),
+  },
+});
+
+export type ConversionsParams = InferParams<typeof conversions>;
+export type ConversionsOutput = InferOutputRow<typeof conversions>;
 
 const normalizedPath = `
     CASE
