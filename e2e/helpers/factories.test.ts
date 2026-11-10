@@ -211,6 +211,24 @@ describe('createPageHitEvent', () => {
     });
   });
 
+  it('carries the visitor id and id mode the way the tracker sends them', () => {
+    const payload = JSON.parse(
+      hit({ visitorId: 'v1', idMode: 'daily_direct' }).payload
+    ) as Record<string, string>;
+
+    expect(payload).toMatchObject({
+      visitor_id: 'v1',
+      id_mode: 'daily_direct',
+    });
+  });
+
+  it('leaves out the visitor id and id mode when none are given', () => {
+    const keys = Object.keys(JSON.parse(hit().payload) as object);
+
+    expect(keys).not.toContain('visitor_id');
+    expect(keys).not.toContain('id_mode');
+  });
+
   it('places a hit the requested number of seconds after its siblings', () => {
     const now = new Date('2026-11-05T10:00:00.000Z');
     const first = hit({ now, offsetSeconds: 0 });
