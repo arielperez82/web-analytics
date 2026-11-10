@@ -15,6 +15,10 @@ test page in front, and the dashboard's own `/api/endpoints` on the read side.
 Per-package behaviour (one package through its public interface) belongs in
 `acceptance/`, not here. See the root README, "Test layers".
 
+`e2e/browser/` is the browser front: a real page with the client embedded, the
+dashboard's `/api/tracking` and `/api/endpoints`, and the dashboard UI, run by
+Playwright against Tinybird Local (`pnpm test:e2e:browser`).
+
 ```bash
 pnpm test:e2e:local   # starts Tinybird Local if needed
 pnpm test:e2e         # with Tinybird Local already running
