@@ -78,6 +78,12 @@ analytics.identify("user123", {
   tracker treats consent as unknown and stays anonymous
 - `anonymousIdentity`: `'client'` (default) builds the anonymous ids in the
   browser; `'proxy'` leaves them to a collector that mints them
+- `goals`: Pages that count as a conversion, as `{ name, path }` pairs. When a
+  page view lands on `path` (a trailing slash is ignored; the match is exact),
+  the tracker also records an event called `name`. Nothing is built in: each site
+  names its own goals and paths, for example
+  `goals: [{ name: 'book_session', path: '/book/confirmed' }]`. For conversions
+  that are not a page view, call `analytics.track(name, {})` yourself
 - - `tenantId`: Your tenant identifier (default: domain)
 
 ### Example Configuration
