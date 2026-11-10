@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { createInMemorySessionStore } from "./proxy-identity";
-import { handleTracking, type TrackingDeps } from "./tracking-proxy";
+import {
+  handlePreflight,
+  handleTracking,
+  type TrackingDeps,
+} from "./tracking-proxy";
 
 type Forwarded = {
   readonly url: string;
@@ -20,6 +24,7 @@ const createFakeDeps = (
       datasource: "analytics_events",
     },
     secret: "salt-secret",
+    allowedOrigins: ["https://example.com"],
     store: createInMemorySessionStore(),
     now: () => Date.UTC(2026, 10, 10, 9, 0, 0),
     newSessionId: () => "session-1",
@@ -149,5 +154,66 @@ describe("handleTracking fails closed", () => {
     });
     const result = await handleTracking(post(anonymousEvent), deps);
     expect(result.status).toBe(502);
+  });
+});
+
+describe("handleTracking origin allowlist", () => {
+  it("rejects events from origins that are not allowed", async () => {
+    const { deps, forwarded } = createFakeDeps();
+    const result = await handleTracking(
+      post(anonymousEvent, { origin: "https://evil.test" }),
+      deps,
+    );
+    expect(result.status).toBe(403);
+    expect(forwarded).toHaveLength(0);
+  });
+
+  it("rejects events with no origin", async () => {
+    const { deps, forwarded } = createFakeDeps();
+    const result = await handleTracking(
+      post(anonymousEvent, { origin: "" }),
+      deps,
+    );
+    expect(result.status).toBe(403);
+    expect(forwarded).toHaveLength(0);
+  });
+
+  it("rejects everything when no origins are configured", async () => {
+    const { deps } = createFakeDeps({ allowedOrigins: [] });
+    const result = await handleTracking(post(anonymousEvent), deps);
+    expect(result.status).toBe(403);
+  });
+
+  it("echoes the allowed origin back for CORS", async () => {
+    const { deps } = createFakeDeps();
+    const result = await handleTracking(post(anonymousEvent), deps);
+    expect(result.headers["access-control-allow-origin"]).toBe(
+      "https://example.com",
+    );
+  });
+});
+
+describe("handlePreflight", () => {
+  it("allows POST from an allowed origin", () => {
+    const { deps } = createFakeDeps();
+    const result = handlePreflight(
+      new Headers({ origin: "https://example.com" }),
+      deps,
+    );
+    expect(result.status).toBe(204);
+    expect(result.headers["access-control-allow-origin"]).toBe(
+      "https://example.com",
+    );
+    expect(result.headers["access-control-allow-methods"]).toBe("POST");
+  });
+
+  it("refuses an origin that is not allowed", () => {
+    const { deps } = createFakeDeps();
+    const result = handlePreflight(
+      new Headers({ origin: "https://evil.test" }),
+      deps,
+    );
+    expect(result.status).toBe(403);
+    expect(result.headers["access-control-allow-origin"]).toBeUndefined();
   });
 });

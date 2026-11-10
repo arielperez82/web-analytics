@@ -7,6 +7,7 @@ export type TrackingDeps = {
     readonly datasource: string;
   };
   readonly secret: string;
+  readonly allowedOrigins: readonly string[];
   readonly store: SessionStore;
   readonly now: () => number;
   readonly newSessionId: () => string;
@@ -18,7 +19,30 @@ export type TrackingRequest = {
   readonly headers: Headers;
 };
 
-export type TrackingResult = { readonly status: number };
+export type TrackingResult = {
+  readonly status: number;
+  readonly headers: Readonly<Record<string, string>>;
+};
+
+const NO_HEADERS: Readonly<Record<string, string>> = {};
+
+const respond = (
+  status: number,
+  headers: Readonly<Record<string, string>> = NO_HEADERS,
+): TrackingResult => ({ status, headers });
+
+const allowedOrigin = (
+  headers: Headers,
+  deps: TrackingDeps,
+): string | undefined => {
+  const origin = headers.get("origin") ?? "";
+  return deps.allowedOrigins.includes(origin) ? origin : undefined;
+};
+
+const corsHeaders = (origin: string): Record<string, string> => ({
+  "access-control-allow-origin": origin,
+  vary: "origin",
+});
 
 type TrackingEvent = Record<string, unknown> & {
   readonly payload?: Record<string, unknown>;
@@ -78,6 +102,7 @@ const withProxyIdentity = async (
 const forward = async (
   event: TrackingEvent,
   deps: TrackingDeps,
+  headers: Readonly<Record<string, string>>,
 ): Promise<TrackingResult> => {
   const response = await deps.fetch(
     `${deps.tinybird.host}/v0/events?name=${deps.tinybird.datasource}`,
@@ -90,7 +115,22 @@ const forward = async (
       body: JSON.stringify(event),
     },
   );
-  return { status: response.ok ? 202 : 502 };
+  return respond(response.ok ? 202 : 502, headers);
+};
+
+export const handlePreflight = (
+  headers: Headers,
+  deps: TrackingDeps,
+): TrackingResult => {
+  const origin = allowedOrigin(headers, deps);
+  return origin
+    ? respond(204, {
+        ...corsHeaders(origin),
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+        "access-control-max-age": "86400",
+      })
+    : respond(403);
 };
 
 export const handleTracking = async (
@@ -98,11 +138,13 @@ export const handleTracking = async (
   deps: TrackingDeps,
 ): Promise<TrackingResult> => {
   if (!deps.secret || !deps.tinybird.token || !deps.tinybird.host)
-    return { status: 500 };
+    return respond(500);
+  const origin = allowedOrigin(request.headers, deps);
+  if (!origin) return respond(403);
   const event = parseEvent(request.body);
-  if (!event) return { status: 400 };
+  if (!event) return respond(400, corsHeaders(origin));
   const outgoing = isAnonymous(event)
     ? await withProxyIdentity(event, request, deps)
     : event;
-  return forward(outgoing, deps);
+  return forward(outgoing, deps, corsHeaders(origin));
 };
