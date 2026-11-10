@@ -34,6 +34,25 @@ const waitForUrl = async (url: string, attempts = 120): Promise<void> => {
   return waitForUrl(url, attempts - 1);
 };
 
+const INHERITED_ENV = ['PATH', 'HOME', 'TMPDIR', 'LANG', 'CI', 'USER'] as const;
+
+const pick = (
+  source: NodeJS.ProcessEnv,
+  keys: readonly string[]
+): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    keys.flatMap(key => (key in source ? [[key, source[key]]] : []))
+  );
+
+const stopDashboard = (dashboard: ChildProcess): void => {
+  if (dashboard.pid === undefined) return;
+  try {
+    process.kill(-dashboard.pid, 'SIGTERM');
+  } catch {
+    // process group already gone
+  }
+};
+
 const startDashboard = (env: NodeJS.ProcessEnv): ChildProcess => {
   const args = [
     '--filter',
@@ -46,8 +65,9 @@ const startDashboard = (env: NodeJS.ProcessEnv): ChildProcess => {
   ];
   const options = {
     cwd: resolve(import.meta.dirname, '../..'),
-    env: { ...process.env, ...env },
+    env: { ...pick(process.env, INHERITED_ENV), ...env },
     stdio: 'ignore' as const,
+    detached: true,
   };
   // eslint-disable-next-line sonarjs/no-os-command-from-path -- pnpm is the repo's package manager, resolved from PATH
   return spawn('pnpm', args, options);
@@ -83,9 +103,15 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   });
   process.env.E2E_DASHBOARD_URL = dashboardUrl;
   process.env.E2E_TENANT = tenant;
-  await waitForUrl(`${dashboardUrl}/login`);
-  return async () => {
-    dashboard.kill();
+  const teardown = async (): Promise<void> => {
+    stopDashboard(dashboard);
     await upstash.stop();
   };
+  try {
+    await waitForUrl(`${dashboardUrl}/login`);
+  } catch (error) {
+    await teardown();
+    throw error;
+  }
+  return teardown;
 }
