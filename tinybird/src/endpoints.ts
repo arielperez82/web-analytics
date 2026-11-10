@@ -1173,8 +1173,7 @@ export const channels = defineEndpoint("channels", {
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
-      name: "first_touch",
-      description: "First page view of each visit, with its UTMs and referrer",
+      name: "date_calculations",
       sql: `
         WITH
             {% if defined(date_from) and defined(date_to) %}
@@ -1184,22 +1183,77 @@ export const channels = defineEndpoint("channels", {
                 toDate(timestampAdd(today(), interval -7 day)) as current_start,
                 toDate(today()) as current_end
             {% end %}
+        SELECT current_start, current_end
+      `,
+    }),
+    node({
+      name: "visits",
+      description: "First page view of each visit, with its UTMs and referrer",
+      sql: `
         SELECT
+            tenant_id,
+            domain,
             session_id,
+            any(visitor_id) as visitor_id,
+            any(id_mode) as id_mode,
+            min(timestamp) as started_at,
             argMin(lower(utm_medium), timestamp) as utm_medium,
             argMin(domainWithoutWWW(referrer), timestamp) as referrer_domain,
             argMin(current_domain, timestamp) as site_domain,
             count() as hits
         FROM analytics_hits
-        WHERE toDate(timestamp) >= current_start
-            AND toDate(timestamp) <= current_end
+        WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
-        GROUP BY session_id
+        GROUP BY tenant_id, domain, session_id
+      `,
+    }),
+    node({
+      name: "visitor_campaigns",
+      description: "The first campaign each anonymous visitor arrived with. Daily ids only: stored ids already carry their campaign in the browser.",
+      sql: `
+        SELECT
+            tenant_id,
+            domain,
+            visitor_id,
+            argMinIf(lower(utm_medium), timestamp, utm_medium != '') as campaign_medium,
+            minIf(timestamp, utm_medium != '') as campaign_at
+        FROM analytics_hits
+        WHERE visitor_id != ''
+            AND id_mode IN ('daily_direct', 'daily_proxy')
+            AND toDate(timestamp) >= (SELECT current_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+        GROUP BY tenant_id, domain, visitor_id
+        HAVING countIf(utm_medium != '') > 0
+      `,
+    }),
+    node({
+      name: "first_touch",
+      description: "Each visit with its campaign: its own, or the one its anonymous visitor arrived with earlier",
+      sql: `
+        SELECT
+            v.session_id as session_id,
+            if(
+                v.utm_medium != '', v.utm_medium,
+                if(v.id_mode IN ('daily_direct', 'daily_proxy') AND c.campaign_medium != '' AND c.campaign_at <= v.started_at, c.campaign_medium, '')
+            ) as utm_medium,
+            v.referrer_domain as referrer_domain,
+            v.site_domain as site_domain,
+            v.hits as hits
+        FROM visits v
+        LEFT JOIN visitor_campaigns c
+            ON v.tenant_id = c.tenant_id AND v.domain = c.domain AND v.visitor_id = c.visitor_id
       `,
     }),
     node({
