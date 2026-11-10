@@ -48,6 +48,10 @@ describe.concurrent('conversions pipe', () => {
         { visits: Number(row.visits), conversions: Number(row.conversions) },
       ])
     );
+  const rateByChannel = (rows: readonly ConversionRow[]) =>
+    Object.fromEntries(
+      rows.map(row => [row.channel, Number(row.conversion_rate)])
+    );
   const hit = (
     scope: Scope,
     pathname: string,
@@ -81,9 +85,7 @@ describe.concurrent('conversions pipe', () => {
       Email: { visits: 1, conversions: 0 },
       Direct: { visits: 1, conversions: 0 },
     });
-    expect(
-      Number(rows.find(row => row.channel === 'Paid')?.conversion_rate)
-    ).toBe(0.5);
+    expect(rateByChannel(rows)).toEqual({ Paid: 0.5, Email: 0, Direct: 0 });
   });
 
   it('counts a visit once however many times it reaches the goal page', async () => {
@@ -118,24 +120,32 @@ describe.concurrent('conversions pipe', () => {
     expect(byChannel(rows)).toEqual({ Paid: { visits: 3, conversions: 1 } });
   });
 
-  it('credits a later visit that converts to the campaign that first brought the visitor', async () => {
+  it('credits a later visit that converts to the first campaign, not a later or the last one', async () => {
     const scope = createScope();
     const who = { visitorId: 'v-1', idMode: 'daily_proxy' };
     await ingestEvents(env, [
       hit(scope, '/', session('first'), {
         ...who,
         ...email,
+        offsetSeconds: -80 * MINUTE_S,
+      }),
+      hit(scope, '/', session('second'), {
+        ...who,
+        ...paid,
         offsetSeconds: -50 * MINUTE_S,
       }),
-      hit(scope, GOAL, session('second'), {
+      hit(scope, GOAL, session('third'), {
         ...who,
         offsetSeconds: -5 * MINUTE_S,
       }),
     ]);
 
-    const rows = await conversions(scope, 1);
+    const rows = await conversions(scope, 2);
 
-    expect(byChannel(rows)).toEqual({ Email: { visits: 2, conversions: 1 } });
+    expect(byChannel(rows)).toEqual({
+      Email: { visits: 2, conversions: 1 },
+      Paid: { visits: 1, conversions: 0 },
+    });
   });
 
   it.each([
