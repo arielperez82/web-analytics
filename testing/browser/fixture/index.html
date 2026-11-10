@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Fixture page</title></head>
+  <body>
+    <h1>Fixture page</h1>
+    <script type="module">
+      import { initTinybirdAnalytics } from '../../../client/src/index.ts';
+
+      const analytics = initTinybirdAnalytics({
+        token: 'unused-with-proxy',
+        host: 'http://unused.invalid',
+        proxyUrl: `${location.origin}/api/tracking`,
+        domain: 'fixture.test',
+        webVitals: false,
+        goals: [{ name: 'signed_up', path: '/welcome/done' }],
+      });
+      analytics.page();
+    </script>
+  </body>
+</html>
