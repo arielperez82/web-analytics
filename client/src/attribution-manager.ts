@@ -16,7 +16,28 @@ export interface AttributionManager {
   setAttributionToStorage(data: AttributionData): void
 }
 
-const ATTRIBUTION_STORAGE_KEY = 'attribution-data'
+export const ATTRIBUTION_STORAGE_KEY = 'attribution-data'
+
+const UTM_PARAMS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content'
+] as const
+
+/**
+ * Read the UTM parameters of a query string without storing anything.
+ */
+export function utmFromSearch(search: string): AttributionData {
+  const urlParams = new URLSearchParams(search)
+  return Object.fromEntries(
+    UTM_PARAMS.flatMap((param) => {
+      const value = urlParams.get(param)
+      return value ? [[param, value]] : []
+    })
+  )
+}
 
 /**
  * Create attribution manager with provided storage manager
@@ -44,23 +65,9 @@ export function createAttributionManager(
         return
       }
 
-      const urlParams = new URLSearchParams(window.location.search)
-      const attributionData: AttributionData = {}
-
-      // Capture UTM parameters
-      const utmParams = [
-        'utm_source',
-        'utm_medium',
-        'utm_campaign',
-        'utm_term',
-        'utm_content'
-      ]
-      utmParams.forEach((param) => {
-        const value = urlParams.get(param)
-        if (value) {
-          attributionData[param as keyof AttributionData] = value
-        }
-      })
+      const attributionData: AttributionData = utmFromSearch(
+        window.location.search
+      )
 
       // Only store if we have some attribution data
       if (Object.keys(attributionData).length > 0) {

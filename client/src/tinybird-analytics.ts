@@ -7,11 +7,30 @@ import { getCountryForTimezone } from 'countries-and-timezones';
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals';
 
 import {
+  ATTRIBUTION_STORAGE_KEY,
+  type AttributionData,
   type AttributionManager,
   createAttributionManager,
+  utmFromSearch,
 } from './attribution-manager';
-import { createSessionManager, type SessionManager } from './session-manager';
+import {
+  type AnonymousIdentity,
+  type ConsentSource,
+  type ConsentState,
+  dailyIdentity,
+  type IdMode,
+  resolveIdMode,
+} from './identity';
+import {
+  createSessionManager,
+  SESSION_STORAGE_KEY,
+  type SessionManager,
+} from './session-manager';
 import { createStorageManager, type StorageMethod } from './storage-manager';
+import {
+  createVisitorManager,
+  VISITOR_STORAGE_KEY,
+} from './visitor-manager';
 
 export interface WebVital {
   name: string;
@@ -38,6 +57,8 @@ export interface TinybirdAnalyticsConfig {
   webVitals?: boolean;
   devMode?: boolean;
   enableClickTracking?: boolean;
+  consent?: ConsentSource;
+  anonymousIdentity?: AnonymousIdentity;
 }
 
 export interface TinybirdIdentityEvent {
@@ -97,10 +118,9 @@ function getCountryAndLocale(): CountryLocale {
  * Get common properties used across all analytics events
  */
 function getCommonProperties(
-  attributionManager?: AttributionManager
+  attributionData: AttributionData | null | undefined
 ): Record<string, unknown> {
   const { country, locale } = getCountryAndLocale();
-  const attributionData = attributionManager?.getAttributionData();
 
   return {
     'user-agent': window.navigator.userAgent,
@@ -245,6 +265,61 @@ const tinybirdAnalytics = (
   const storageManager = createStorageManager(configWithDefaults);
   const sessionManager = createSessionManager(storageManager);
   const attributionManager = createAttributionManager(storageManager);
+  const visitorManager = createVisitorManager(storageManager);
+
+  const consentState = (): ConsentState =>
+    configWithDefaults.consent?.getState() ?? 'unknown';
+  const idMode = (): IdMode =>
+    resolveIdMode({
+      consent: consentState(),
+      anonymousIdentity: configWithDefaults.anonymousIdentity ?? 'client',
+    });
+
+  const clearStoredIdentity = (): void => {
+    [SESSION_STORAGE_KEY, VISITOR_STORAGE_KEY, ATTRIBUTION_STORAGE_KEY].forEach(
+      key => storageManager.remove(key)
+    );
+  };
+
+  const browserDailyIdentity = () =>
+    dailyIdentity({
+      now: new Date(),
+      domain: configWithDefaults.domain ?? window.location.hostname,
+      userAgent: window.navigator.userAgent,
+      screen: {
+        width: window.screen.width,
+        height: window.screen.height,
+        pixelRatio: window.devicePixelRatio,
+      },
+      language: window.navigator.language,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+  const resolveIdentity = (
+    mode: IdMode,
+    eventName: string
+  ): { sessionId?: string; visitorId?: string } => {
+    if (mode === 'anonymous') return {};
+    if (mode === 'daily_direct') return browserDailyIdentity();
+    if (eventName === 'web_vital') {
+      return {
+        sessionId: sessionManager.peekSessionId() ?? undefined,
+        visitorId: visitorManager.getVisitorId(),
+      };
+    }
+    sessionManager.setSessionId(
+      sessionManager.getSessionId() || crypto.randomUUID()
+    );
+    return {
+      sessionId: sessionManager.getSessionId() ?? undefined,
+      visitorId: visitorManager.getVisitorId(),
+    };
+  };
+
+  const attributionFor = (mode: IdMode): AttributionData | null =>
+    mode === 'persistent'
+      ? attributionManager.getAttributionData()
+      : utmFromSearch(window.location.search);
 
   const trimTrailingSlashes = (value: string): string =>
     value.endsWith('/') ? trimTrailingSlashes(value.slice(0, -1)) : value;
@@ -267,10 +342,13 @@ const tinybirdAnalytics = (
   const sendEvent = (eventName: string, event: TinybirdEvent): void => {
     const config = configWithDefaults;
 
-    // Set session ID
-    sessionManager.setSessionId(
-      sessionManager.getSessionId() || crypto.randomUUID()
-    );
+    const mode = idMode();
+    if (mode !== 'persistent') clearStoredIdentity();
+    const identity = resolveIdentity(mode, eventName);
+    const identityAttributes = {
+      id_mode: mode,
+      ...(identity.visitorId && { visitor_id: identity.visitorId }),
+    };
 
     // Validate user agent
     if (!_isValidUserAgent(window.navigator.userAgent)) {
@@ -283,21 +361,24 @@ const tinybirdAnalytics = (
     let processedPayload: TinybirdEvent | string;
     if (config.stringifyPayload) {
       processedPayload = _maskSuspiciousAttributes(event);
-      processedPayload = Object.assign(
-        {},
-        parseEvent(processedPayload),
-        config.globalAttributes,
-        { storage: config.storage }
-      );
+      processedPayload = {
+        ...parseEvent(processedPayload),
+        ...config.globalAttributes,
+        storage: config.storage,
+        ...identityAttributes,
+      };
       processedPayload = JSON.stringify(processedPayload);
 
       if (!_isValidPayload(processedPayload)) {
         return;
       }
     } else {
-      processedPayload = Object.assign({}, event, config.globalAttributes, {
+      processedPayload = {
+        ...event,
+        ...config.globalAttributes,
         storage: config.storage,
-      });
+        ...identityAttributes,
+      };
       const maskedStr = _maskSuspiciousAttributes(processedPayload);
 
       if (!_isValidPayload(maskedStr)) {
@@ -307,13 +388,11 @@ const tinybirdAnalytics = (
       processedPayload = parseEvent(maskedStr);
     }
 
-    const sessionId = sessionManager.getSessionId() || crypto.randomUUID();
-
     const tinybirdEvent = {
       timestamp: new Date().toISOString(),
       action: eventName,
       version: '1',
-      session_id: sessionId,
+      ...(identity.sessionId && { session_id: identity.sessionId }),
       payload: processedPayload,
     };
 
@@ -341,7 +420,7 @@ const tinybirdAnalytics = (
     const eventData: TinybirdEvent = {
       ...event,
       // Add context data
-      ...getCommonProperties(attributionManager),
+      ...getCommonProperties(attributionFor(idMode())),
     };
 
     // Send the event
@@ -364,7 +443,7 @@ const tinybirdAnalytics = (
     const identifyData: TinybirdEvent = {
       user_id: instance._user_id,
       ...event.traits,
-      ...getCommonProperties(attributionManager),
+      ...getCommonProperties(attributionFor(idMode())),
     };
 
     // Send identify event
@@ -388,7 +467,16 @@ const tinybirdAnalytics = (
     window.tinybirdAnalytics = tinybirdAnalyticsInstance;
   }
 
-  attributionManager?.captureAttributionData();
+  const applyConsent = (): void => {
+    if (idMode() === 'persistent') {
+      attributionManager.captureAttributionData();
+    } else {
+      clearStoredIdentity();
+    }
+  };
+
+  applyConsent();
+  configWithDefaults.consent?.subscribe?.(applyConsent);
 
   return tinybirdAnalyticsInstance;
 };
