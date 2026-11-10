@@ -39,6 +39,30 @@ export default defineConfig(
     },
   },
   {
+    // Report-only until the monorepo move finishes; then 'error'.
+    files: [
+      'acceptance/**/*.ts',
+      'e2e/**/*.ts',
+      'testing/**/*.ts',
+      'scripts/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              regex:
+                '(^|/)(client|dashboard|tinybird)/src(/|$)|(^|/)(apps|packages)/[^/]+/src(/|$)',
+              message:
+                'Import another package by its name through its exports, not through its src folder.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...security.configs.recommended,
     rules: {
       ...security.configs.recommended.rules,
