@@ -16,6 +16,18 @@ describe("reportBySlug", () => {
     expect(reportBySlug("pages")?.filterKey).toBeUndefined();
   });
 
+  it("offers a channels report without previous-period comparison", () => {
+    expect(reportBySlug("channels")).toMatchObject({
+      endpoint: "channels",
+      labelKey: "channel",
+      previousPeriod: false,
+    });
+  });
+
+  it("compares to the previous period by default", () => {
+    expect(reportBySlug("pages")?.previousPeriod).toBeUndefined();
+  });
+
   it("has unique slugs", () => {
     const slugs = REPORTS.map((report) => report.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
@@ -25,6 +37,6 @@ describe("reportBySlug", () => {
 describe("filter and list widgets", () => {
   it("splits reports into filter widgets and plain lists", () => {
     expect(FILTER_REPORTS.map((r) => r.slug)).toEqual(["locations", "devices", "browsers"]);
-    expect(LIST_REPORTS.map((r) => r.slug)).toEqual(["pages", "sources"]);
+    expect(LIST_REPORTS.map((r) => r.slug)).toEqual(["pages", "sources", "channels"]);
   });
 });

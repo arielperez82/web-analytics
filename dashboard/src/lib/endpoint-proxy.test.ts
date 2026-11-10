@@ -133,4 +133,34 @@ describe("proxyEndpoint", () => {
     await proxyEndpoint(request("top_pages", "tenant_id="), deps);
     expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/top_pages.json?tenant_id=");
   });
+  it("allows the channels endpoint", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("channels", "domain=a.com"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/channels.json?domain=a.com");
+  });
+
+  it("forwards a valid goal_path to conversions", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("conversions", "goal_path=/thanks"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?goal_path=%2Fthanks");
+  });
+
+  it("rejects an invalid goal_path with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["thanks", "/a%20b", "/a?x=1", "/a#b", `/${"x".repeat(200)}`]) {
+      const query = new URLSearchParams({ goal_path: bad }).toString();
+      expect((await proxyEndpoint(request("conversions", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("ignores a caller tenant_id for conversions when pinned", async () => {
+    const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
+    await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);
+    expect(calls[0]?.url).toBe(
+      "http://tb.test/v0/pipes/conversions.json?tenant_id=my-tenant&goal_path=%2Fthanks",
+    );
+  });
 });

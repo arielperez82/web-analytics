@@ -33,10 +33,11 @@ export const RankedTable = ({
   onMore?: () => void;
 }) => {
   const { filterKey } = report;
+  const comparePrevious = detail && report.previousPeriod !== false;
   const { data, loading, error } = useEndpoint<Row>(report.endpoint, {
     ...params,
     limit: String(limit),
-    include_previous_period: detail ? "true" : undefined,
+    include_previous_period: comparePrevious ? "true" : undefined,
   });
   const rows = data ?? [];
   const max = Math.max(1, ...rows.map((row) => Number(row.visits ?? 0)));
@@ -47,7 +48,7 @@ export const RankedTable = ({
       <table>
         {detail && (
           <thead>
-            <tr><th>{report.heading}</th><th className="num">Visits</th><th className="num">Hits</th><th className="num">vs previous</th></tr>
+            <tr><th>{report.heading}</th><th className="num">Visits</th><th className="num">Hits</th>{comparePrevious && <th className="num">vs previous</th>}</tr>
           </thead>
         )}
         <tbody>
@@ -66,7 +67,7 @@ export const RankedTable = ({
                 </td>
                 <td className="num">{fmt(row.visits)}</td>
                 <td className="num muted">{fmt(row.hits)}</td>
-                {detail && <td className="num muted">{growth(row.visits_growth_percentage)}</td>}
+                {comparePrevious && <td className="num muted">{growth(row.visits_growth_percentage)}</td>}
               </tr>
             );
           })}

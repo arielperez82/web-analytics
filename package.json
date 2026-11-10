@@ -26,6 +26,8 @@
     "build:dashboard": "pnpm --filter @web-analytics/dashboard build",
     "test:acceptance:tinybird": "vitest run --config vitest.acceptance.config.ts",
     "test:acceptance:tinybird:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.acceptance.config.ts",
+    "test:acceptance:client": "playwright test --project=client-acceptance",
+    "test:e2e:browser": "playwright test -c playwright.e2e.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
     "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird",
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^24.19.2",
     "@vitest/eslint-plugin": "^1.6.28",
     "dotenv-cli": "^11.1.0",
@@ -48,6 +51,7 @@
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
     "vitest": "^5.1.0"
   }
 }

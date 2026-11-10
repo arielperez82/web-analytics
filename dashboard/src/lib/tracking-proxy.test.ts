@@ -24,7 +24,7 @@ const createFakeDeps = (
       datasource: "analytics_events",
     },
     secret: "salt-secret",
-    allowedOrigins: ["https://example.com"],
+    sites: [{ origin: "https://example.com", tenantId: "acme" }],
     store: createInMemorySessionStore(),
     now: () => Date.UTC(2026, 10, 10, 9, 0, 0),
     newSessionId: () => "session-1",
@@ -59,6 +59,39 @@ const post = (
     origin: "https://example.com",
     ...headers,
   }),
+});
+
+describe("handleTracking site identity", () => {
+  it("stamps the tenant and domain of the matched site, ignoring client claims", async () => {
+    const { deps, forwarded } = createFakeDeps();
+    await handleTracking(
+      post({ ...anonymousEvent, tenant_id: "evil", domain: "evil.com" }),
+      deps,
+    );
+    expect(forwarded[0]?.body).toMatchObject({
+      tenant_id: "acme",
+      domain: "example.com",
+    });
+  });
+});
+
+describe("handleTracking with several sites", () => {
+  it("stamps each event with the tenant of its own origin, never another site's", async () => {
+    const { deps, forwarded } = createFakeDeps({
+      sites: [
+        { origin: "https://example.com", tenantId: "acme" },
+        { origin: "https://other.example", tenantId: "beta" },
+      ],
+    });
+    await handleTracking(
+      post(anonymousEvent, { origin: "https://other.example" }),
+      deps,
+    );
+    expect(forwarded[0]?.body).toMatchObject({
+      tenant_id: "beta",
+      domain: "other.example",
+    });
+  });
 });
 
 describe("handleTracking anonymous events", () => {
@@ -113,7 +146,11 @@ describe("handleTracking client-identified events", () => {
       payload: { id_mode: "persistent", visitor_id: "client-visitor" },
     };
     await handleTracking(post(persistent), deps);
-    expect(forwarded[0]?.body).toEqual(persistent);
+    expect(forwarded[0]?.body).toEqual({
+      ...persistent,
+      tenant_id: "acme",
+      domain: "example.com",
+    });
   });
 });
 
@@ -179,7 +216,7 @@ describe("handleTracking origin allowlist", () => {
   });
 
   it("rejects everything when no origins are configured", async () => {
-    const { deps } = createFakeDeps({ allowedOrigins: [] });
+    const { deps } = createFakeDeps({ sites: [] });
     const result = await handleTracking(post(anonymousEvent), deps);
     expect(result.status).toBe(403);
   });

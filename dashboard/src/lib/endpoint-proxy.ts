@@ -1,3 +1,5 @@
+import { isValidGoalPath } from "./goals";
+
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
   "domains",
@@ -6,6 +8,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "trend",
   "top_pages",
   "top_sources",
+  "channels",
+  "conversions",
   "top_locations",
   "top_devices",
   "top_browsers",
@@ -34,6 +38,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "location",
   "device",
   "browser",
+  "goal_path",
 ];
 
 export type ProxyDeps = {
@@ -73,6 +78,10 @@ export const proxyEndpoint = async (
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
   if (!ALLOWED_ENDPOINTS.includes(name) || (tenantId && UNPINNED_ONLY.includes(name)))
     return { status: 404, body: { error: "Not found" } };
+
+  const goalPath = query.get("goal_path");
+  if (goalPath !== null && !isValidGoalPath(goalPath))
+    return { status: 400, body: { error: "Invalid goal_path" } };
 
   const qs = forwardedQuery(query, tenantId);
   const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;

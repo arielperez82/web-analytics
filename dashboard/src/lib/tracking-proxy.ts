@@ -1,3 +1,4 @@
+import type { Site } from "./sites";
 import { resolveProxyIdentity, type SessionStore } from "./proxy-identity";
 
 export type TrackingDeps = {
@@ -7,7 +8,7 @@ export type TrackingDeps = {
     readonly datasource: string;
   };
   readonly secret: string;
-  readonly allowedOrigins: readonly string[];
+  readonly sites: readonly Site[];
   readonly store: SessionStore;
   readonly now: () => number;
   readonly newSessionId: () => string;
@@ -31,12 +32,9 @@ const respond = (
   headers: Readonly<Record<string, string>> = NO_HEADERS,
 ): TrackingResult => ({ status, headers });
 
-const allowedOrigin = (
-  headers: Headers,
-  deps: TrackingDeps,
-): string | undefined => {
+const matchedSite = (headers: Headers, deps: TrackingDeps): Site | undefined => {
   const origin = headers.get("origin") ?? "";
-  return deps.allowedOrigins.includes(origin) ? origin : undefined;
+  return deps.sites.find((site) => site.origin === origin);
 };
 
 const corsHeaders = (origin: string): Record<string, string> => ({
@@ -122,7 +120,7 @@ export const handlePreflight = (
   headers: Headers,
   deps: TrackingDeps,
 ): TrackingResult => {
-  const origin = allowedOrigin(headers, deps);
+  const origin = matchedSite(headers, deps)?.origin;
   return origin
     ? respond(204, {
         ...corsHeaders(origin),
@@ -139,8 +137,9 @@ export const handleTracking = async (
 ): Promise<TrackingResult> => {
   if (!deps.secret || !deps.tinybird.token || !deps.tinybird.host)
     return respond(500);
-  const origin = allowedOrigin(request.headers, deps);
-  if (!origin) return respond(403);
+  const site = matchedSite(request.headers, deps);
+  if (!site) return respond(403);
+  const { origin } = site;
   const event = parseEvent(request.body);
   if (!event) return respond(400, corsHeaders(origin));
   const headers = corsHeaders(origin);
@@ -148,7 +147,15 @@ export const handleTracking = async (
     const outgoing = isAnonymous(event)
       ? await withProxyIdentity(event, request, deps)
       : event;
-    return await forward(outgoing, deps, headers);
+    return await forward(
+      {
+        ...outgoing,
+        tenant_id: site.tenantId,
+        domain: new URL(site.origin).hostname,
+      },
+      deps,
+      headers,
+    );
   } catch {
     return respond(502, headers);
   }

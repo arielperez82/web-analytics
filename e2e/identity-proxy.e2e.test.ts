@@ -33,7 +33,7 @@ const createProxy = (scope: Scope, origin = `https://${scope.domain}`) => {
       datasource: 'analytics_events',
     },
     secret: 'e2e-salt-secret',
-    allowedOrigins: [`https://${scope.domain}`],
+    sites: [{ origin: `https://${scope.domain}`, tenantId: scope.tenantId }],
     store: createInMemorySessionStore(),
     now: () => clock.now,
     newSessionId: () => crypto.randomUUID(),

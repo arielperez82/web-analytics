@@ -64,3 +64,33 @@ jobs:
 
       - name: Run tests
         run: pnpm run test:e2e
+
+  e2e-browser:
+    name: Browser capture-to-read e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      tinybird:
+        image: tinybirdco/tinybird-local:latest
+        ports:
+          - 7181:7181
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run tests
+        run: pnpm run test:e2e:browser
