@@ -138,6 +138,52 @@ describe.concurrent('conversions pipe', () => {
     expect(byChannel(rows)).toEqual({ Email: { visits: 2, conversions: 1 } });
   });
 
+  it.each([
+    ['a space', '/book now/done'],
+    ['a quote', "/it's/done"],
+    ['non-ascii letters', '/café/done'],
+  ])('matches a goal page containing %s', async (_label, goalPath) => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hit(scope, goalPath, session('hit'), paid),
+      hit(scope, '/elsewhere', session('miss'), paid),
+    ]);
+
+    const rows = await conversions(scope, 1, goalPath);
+
+    expect(byChannel(rows)).toEqual({ Paid: { visits: 2, conversions: 1 } });
+  });
+
+  it('matches a browser-encoded page when the goal is written readable', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hit(scope, '/caf%C3%A9/done', session('hit'), paid),
+      hit(scope, '/elsewhere', session('miss'), paid),
+    ]);
+
+    const rows = await conversions(scope, 1, '/café/done');
+
+    expect(byChannel(rows)).toEqual({ Paid: { visits: 2, conversions: 1 } });
+  });
+
+  it('does not mistake a malformed stored path for the home page', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [hit(scope, '/100%/done', session('odd'), paid)]);
+
+    const rows = await conversions(scope, 1, '/');
+
+    expect(byChannel(rows)).toEqual({ Paid: { visits: 1, conversions: 0 } });
+  });
+
+  it('treats an injection attempt in the goal page as plain text', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [hit(scope, '/', session('visit'), paid)]);
+
+    const rows = await conversions(scope, 1, "/x' OR '1'='1");
+
+    expect(byChannel(rows)).toEqual({ Paid: { visits: 1, conversions: 0 } });
+  });
+
   it('keeps one tenant’s conversions out of another’s, even on the same domain', async () => {
     const mine = createScope();
     const rival = createRivalTenant(mine);

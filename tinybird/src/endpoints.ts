@@ -1180,8 +1180,10 @@ const channelDateNode = () =>
       `,
   });
 
-const pathKey = (expression: string): string =>
-  `if(trimRight(${expression}, '/') = '', '/', trimRight(${expression}, '/'))`;
+const pathKey = (expression: string): string => {
+  const decoded = `decodeURLComponent(${expression})`;
+  return `if(trimRight(${decoded}, '/') = '', '/', trimRight(${decoded}, '/'))`;
+};
 
 const channelVisitsNode = (extraColumns = "") =>
   node({
@@ -1344,7 +1346,9 @@ export const conversions = defineEndpoint("conversions", {
   ],
   params: {
     ...channelParams,
-    goal_path: p.string().describe("Path of the goal page, e.g. /book/confirmed"),
+    goal_path: p
+      .string()
+      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
   },
   output: {
     channel: t.string(),
