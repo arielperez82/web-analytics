@@ -73,6 +73,11 @@ analytics.identify("user123", {
 - `enableClickTracking`: Enable automatic click tracking for links with
   `data-track` attribute (default: `false`)
 - `globalAttributes`: Global attributes to include with all events
+- `consent`: Where the tracker reads the visitor's consent (see
+  [Identity modes and consent](#identity-modes-and-consent)). Without it the
+  tracker treats consent as unknown and stays anonymous
+- `anonymousIdentity`: `'client'` (default) builds the anonymous ids in the
+  browser; `'proxy'` leaves them to a collector that mints them
 - - `tenantId`: Your tenant identifier (default: domain)
 
 ### Example Configuration
@@ -257,6 +262,43 @@ Add custom properties using `data-track-prop*` attributes:
   Sign Up
 </a>
 ```
+
+## Identity modes and consent
+
+Every event carries `id_mode` in its payload so you can tell the modes apart.
+
+| `id_mode`      | When                                       | Ids                                                                       |
+| -------------- | ------------------------------------------ | ------------------------------------------------------------------------- |
+| `persistent`   | Consent is `granted`                       | Stored `visitor_id` (395 days) and a stored 30-minute `session_id`        |
+| `daily_direct` | Not granted, `anonymousIdentity: 'client'` | Daily `visitor_id` and a `session_id` that changes every half hour, no IP |
+| `anonymous`    | Not granted, `anonymousIdentity: 'proxy'`  | None. The collector adds them                                             |
+
+Outside `persistent` the tracker writes nothing to storage, clears any ids left
+by an earlier consent, and sends the UTMs of the current page on that page's
+events only.
+
+The daily id hashes the UTC date, domain, user agent, screen size and pixel
+ratio, language and time zone. It uses no IP and no secret, so identical
+machines merge; a collector that sees the IP can do better. A visit that crosses
+a half-hour boundary or UTC midnight splits in two.
+
+Give the tracker a consent source. It reads the state before every event and
+calls `subscribe` (optional) when the visitor changes their mind:
+
+```typescript
+initTinybirdAnalytics({
+  token,
+  host,
+  domain,
+  consent: {
+    getState: () => (stored === "granted" ? "granted" : "denied"),
+    subscribe: (listener) => store.subscribe(listener),
+  },
+});
+```
+
+`getState` returns `'granted'`, `'denied'` or `'unknown'`. Anything but
+`'granted'` keeps the tracker anonymous.
 
 ## Privacy & Compliance
 
