@@ -17,6 +17,9 @@ Self-hosted (for example on Vercel); nothing in the code is specific to one orga
 
 Access is deny-all unless a domain or address is listed, and the Google email must be verified.
 
+The Channels report and the conversions panels do not apply the device, location or browser filters; the
+overview says so. One panel is shown per goal; a malformed goal is dropped and its error is shown on the page.
+
 ## Identity proxy (`POST /api/tracking`)
 
 Tracked sites that set the client to `anonymousIdentity: 'proxy'` post events here without ids while consent is
@@ -33,6 +36,12 @@ a disallowed origin or a session-store error means the event is dropped, never f
 | `TRACKING_ALLOWED_ORIGINS`                           | Comma-separated `origin=tenant` pairs, e.g. `https://spliceops.ai=splice,https://splicelabs.ai=splice`. The proxy stamps `tenant_id` and `domain` from the matching pair; malformed pairs are dropped; empty drops all. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Session cache (Vercel Marketplace Upstash Redis). Keys expire after a day.                                                                                                                                              |
 | `TRACKING_DATASOURCE`                                | Optional. Defaults to `analytics_events`.                                                                                                                                                                               |
+
+Several domains can share one tenant (for example `spliceops.ai` and `splicelabs.ai` under `splice`); set
+`DASHBOARD_TENANT_ID=splice` and the domain dropdown still separates them. The map fails closed: a pair with
+extra `=`, a pair without a tenant, a non-bare origin (path, trailing slash) and an origin listed twice are all
+dropped. The value used to be a plain origin list; an old value now drops every entry, so every request is
+refused with 403 until it is rewritten as `origin=tenant` pairs.
 
 Point the client at it with `proxy: 'https://<dashboard-host>'` (the client appends `/api/tracking`).
 

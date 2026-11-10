@@ -4,13 +4,16 @@ Web Analytics Repo
 
 ## Test layers
 
-| Layer      | Scope                                                           | Lives in                                            | Run                             |
-| ---------- | --------------------------------------------------------------- | --------------------------------------------------- | ------------------------------- |
-| Unit       | Functions and modules, no I/O                                   | `client/src`, `dashboard/src`, `testing/**/helpers` | `pnpm test`                     |
-| Acceptance | One package through its public interface, behaviour a user sees | `acceptance/tinybird` (client: planned)             | `pnpm test:acceptance:tinybird` |
-| E2E        | A flow across packages: capture (page to storage), then read    | `e2e`                                               | `pnpm test:e2e`                 |
+| Layer      | Scope                                                           | Lives in                                            | Run                                                            |
+| ---------- | --------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| Unit       | Functions and modules, no I/O                                   | `client/src`, `dashboard/src`, `testing/**/helpers` | `pnpm test`                                                    |
+| Acceptance | One package through its public interface, behaviour a user sees | `acceptance/tinybird`, `acceptance/client`          | `pnpm test:acceptance:tinybird`, `pnpm test:acceptance:client` |
+| E2E        | A flow across packages: capture (page to storage), then read    | `e2e`, `e2e/browser`                                | `pnpm test:e2e`, `pnpm test:e2e:browser`                       |
 
 Tinybird acceptance and E2E run against Tinybird Local; `testing/tinybird`
-holds the shared helpers and global setup. Planned: client acceptance (the
-client embedded in a test page, driven by Playwright) and a browser front for
-the E2E capture flow.
+holds the shared helpers and global setup. Client acceptance and the browser
+E2E use Playwright with a fixture page in `testing/browser`.
+
+## Operations
+
+Deploying and configuring a real environment: see [ops/runbook.md](ops/runbook.md).

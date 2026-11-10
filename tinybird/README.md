@@ -49,3 +49,7 @@ admin token in the [dashboard](../dashboard/README.md).
 Validate with `pnpm run check:tinybird` (`tinybird deploy --check`), then
 deploy with `tinybird deploy` or the manual "Deploy to Tinybird" workflow.
 Both read `TINYBIRD_HOST` and `TINYBIRD_TOKEN`.
+
+Deploy from an up-to-date `main`, never from a branch behind it, and run the check first. The `conversions`
+endpoint (#30) is not in cloud deployment 10; until the next deploy the dashboard's conversions panels fail
+against the cloud workspace. The `tinybird` CLI must be on `PATH` for `check:tinybird`.
