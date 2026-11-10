@@ -41,6 +41,11 @@ export interface WebVital {
   navigationType?: string;
 }
 
+export interface Goal {
+  name: string;
+  path: string;
+}
+
 export interface TinybirdAnalyticsConfig {
   token?: string;
   host?: string;
@@ -59,6 +64,7 @@ export interface TinybirdAnalyticsConfig {
   enableClickTracking?: boolean;
   consent?: ConsentSource;
   anonymousIdentity?: AnonymousIdentity;
+  goals?: readonly Goal[];
 }
 
 export interface TinybirdIdentityEvent {
@@ -427,9 +433,22 @@ const tinybirdAnalytics = (
     sendEvent(eventName, eventData);
   };
 
+  const withoutTrailingSlashes = (path: string): string =>
+    path.length > 1 && path.endsWith('/')
+      ? withoutTrailingSlashes(path.slice(0, -1))
+      : path;
+
+  const goalsReachedAt = (pathname: string): readonly Goal[] =>
+    (configWithDefaults.goals ?? []).filter(
+      (goal) =>
+        withoutTrailingSlashes(goal.path) === withoutTrailingSlashes(pathname)
+    );
+
   const page = (event: TinybirdEvent): void => {
-    // Send the event
     track('page_hit', event);
+    goalsReachedAt(window.location.pathname).forEach((goal) =>
+      track(goal.name, {})
+    );
   };
 
   const _identify = (
