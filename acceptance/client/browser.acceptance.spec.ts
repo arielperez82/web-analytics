@@ -54,4 +54,14 @@ test.describe('client embedded in a real page', () => {
       'signed_up',
     ]);
   });
+
+  test('records no goal on other pages', async ({ page }) => {
+    const events = await collectEvents(page);
+
+    await page.goto('/pricing');
+    await expect.poll(() => events.length).toBeGreaterThan(0);
+    await settle(page);
+
+    expect(events.map(event => event.action)).toEqual(['page_hit']);
+  });
 });
