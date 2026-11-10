@@ -100,6 +100,8 @@ type PageHitOptions = {
   readonly userAgent?: string;
   readonly referrer?: string;
   readonly sessionId?: string;
+  readonly visitorId?: string;
+  readonly idMode?: string;
   readonly utm?: Readonly<Record<string, string>>;
   readonly offsetSeconds?: number;
   readonly now?: Date;
@@ -113,6 +115,8 @@ export const createPageHitEvent = ({
   userAgent,
   referrer,
   sessionId = crypto.randomUUID(),
+  visitorId,
+  idMode,
   utm = {},
   offsetSeconds = 0,
   now = new Date(),
@@ -130,6 +134,8 @@ export const createPageHitEvent = ({
     ...(location === undefined ? {} : { location }),
     ...(userAgent === undefined ? {} : { 'user-agent': userAgent }),
     ...(referrer === undefined ? {} : { referrer }),
+    ...(visitorId === undefined ? {} : { visitor_id: visitorId }),
+    ...(idMode === undefined ? {} : { id_mode: idMode }),
     ...utm,
   }),
   tenant_id: tenantId,

@@ -294,4 +294,130 @@ describe.concurrent('channels pipe', () => {
 
     expect(rows).toEqual([]);
   });
+
+  describe('an anonymous visitor who comes back the same day', () => {
+    const minutesAgo = (minutes: number): Date =>
+      new Date(Date.now() - minutes * 60_000);
+    const email = { utm: { utm_medium: 'email' } };
+    const paid = { utm: { utm_medium: 'cpc' } };
+    const visitor = (id: string, idMode = 'daily_direct') => ({
+      visitorId: id,
+      idMode,
+    });
+    const visit = (
+      scope: Scope,
+      arrival: Arrival,
+      who: ReturnType<typeof visitor>,
+      minutes: number
+    ) =>
+      arrive(scope, arrival, {
+        ...who,
+        now: minutesAgo(minutes),
+        sessionId: crypto.randomUUID(),
+      });
+
+    it('is credited to the campaign that first brought them, on their later visits too', async () => {
+      const scope = createScope();
+      const who = visitor('v-1');
+      await ingestEvents(env, [
+        visit(scope, email, who, 50),
+        visit(scope, {}, who, 5),
+      ]);
+
+      const rows = await channels(scope, 1);
+
+      expect(visitsByChannel(rows)).toEqual({ Email: 2 });
+    });
+
+    it('does not credit a campaign to visits that came before it', async () => {
+      const scope = createScope();
+      const who = visitor('v-1');
+      await ingestEvents(env, [
+        visit(scope, {}, who, 50),
+        visit(scope, paid, who, 5),
+      ]);
+
+      const rows = await channels(scope, 2);
+
+      expect(visitsByChannel(rows)).toEqual({ Direct: 1, Paid: 1 });
+    });
+
+    it('is credited to the first campaign seen, not a later one', async () => {
+      const scope = createScope();
+      const who = visitor('v-1');
+      await ingestEvents(env, [
+        visit(scope, email, who, 50),
+        visit(scope, paid, who, 30),
+        visit(scope, {}, who, 5),
+      ]);
+
+      const rows = await channels(scope, 2);
+
+      expect(visitsByChannel(rows)).toEqual({ Email: 2, Paid: 1 });
+    });
+
+    it('keeps the campaign from the landing page even when a later visit arrives from a search', async () => {
+      const scope = createScope();
+      const who = visitor('v-1');
+      await ingestEvents(env, [
+        visit(scope, email, who, 50),
+        visit(scope, { referrer: () => 'https://www.google.com/' }, who, 5),
+      ]);
+
+      const rows = await channels(scope, 1);
+
+      expect(visitsByChannel(rows)).toEqual({ Email: 2 });
+    });
+
+    it('is credited for ids minted by a proxy as well', async () => {
+      const scope = createScope();
+      const who = visitor('v-1', 'daily_proxy');
+      await ingestEvents(env, [
+        visit(scope, paid, who, 50),
+        visit(scope, {}, who, 5),
+      ]);
+
+      const rows = await channels(scope, 1);
+
+      expect(visitsByChannel(rows)).toEqual({ Paid: 2 });
+    });
+
+    it('never passes one visitor’s campaign to another visitor', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        visit(scope, paid, visitor('v-1'), 50),
+        visit(scope, {}, visitor('v-2'), 5),
+      ]);
+
+      const rows = await channels(scope, 2);
+
+      expect(visitsByChannel(rows)).toEqual({ Direct: 1, Paid: 1 });
+    });
+
+    it('does not apply to visitors with stored ids, whose browser already remembers the campaign', async () => {
+      const scope = createScope();
+      const who = visitor('v-1', 'persistent');
+      await ingestEvents(env, [
+        visit(scope, paid, who, 50),
+        visit(scope, {}, who, 5),
+      ]);
+
+      const rows = await channels(scope, 2);
+
+      expect(visitsByChannel(rows)).toEqual({ Direct: 1, Paid: 1 });
+    });
+
+    it('never passes a campaign between tenants, even when their visitor ids match', async () => {
+      const mine = createScope();
+      const rival = createRivalTenant(mine);
+      await ingestEvents(env, [
+        visit(rival, paid, visitor('v-1'), 50),
+        visit(mine, {}, visitor('v-1'), 5),
+      ]);
+
+      const rows = await channels(mine, 1);
+
+      expect(visitsByChannel(rows)).toEqual({ Direct: 1 });
+    });
+  });
 });
