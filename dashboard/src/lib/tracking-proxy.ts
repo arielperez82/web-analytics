@@ -143,8 +143,13 @@ export const handleTracking = async (
   if (!origin) return respond(403);
   const event = parseEvent(request.body);
   if (!event) return respond(400, corsHeaders(origin));
-  const outgoing = isAnonymous(event)
-    ? await withProxyIdentity(event, request, deps)
-    : event;
-  return forward(outgoing, deps, corsHeaders(origin));
+  const headers = corsHeaders(origin);
+  try {
+    const outgoing = isAnonymous(event)
+      ? await withProxyIdentity(event, request, deps)
+      : event;
+    return await forward(outgoing, deps, headers);
+  } catch {
+    return respond(502, headers);
+  }
 };

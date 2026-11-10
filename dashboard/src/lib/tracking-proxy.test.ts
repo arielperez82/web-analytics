@@ -217,3 +217,19 @@ describe("handlePreflight", () => {
     expect(result.headers["access-control-allow-origin"]).toBeUndefined();
   });
 });
+
+describe("handleTracking when the session store fails", () => {
+  it("returns 502 and does not forward an unidentified event", async () => {
+    const { deps, forwarded } = createFakeDeps({
+      store: {
+        get: async () => {
+          throw new Error("redis down");
+        },
+        set: async () => undefined,
+      },
+    });
+    const result = await handleTracking(post(anonymousEvent), deps);
+    expect(result.status).toBe(502);
+    expect(forwarded).toHaveLength(0);
+  });
+});
