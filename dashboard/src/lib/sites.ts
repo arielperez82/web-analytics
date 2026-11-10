@@ -8,7 +8,7 @@ const isBareOrigin = (value: string): boolean => {
   }
 };
 
-export const parseSites = (raw: string | undefined): readonly Site[] =>
+const parseEntries = (raw: string | undefined): readonly Site[] =>
   (raw ?? "")
     .split(",")
     .map((entry) => entry.split("=").map((part) => part.trim()))
@@ -18,3 +18,10 @@ export const parseSites = (raw: string | undefined): readonly Site[] =>
         ? [{ origin, tenantId }]
         : [];
     });
+
+export const parseSites = (raw: string | undefined): readonly Site[] => {
+  const entries = parseEntries(raw);
+  return entries.filter(
+    ({ origin }) => entries.filter((site) => site.origin === origin).length === 1,
+  );
+};

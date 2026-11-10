@@ -18,6 +18,14 @@ describe("parseSites", () => {
     ).toEqual([{ origin: "https://b.example", tenantId: "beta" }]);
   });
 
+  it("drops every entry of an origin configured twice, since its tenant is ambiguous", () => {
+    expect(
+      parseSites(
+        "https://a.example=acme,https://a.example=other,https://b.example=beta",
+      ),
+    ).toEqual([{ origin: "https://b.example", tenantId: "beta" }]);
+  });
+
   it("drops entries without a tenant or with something other than a bare origin", () => {
     expect(
       parseSites(
