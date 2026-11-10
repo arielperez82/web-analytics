@@ -23,6 +23,7 @@ export default defineConfig(
       'acceptance/**/*.ts',
       'e2e/**/*.ts',
       'testing/**/*.ts',
+      'scripts/**/*.ts',
       'vitest.acceptance.config.ts',
       'vitest.e2e.config.ts',
     ],
@@ -50,6 +51,7 @@ export default defineConfig(
       'acceptance/**/*.test.ts',
       'e2e/**/*.test.ts',
       'testing/**/*.test.ts',
+      'scripts/**/*.test.ts',
     ],
     plugins: { vitest },
     rules: {

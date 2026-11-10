@@ -8,9 +8,12 @@ export default {
       "pnpm run lint:code:fix",
       "pnpm run test:client"
     ],
-    "{acceptance/**/*.ts,e2e/**/*.ts,testing/**/*.ts,vitest.acceptance.config.ts,vitest.e2e.config.ts,eslint.config.js,tsconfig.tests.json}": () => [
+    "{acceptance/**/*.ts,e2e/**/*.ts,testing/**/*.ts,scripts/**/*.ts,vitest.acceptance.config.ts,vitest.e2e.config.ts,eslint.config.js,tsconfig.tests.json}": () => [
       "pnpm run lint:format:tests:fix",
       "pnpm run lint:code:tests:fix"
+    ],
+    "scripts/**/*.ts": () => [
+      "pnpm run test:scripts"
     ],
     "dashboard/src/**/*.{ts,tsx}": () => [
       "pnpm run typecheck:dashboard",

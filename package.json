@@ -15,10 +15,10 @@
     "lint:format:code:fix": "pnpm --filter tinybird-analytics lint:format:code:fix && pnpm run lint:format:tests:fix",
     "lint:code": "pnpm --filter tinybird-analytics lint:code && pnpm run lint:code:tests",
     "lint:code:fix": "pnpm --filter tinybird-analytics lint:code:fix && pnpm run lint:code:tests:fix",
-    "lint:code:tests": "eslint acceptance e2e testing vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
-    "lint:code:tests:fix": "eslint --fix acceptance e2e testing vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
-    "lint:format:tests": "prettier --config prettier.tests.config.js --check 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
-    "lint:format:tests:fix": "prettier --config prettier.tests.config.js --write 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
+    "lint:code:tests": "eslint acceptance e2e testing scripts vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
+    "lint:code:tests:fix": "eslint --fix acceptance e2e testing scripts vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
+    "lint:format:tests": "prettier --config prettier.tests.config.js --check 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' 'scripts/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
+    "lint:format:tests:fix": "prettier --config prettier.tests.config.js --write 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' 'scripts/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
     "typecheck:tinybird": "cd tinybird && pnpm exec tsc",
     "test:client": "pnpm --filter tinybird-analytics test",
     "test:dashboard": "pnpm --filter @web-analytics/dashboard test",
@@ -30,8 +30,10 @@
     "test:e2e:browser": "playwright test -c playwright.e2e.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
-    "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird",
-    "build:tinybird": "cd tinybird && pnpm exec tinybird build"
+    "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts",
+    "build:tinybird": "cd tinybird && pnpm exec tinybird build",
+    "test:scripts": "vitest run --dir scripts",
+    "check:workspace": "node scripts/workspace/check-workspace.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
