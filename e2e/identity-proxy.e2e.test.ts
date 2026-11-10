@@ -5,8 +5,8 @@ import {
   handleTracking,
   type TrackingDeps,
 } from '../dashboard/src/lib/tracking-proxy';
-import { createScope, type Scope } from './helpers/factories';
-import { waitForPipeRows } from './helpers/pipe-rows';
+import { createScope, type Scope } from '../testing/tinybird/helpers/factories';
+import { waitForPipeRows } from '../testing/tinybird/helpers/pipe-rows';
 
 type ChannelRow = { channel: string; visits: number | string };
 type HitRow = {

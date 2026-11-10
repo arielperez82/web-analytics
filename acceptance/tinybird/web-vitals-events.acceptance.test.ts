@@ -4,9 +4,9 @@ import {
   createScope,
   createWebVitalEvent,
   type Scope,
-} from './helpers/factories';
-import { waitForPipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
+} from '../../testing/tinybird/helpers/factories';
+import { waitForPipeRows } from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 type VitalRow = {
   metric_name: string;

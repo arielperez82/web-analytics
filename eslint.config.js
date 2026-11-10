@@ -19,11 +19,17 @@ export default defineConfig(
     },
   },
   {
-    files: ['e2e/**/*.ts', 'vitest.e2e.config.ts'],
+    files: [
+      'acceptance/**/*.ts',
+      'e2e/**/*.ts',
+      'testing/**/*.ts',
+      'vitest.acceptance.config.ts',
+      'vitest.e2e.config.ts',
+    ],
     extends: [tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {
-        project: './e2e/tsconfig.json',
+        project: './tsconfig.tests.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -40,7 +46,11 @@ export default defineConfig(
   },
   sonarConfigs.recommended,
   {
-    files: ['e2e/**/*.test.ts'],
+    files: [
+      'acceptance/**/*.test.ts',
+      'e2e/**/*.test.ts',
+      'testing/**/*.test.ts',
+    ],
     plugins: { vitest },
     rules: {
       ...vitest.configs.recommended.rules,

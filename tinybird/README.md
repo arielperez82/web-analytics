@@ -38,7 +38,7 @@ tb local start        # or: docker run -d -p 7181:7181 tinybirdco/tinybird-local
 export TINYBIRD_HOST=http://localhost:7181 TINYBIRD_TOKEN=placeholder
 pnpm run build:tinybird -- --local   # build into a per-branch Local workspace
 pnpm run typecheck:tinybird
-pnpm test:e2e                        # from the repo root
+pnpm test:acceptance:tinybird         # from the repo root
 ```
 
 Use `http://localhost:7181` as NEXT_PUBLIC_TINYBIRD_HOST and the workspace

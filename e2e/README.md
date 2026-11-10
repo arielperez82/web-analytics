@@ -1,71 +1,21 @@
-# E2E tests (Tinybird Local)
+# End-to-end tests
 
-These tests ingest events into a real Tinybird Local workspace and query the
-deployed pipes over HTTP. They do not depend on fixture dates: every test
-ingests its own events with timestamps relative to now, under a unique
-`tenant_id` and `domain`, so tests never collide and never go stale.
+An end-to-end test follows one flow across package boundaries and asserts what
+a user of the whole system would see. The flows here are the two halves of the
+product, and a test may span both:
 
-## Prerequisites
+- **Capture**: a visitor's page view reaches the collector and is stored.
+- **Read**: stored events come back out through the dashboard.
 
-- Docker
-- Tinybird Local running (or let `pnpm test:e2e:local` start it with the
-  Tinybird CLI `tb` v5 or later)
+Today `identity-proxy.e2e.test.ts` covers the middle of the capture flow: the
+dashboard's `/api/tracking` handler into Tinybird Local, read back through the
+Tinybird pipes. It grows outwards: a real browser with the client embedded in a
+test page in front, and the dashboard's own `/api/endpoints` on the read side.
 
-## Run
-
-One command that starts Tinybird Local if needed, runs the suite, and stops
-it again (an instance that was already running is left running):
-
-```bash
-pnpm test:e2e:local
-```
-
-Or, with Tinybird Local already running:
+Per-package behaviour (one package through its public interface) belongs in
+`acceptance/`, not here. See the root README, "Test layers".
 
 ```bash
-pnpm test:e2e
+pnpm test:e2e:local   # starts Tinybird Local if needed
+pnpm test:e2e         # with Tinybird Local already running
 ```
-
-The global setup:
-
-1. runs `tinybird build --local` (Tinybird TypeScript SDK) in `tinybird/` to
-   deploy the project to Tinybird Local
-2. reads the workspace name the SDK built into from the build output
-3. fetches that workspace's admin token from the Local API
-4. waits until Tinybird answers `SELECT 1`
-
-Tinybird Local scopes resources to a workspace per git branch, so the token
-must belong to the workspace the SDK just built into (the default workspace
-token from `/tokens` does not contain this project's datasources).
-
-To target another instance, set both `TB_HOST` and `TB_TOKEN`. The setup then
-skips the build and the lookups, so the project must already be deployed
-there.
-
-## Layout
-
-- `helpers/factories.ts`: event row factories (relative timestamps, unique ids)
-- `helpers/tinybird-client.ts`: ingest NDJSON with `wait=true`, query pipes
-- `helpers/tinybird-env.ts`: host and token resolution
-- `helpers/wait-for-row.ts`: polling helper for eventually-consistent reads
-- `*.e2e.test.ts`: one file per pipe
-- `helpers/*.test.ts`: unit tests for the helpers (use plain fakes)
-
-## Writing tests
-
-Test behavior, not implementation. Each test states one outcome a dashboard
-user can see, and queries the endpoint only.
-
-- Name a test by its outcome, for example "a visit counts once however many
-  pages it viewed". Do not name columns, queries, or tables.
-- Do not read internal tables or depend on how a result is computed.
-- Mention an internal detail only for a corner case, and say why in the test
-  name.
-- Isolate each test with `createScope`. Never depend on fixture dates.
-
-## Not in the default `pnpm test`
-
-E2E needs a running container and is slower than the unit tests, so it is a
-separate command. It does not run in pre-commit; run `pnpm test:e2e` manually
-when changing pipes. CI runs it on every pull request and push to `main`
-(`.github/workflows/e2e.yml`).

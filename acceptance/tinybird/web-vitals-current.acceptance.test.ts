@@ -1,8 +1,14 @@
 import { describe, expect, inject, it } from 'vitest';
 
-import { createScope, createWebVitalEvent } from './helpers/factories';
-import { pipeRows, waitForPipeRows } from './helpers/pipe-rows';
-import { ingestEvents } from './helpers/tinybird-client';
+import {
+  createScope,
+  createWebVitalEvent,
+} from '../../testing/tinybird/helpers/factories';
+import {
+  pipeRows,
+  waitForPipeRows,
+} from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 type CurrentVitalRow = {
   metric_name: string;

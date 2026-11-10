@@ -14,5 +14,11 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["./**/*.ts", "../vitest.e2e.config.ts"]
+  "include": [
+    "acceptance/**/*.ts",
+    "e2e/**/*.ts",
+    "testing/**/*.ts",
+    "vitest.acceptance.config.ts",
+    "vitest.e2e.config.ts"
+  ]
 }

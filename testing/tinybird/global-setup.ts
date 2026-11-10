@@ -35,7 +35,7 @@ export default async function globalSetup(
   project: TestProject
 ): Promise<() => void> {
   const teardown = await manageTinybirdLocal({
-    enabled: process.env.E2E_MANAGE_TB_LOCAL === '1' && !process.env.TB_HOST,
+    enabled: process.env.MANAGE_TB_LOCAL === '1' && !process.env.TB_HOST,
     isRunning: localAnswers,
     start: () => runTb(['local', 'start']),
     stop: () => runTb(['local', 'stop']),
