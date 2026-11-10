@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { server } from './__tests__/server';
 import type { AnonymousIdentity, ConsentState } from './identity';
@@ -51,6 +51,24 @@ const storedKeys = (): readonly string[] =>
   Array.from({ length: localStorage.length }, (_, index) =>
     localStorage.key(index)
   ).filter((key): key is string => key !== null);
+
+const switchableConsent = (initial: ConsentState) => {
+  const listeners = new Set<() => void>();
+  const state = { current: initial };
+  return {
+    source: {
+      getState: () => state.current,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    },
+    set: (next: ConsentState) => {
+      state.current = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+};
 
 const visitFrom = (search: string) =>
   window.history.replaceState({}, '', `/${search}`);
@@ -141,6 +159,123 @@ describe('identity modes', () => {
       const later = await sendAndCapture(() => analytics.page({}));
 
       expect(payloadOf(later)).toMatchObject({ utm_medium: 'email' });
+    });
+  });
+
+  describe('when consent changes during a visit', () => {
+    it('forgets the stored ids at once when consent is withdrawn', async () => {
+      const banner = switchableConsent('granted');
+      const analytics = tracker({ consent: banner.source });
+      await sendAndCapture(() => analytics.page({}));
+      expect(storedKeys()).toContain('visitor-id');
+
+      banner.set('denied');
+
+      expect(storedKeys()).toEqual([]);
+    });
+
+    it('switches to a daily id for the next event after consent is withdrawn', async () => {
+      const banner = switchableConsent('granted');
+      const analytics = tracker({ consent: banner.source });
+      const before = await sendAndCapture(() => analytics.page({}));
+
+      banner.set('denied');
+      const after = await sendAndCapture(() => analytics.page({}));
+
+      expect(payloadOf(before)).toMatchObject({ id_mode: 'persistent' });
+      expect(payloadOf(after)).toMatchObject({ id_mode: 'daily_direct' });
+      expect(after.session_id).toMatch(HEX_ID);
+      expect(storedKeys()).toEqual([]);
+    });
+
+    it('starts storing ids and remembering UTMs once consent is given', async () => {
+      visitFrom('?utm_medium=cpc');
+      const banner = switchableConsent('unknown');
+      const analytics = tracker({ consent: banner.source });
+      const anonymous = await sendAndCapture(() => analytics.page({}));
+
+      banner.set('granted');
+      visitFrom('');
+      const consented = await sendAndCapture(() => analytics.page({}));
+
+      expect(payloadOf(anonymous)).toMatchObject({ id_mode: 'daily_direct' });
+      expect(payloadOf(consented)).toMatchObject({
+        id_mode: 'persistent',
+        utm_medium: 'cpc',
+      });
+      expect(storedKeys()).toEqual(
+        expect.arrayContaining(['session-id', 'visitor-id'])
+      );
+    });
+
+    it('notices withdrawn consent even when the source cannot notify', async () => {
+      const state = { current: 'granted' as ConsentState };
+      const analytics = tracker({
+        consent: { getState: () => state.current },
+      });
+      await sendAndCapture(() => analytics.page({}));
+
+      state.current = 'denied';
+      const after = await sendAndCapture(() => analytics.page({}));
+
+      expect(payloadOf(after)).toMatchObject({ id_mode: 'daily_direct' });
+      expect(storedKeys()).toEqual([]);
+    });
+  });
+
+  describe('ids left over from an earlier consent', () => {
+    it('are removed at start when consent is not granted', () => {
+      localStorage.setItem('visitor-id', 'old-visitor');
+      localStorage.setItem(
+        'session-id',
+        '{"value":"old","expiry":9999999999999}'
+      );
+      localStorage.setItem('attribution-data', '{"utm_medium":"cpc"}');
+
+      tracker({ consent: consentOf('denied') });
+
+      expect(storedKeys()).toEqual([]);
+    });
+  });
+
+  describe('automatic web vitals', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-10T10:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const minutesLater = (minutes: number) =>
+      vi.setSystemTime(
+        new Date(Date.parse('2026-11-10T10:00:00.000Z') + minutes * 60_000)
+      );
+
+    it('do not keep a session alive after the visitor went quiet', async () => {
+      const analytics = tracker({ consent: consentOf('granted') });
+      const first = await sendAndCapture(() => analytics.page({}));
+
+      minutesLater(20);
+      const vital = await sendAndCapture(() =>
+        analytics.track('web_vital', { name: 'INP', value: 100 })
+      );
+      minutesLater(40);
+      const returning = await sendAndCapture(() => analytics.page({}));
+
+      expect(vital.session_id).toBe(first.session_id);
+      expect(returning.session_id).not.toBe(first.session_id);
+    });
+
+    it('do not start a session on their own', async () => {
+      const analytics = tracker({ consent: consentOf('granted') });
+
+      const vital = await sendAndCapture(() =>
+        analytics.track('web_vital', { name: 'INP', value: 100 })
+      );
+
+      expect(vital).not.toHaveProperty('session_id');
     });
   });
 });

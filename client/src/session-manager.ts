@@ -7,6 +7,7 @@ export interface SessionItem {
 
 export interface SessionManager {
   getSessionId(): string | null
+  peekSessionId(): string | null
   setSessionId(sessionId: string): void
 }
 
@@ -53,6 +54,14 @@ export function createSessionManager(
   storageManager: StorageManager
 ): SessionManager {
   return {
+    peekSessionId(): string | null {
+      const stored = storageManager.get(SESSION_STORAGE_KEY)
+      const sessionData = stored ? parseSessionData(stored) : null
+      return sessionData && !isSessionExpired(sessionData)
+        ? sessionData.value
+        : null
+    },
+
     getSessionId(): string | null {
       // Try to get from storage
       const stored = storageManager.get(SESSION_STORAGE_KEY)

@@ -296,10 +296,17 @@ const tinybirdAnalytics = (
     });
 
   const resolveIdentity = (
-    mode: IdMode
+    mode: IdMode,
+    eventName: string
   ): { sessionId?: string; visitorId?: string } => {
     if (mode === 'anonymous') return {};
     if (mode === 'daily_direct') return browserDailyIdentity();
+    if (eventName === 'web_vital') {
+      return {
+        sessionId: sessionManager.peekSessionId() ?? undefined,
+        visitorId: visitorManager.getVisitorId(),
+      };
+    }
     sessionManager.setSessionId(
       sessionManager.getSessionId() || crypto.randomUUID()
     );
@@ -336,7 +343,8 @@ const tinybirdAnalytics = (
     const config = configWithDefaults;
 
     const mode = idMode();
-    const identity = resolveIdentity(mode);
+    if (mode !== 'persistent') clearStoredIdentity();
+    const identity = resolveIdentity(mode, eventName);
     const identityAttributes = {
       id_mode: mode,
       ...(identity.visitorId && { visitor_id: identity.visitorId }),
@@ -459,11 +467,16 @@ const tinybirdAnalytics = (
     window.tinybirdAnalytics = tinybirdAnalyticsInstance;
   }
 
-  if (idMode() === 'persistent') {
-    attributionManager.captureAttributionData();
-  } else {
-    clearStoredIdentity();
-  }
+  const applyConsent = (): void => {
+    if (idMode() === 'persistent') {
+      attributionManager.captureAttributionData();
+    } else {
+      clearStoredIdentity();
+    }
+  };
+
+  applyConsent();
+  configWithDefaults.consent?.subscribe?.(applyConsent);
 
   return tinybirdAnalyticsInstance;
 };
