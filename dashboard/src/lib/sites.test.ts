@@ -11,4 +11,20 @@ describe("parseSites", () => {
       { origin: "https://splicelabs.ai", tenantId: "splice" },
     ]);
   });
+
+  it("drops entries without a tenant or with something other than a bare origin", () => {
+    expect(
+      parseSites(
+        [
+          "https://nope.example",
+          "https://notenant.example=",
+          "=lonely",
+          "not a url=acme",
+          "https://path.example/x=acme",
+          "https://ok.example=acme",
+          "",
+        ].join(","),
+      ),
+    ).toEqual([{ origin: "https://ok.example", tenantId: "acme" }]);
+  });
 });
