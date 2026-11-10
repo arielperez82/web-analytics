@@ -6,7 +6,9 @@ checklist for the first deployment. Variable reference: [dashboard README](../da
 ## First deployment checklist
 
 1. **Tinybird first.** From an up-to-date `main`: `pnpm run check:tinybird`, then deploy (see
-   [tinybird/README.md](../tinybird/README.md)). Cloud deployment 10 lacks the `conversions` endpoint (#30).
+   [tinybird/README.md](../tinybird/README.md)). Cloud deployment 11 (2026-11-11) includes the `conversions`
+   endpoint (#30); redeploy only when `tinybird/src` changes. The CLI reads `TINYBIRD_TOKEN` and `TINYBIRD_HOST`
+   from the environment, not from `.tinyb`.
 2. **Tracker token.** Mint an append-only Tinybird token for `analytics_events`; set it as
    `TRACKING_TINYBIRD_TOKEN`. Keep it separate from the read token (`TINYBIRD_TOKEN`).
 3. **Upstash Redis** (Vercel Marketplace): set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
