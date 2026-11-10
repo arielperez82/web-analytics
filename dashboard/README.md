@@ -26,13 +26,13 @@ IP is never stored or forwarded) and `session_id` (reused until 30 minutes of in
 carry client ids (consented `persistent` mode) pass through unchanged. It fails closed: missing config,
 a disallowed origin or a session-store error means the event is dropped, never forwarded unidentified.
 
-| Variable                                             | Purpose                                                                     |
-| ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| `TRACKING_TINYBIRD_TOKEN`                            | Tinybird tracker (append-only) token. Not the read token. Server-side only. |
-| `IDENTITY_SALT_SECRET`                               | Secret keying the daily salt. Rotating it resets every visitor id.          |
-| `TRACKING_ALLOWED_ORIGINS`                           | Comma-separated exact origins, e.g. `https://example.com`. Empty drops all. |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Session cache (Vercel Marketplace Upstash Redis). Keys expire after a day.  |
-| `TRACKING_DATASOURCE`                                | Optional. Defaults to `analytics_events`.                                   |
+| Variable                                             | Purpose                                                                                                                                                                                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TRACKING_TINYBIRD_TOKEN`                            | Tinybird tracker (append-only) token. Not the read token. Server-side only.                                                                                                                                             |
+| `IDENTITY_SALT_SECRET`                               | Secret keying the daily salt. Rotating it resets every visitor id.                                                                                                                                                      |
+| `TRACKING_ALLOWED_ORIGINS`                           | Comma-separated `origin=tenant` pairs, e.g. `https://spliceops.ai=splice,https://splicelabs.ai=splice`. The proxy stamps `tenant_id` and `domain` from the matching pair; malformed pairs are dropped; empty drops all. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Session cache (Vercel Marketplace Upstash Redis). Keys expire after a day.                                                                                                                                              |
+| `TRACKING_DATASOURCE`                                | Optional. Defaults to `analytics_events`.                                                                                                                                                                               |
 
 Point the client at it with `proxy: 'https://<dashboard-host>'` (the client appends `/api/tracking`).
 

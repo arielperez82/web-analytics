@@ -5,15 +5,10 @@ import {
   handleTracking,
   type TrackingDeps,
 } from "@/lib/tracking-proxy";
+import { parseSites } from "@/lib/sites";
 import { createUpstashSessionStore } from "@/lib/upstash-session-store";
 
 export const dynamic = "force-dynamic";
-
-const splitList = (value: string | undefined): readonly string[] =>
-  (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const buildDeps = (env: NodeJS.ProcessEnv): TrackingDeps => ({
   tinybird: {
@@ -22,7 +17,7 @@ const buildDeps = (env: NodeJS.ProcessEnv): TrackingDeps => ({
     datasource: env.TRACKING_DATASOURCE ?? "analytics_events",
   },
   secret: env.IDENTITY_SALT_SECRET ?? "",
-  allowedOrigins: splitList(env.TRACKING_ALLOWED_ORIGINS),
+  sites: parseSites(env.TRACKING_ALLOWED_ORIGINS),
   store: createUpstashSessionStore({
     url: env.UPSTASH_REDIS_REST_URL ?? "",
     token: env.UPSTASH_REDIS_REST_TOKEN ?? "",
