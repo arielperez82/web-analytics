@@ -232,4 +232,16 @@ describe.concurrent('payload contract: page hits', () => {
 
     expect(rows.map(row => row.pathname)).toEqual(['123']);
   });
+
+  it('counts a page hit whose payload is not JSON under a blank path', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [{ ...completeHit(scope), payload: 'not json' }]);
+
+    const rows = await waitForPipeRows<{ pathname: string }>(env, 'top_pages', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => row.pathname)).toEqual(['']);
+  });
 });
