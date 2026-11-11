@@ -29,6 +29,15 @@ const without = (event: AnalyticsEventRow, key: string): AnalyticsEventRow => ({
   ),
 });
 
+const withValue = (
+  event: AnalyticsEventRow,
+  key: string,
+  value: unknown
+): AnalyticsEventRow => ({
+  ...event,
+  payload: JSON.stringify({ ...payloadOf(event), [key]: value }),
+});
+
 describe.concurrent('payload contract: web vitals', () => {
   const env = inject('tinybird');
 
@@ -135,5 +144,17 @@ describe.concurrent('payload contract: page hits', () => {
     });
 
     expect(rows.map(row => row.channel)).toEqual(['Organic Search']);
+  });
+
+  it('stores a numeric pathname as its text, so the type is never rejected', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [withValue(completeHit(scope), 'pathname', 123)]);
+
+    const rows = await waitForPipeRows<{ pathname: string }>(env, 'top_pages', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => row.pathname)).toEqual(['123']);
   });
 });
