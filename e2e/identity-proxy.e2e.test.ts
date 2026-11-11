@@ -1,10 +1,10 @@
-import { describe, expect, inject, it } from 'vitest';
-
-import { createInMemorySessionStore } from '../apps/dashboard/src/lib/proxy-identity';
 import {
+  createInMemorySessionStore,
   handleTracking,
   type TrackingDeps,
-} from '../apps/dashboard/src/lib/tracking-proxy';
+} from '@web-analytics/ingest';
+import { describe, expect, inject, it } from 'vitest';
+
 import { createScope, type Scope } from '../testing/tinybird/helpers/factories';
 import { waitForPipeRows } from '../testing/tinybird/helpers/pipe-rows';
 
