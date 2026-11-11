@@ -318,6 +318,25 @@ describe.concurrent('top lists: real-world corner cases', () => {
     expect(browsers).toEqual(['chrome']);
   });
 
+  it('reads the user agent from the user_agent payload key', async () => {
+    const browsers = await only('top_browsers', 'browser', scope => {
+      const event = createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0',
+      });
+      const { 'user-agent': userAgent, ...rest } = JSON.parse(
+        event.payload
+      ) as Record<string, unknown>;
+      return {
+        ...event,
+        payload: JSON.stringify({ ...rest, user_agent: userAgent }),
+      };
+    });
+
+    expect(browsers).toEqual(['firefox']);
+  });
+
   it('counts a crawler as a bot even when it names Android', async () => {
     const devices = await only('top_devices', 'device', scope =>
       createPageHitEvent({
