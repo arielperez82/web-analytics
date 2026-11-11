@@ -41,4 +41,17 @@ describe("parseSites", () => {
       ),
     ).toEqual([{ origin: "https://ok.example", tenantId: "acme" }]);
   });
+
+  it.each([
+    ["whitespace inside", "acme corp"],
+    ["a slash", "acme/prod"],
+    ["a quote", "acme'"],
+    ["a non-ascii character", "açme"],
+    ["a leading hyphen", "-acme"],
+    ["more than 64 characters", "a".repeat(65)],
+  ])("drops an entry whose tenant has %s", (_case, tenantId) => {
+    expect(
+      parseSites(`https://bad.example=${tenantId},https://ok.example=acme_1-b`),
+    ).toEqual([{ origin: "https://ok.example", tenantId: "acme_1-b" }]);
+  });
 });
