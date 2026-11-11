@@ -118,4 +118,22 @@ describe.concurrent('payload contract: page hits', () => {
       expect(rows.map(row => row[column])).toEqual([bucket]);
     }
   );
+
+  it('classifies a campaign hit with no utm_medium as organic search, not as the campaign', async () => {
+    const scope = createScope();
+    const campaign = createPageHitEvent({
+      ...scope,
+      pathname: '/pricing',
+      referrer: 'https://google.com/',
+      utm: { utm_source: 'news', utm_medium: 'email' },
+    });
+    await ingestEvents(env, [without(campaign, 'utm_medium')]);
+
+    const rows = await waitForPipeRows<{ channel: string }>(env, 'channels', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => row.channel)).toEqual(['Organic Search']);
+  });
 });
