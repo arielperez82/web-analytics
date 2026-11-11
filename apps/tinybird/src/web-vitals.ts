@@ -82,7 +82,18 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             {% end %}
             AND JSONExtractString(payload, 'name') IN ('LCP', 'TTFB', 'FCP', 'INP', 'CLS')
             AND JSONExtractString(payload, 'pathname') != ''
-            AND JSONExtractFloat(payload, 'value') > 0
+            AND (
+                JSONExtractFloat(payload, 'value') > 0
+                OR (
+                    JSONExtractString(payload, 'name') = 'CLS'
+                    AND JSONExtractFloat(payload, 'value') = 0
+                    AND JSONHas(payload, 'value')
+                    AND (
+                        JSONType(payload, 'value') IN ('Int64', 'UInt64', 'Double')
+                        OR toFloat64OrNull(JSONExtractString(payload, 'value')) IS NOT NULL
+                    )
+                )
+            )
             AND JSONExtractFloat(payload, 'value') < 60000
             AND (
                 (JSONExtractString(payload, 'name') = 'LCP' AND JSONExtractFloat(payload, 'value') < 30000) OR
