@@ -4,7 +4,7 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "check:tinybird": "cd tinybird && pnpm exec tinybird deploy --check",
+    "check:tinybird": "cd apps/tinybird && pnpm exec tinybird deploy --check",
     "prepare": "husky",
     "pre-commit": "lint-staged",
     "lint:md": "markdownlint .",
@@ -19,7 +19,7 @@
     "lint:code:tests:fix": "eslint --fix acceptance e2e testing scripts vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
     "lint:format:tests": "prettier --config prettier.tests.config.js --check 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' 'scripts/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
     "lint:format:tests:fix": "prettier --config prettier.tests.config.js --write 'acceptance/**/*.ts' 'e2e/**/*.ts' 'testing/**/*.ts' 'scripts/**/*.ts' vitest.acceptance.config.ts vitest.e2e.config.ts eslint.config.js",
-    "typecheck:tinybird": "cd tinybird && pnpm exec tsc",
+    "typecheck:tinybird": "cd apps/tinybird && pnpm exec tsc",
     "test:client": "pnpm --filter tinybird-analytics test",
     "test:dashboard": "pnpm --filter @web-analytics/dashboard test",
     "typecheck:dashboard": "pnpm --filter @web-analytics/dashboard typecheck",
@@ -31,7 +31,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
     "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts && pnpm run check:workspace",
-    "build:tinybird": "cd tinybird && pnpm exec tinybird build",
+    "build:tinybird": "cd apps/tinybird && pnpm exec tinybird build",
     "test:scripts": "vitest run --dir scripts",
     "check:workspace": "tsx scripts/workspace/check-workspace.ts"
   },

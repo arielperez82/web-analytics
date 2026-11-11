@@ -10,9 +10,9 @@
     "typescript",
   ],
   "eslint.workingDirectories": [
-    "client"
+    "packages/client"
   ],
-  "prettier.configPath": "./client/.prettierrc",
+  "prettier.configPath": "./packages/client/.prettierrc",
   "typescript.preferences.importModuleSpecifier": "relative",
   "typescript.suggest.autoImports": true,
   "typescript.updateImportsOnFileMove.enabled": "always",

@@ -1,12 +1,12 @@
 # Runbook
 
 Operational notes for deploying and running web-analytics. Nothing is deployed to Vercel yet; this is the
-checklist for the first deployment. Variable reference: [dashboard README](../dashboard/README.md).
+checklist for the first deployment. Variable reference: [dashboard README](../apps/dashboard/README.md).
 
 ## First deployment checklist
 
 1. **Tinybird first.** From an up-to-date `main`: `pnpm run check:tinybird`, then deploy (see
-   [tinybird/README.md](../tinybird/README.md)). Cloud deployment 10 lacks the `conversions` endpoint (#30).
+   [apps/tinybird/README.md](../apps/tinybird/README.md)). Cloud deployment 10 lacks the `conversions` endpoint (#30).
 2. **Tracker token.** Mint an append-only Tinybird token for `analytics_events`; set it as
    `TRACKING_TINYBIRD_TOKEN`. Keep it separate from the read token (`TINYBIRD_TOKEN`).
 3. **Upstash Redis** (Vercel Marketplace): set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
@@ -32,7 +32,7 @@ checklist for the first deployment. Variable reference: [dashboard README](../da
 
 ## Open items
 
-- **Rotate tokens:** the `tinybird/.tinyb` tokens, and the tokens that appeared in `ps` output (Tinybird MCP,
+- **Rotate tokens:** the `apps/tinybird/.tinyb` tokens, and the tokens that appeared in `ps` output (Tinybird MCP,
   Isy). Do this before the first deployment.
 - Not yet verified for production: Vercel project, Upstash instance, tracker token. Treat as unknown.
 - Follow-ups from the PR #31 review: tenant id character validation, preflight check for missing proxy

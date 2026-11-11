@@ -1,5 +1,1 @@
-[
-  "client: move it under apps/ (deployed) or packages/ (imported)",
-  "tinybird: move it under apps/ (deployed) or packages/ (imported)",
-  "dashboard: move it under apps/ (deployed) or packages/ (imported)"
-]
+[]

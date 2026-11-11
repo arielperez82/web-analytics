@@ -8,7 +8,7 @@ import { configs as sonarConfigs } from 'eslint-plugin-sonarjs';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['client/**', 'tinybird/**', '**/node_modules/**'] },
+  { ignores: ['packages/client/**', 'apps/tinybird/**', '**/node_modules/**'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
@@ -52,8 +52,7 @@ export default defineConfig(
         {
           patterns: [
             {
-              regex:
-                '(^|/)(client|dashboard|tinybird)/src(/|$)|(^|/)(apps|packages)/[^/]+/src(/|$)',
+              regex: '(^|/)(apps|packages)/[^/]+/src(/|$)',
               message:
                 'Import another package by its name through its exports, not through its src folder.',
             },
