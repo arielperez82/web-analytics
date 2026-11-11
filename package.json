@@ -33,7 +33,7 @@
     "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts && pnpm run check:workspace",
     "build:tinybird": "cd tinybird && pnpm exec tinybird build",
     "test:scripts": "vitest run --dir scripts",
-    "check:workspace": "node scripts/workspace/check-workspace.ts"
+    "check:workspace": "tsx scripts/workspace/check-workspace.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
