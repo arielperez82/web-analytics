@@ -132,7 +132,7 @@ export const createPageHitEvent = ({
     domain,
     href: `https://${domain}${pathname}`,
     ...(location === undefined ? {} : { location }),
-    ...(userAgent === undefined ? {} : { 'user-agent': userAgent }),
+    ...(userAgent === undefined ? {} : { user_agent: userAgent }),
     ...(referrer === undefined ? {} : { referrer }),
     ...(visitorId === undefined ? {} : { visitor_id: visitorId }),
     ...(idMode === undefined ? {} : { id_mode: idMode }),

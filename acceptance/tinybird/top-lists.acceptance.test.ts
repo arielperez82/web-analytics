@@ -318,19 +318,19 @@ describe.concurrent('top lists: real-world corner cases', () => {
     expect(browsers).toEqual(['chrome']);
   });
 
-  it('reads the user agent from the user_agent payload key', async () => {
+  it('still reads the user agent from the legacy user-agent payload key', async () => {
     const browsers = await only('top_browsers', 'browser', scope => {
       const event = createPageHitEvent({
         ...scope,
         pathname: '/',
         userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0',
       });
-      const { 'user-agent': userAgent, ...rest } = JSON.parse(
+      const { user_agent: userAgent, ...rest } = JSON.parse(
         event.payload
       ) as Record<string, unknown>;
       return {
         ...event,
-        payload: JSON.stringify({ ...rest, user_agent: userAgent }),
+        payload: JSON.stringify({ ...rest, 'user-agent': userAgent }),
       };
     });
 
