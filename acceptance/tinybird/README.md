@@ -28,7 +28,7 @@ pnpm test:acceptance:tinybird
 
 The global setup:
 
-1. runs `tinybird build --local` (Tinybird TypeScript SDK) in `tinybird/` to
+1. runs `tinybird build --local` (Tinybird TypeScript SDK) in `apps/tinybird/` to
    deploy the project to Tinybird Local
 2. reads the workspace name the SDK built into from the build output
 3. fetches that workspace's admin token from the Local API

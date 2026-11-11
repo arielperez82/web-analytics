@@ -3,7 +3,7 @@ export default {
       "pnpm run lint:format:md:fix",
       "pnpm run lint:md:fix"
     ],
-    "client/src/**/*.{js,ts,json,yaml}": () => [
+    "packages/client/src/**/*.{js,ts,json,yaml}": () => [
       "pnpm run lint:format:code:fix",
       "pnpm run lint:code:fix",
       "pnpm run test:client"
@@ -15,11 +15,11 @@ export default {
     "scripts/**/*.ts": () => [
       "pnpm run test:scripts"
     ],
-    "dashboard/src/**/*.{ts,tsx}": () => [
+    "apps/dashboard/src/**/*.{ts,tsx}": () => [
       "pnpm run typecheck:dashboard",
       "pnpm run test:dashboard"
     ],
-    "tinybird/src/**/*.ts": () => [
+    "apps/tinybird/src/**/*.ts": () => [
       "pnpm run typecheck:tinybird"
     ]
   }

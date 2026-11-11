@@ -67,4 +67,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Deploy
-        run: cd tinybird && pnpm exec tinybird deploy
+        run: cd apps/tinybird && pnpm exec tinybird deploy

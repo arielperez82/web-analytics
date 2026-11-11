@@ -7,7 +7,7 @@
   <body>
     <h1>Fixture page</h1>
     <script type="module">
-      import { initTinybirdAnalytics } from '../../../client/src/index.ts';
+      import { initTinybirdAnalytics } from '../../../packages/client/src/index.ts';
 
       const query = new URLSearchParams(location.search);
       const proxy = query.get('proxy') ?? location.origin;
