@@ -102,7 +102,31 @@ describe('initTinybirdAnalytics', () => {
       });
     });
 
+    const inTimeZone = (timeZone: string) => {
+      const options = {
+        ...new Intl.DateTimeFormat().resolvedOptions(),
+        timeZone,
+      };
+      return vi
+        .spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions')
+        .mockReturnValue(options);
+    };
+
+    it('leaves location out when the time zone maps to no country', async () => {
+      const spy = inTimeZone('UTC');
+
+      void analytics?.track('test_event');
+
+      await vi.waitFor(() => {
+        expect(parsedBody).toMatchObject({ action: 'test_event' });
+      });
+      expect(parsedBody?.['parsedPayload']).not.toHaveProperty('location');
+      spy.mockRestore();
+    });
+
     it('includes common properties in every event', async () => {
+      const spy = inTimeZone('Europe/Madrid');
+
       // Call track method
       void analytics?.track('test_event', { custom: 'data' });
 
@@ -112,13 +136,14 @@ describe('initTinybirdAnalytics', () => {
           parsedPayload: {
             user_agent: window.navigator.userAgent,
             locale: window.navigator.language,
-            location: expect.any(String),
+            location: 'ES',
             referrer: document.referrer,
             pathname: window.location.pathname,
             href: window.location.href
           },
         });
       });
+      spy.mockRestore();
     });
 
     it('includes utm properties in every event when present in the url', async () => {
