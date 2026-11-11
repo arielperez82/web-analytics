@@ -2,6 +2,7 @@ import { describe, expect, inject, it } from 'vitest';
 
 import {
   type AnalyticsEventRow,
+  createPageHitEvent,
   createScope,
   createWebVitalEvent,
 } from '../../testing/tinybird/helpers/factories';
@@ -78,4 +79,43 @@ describe.concurrent('payload contract: web vitals', () => {
 
     expect(rows).toEqual([expect.objectContaining({ value: 1500, delta: 0 })]);
   });
+});
+
+describe.concurrent('payload contract: page hits', () => {
+  const env = inject('tinybird');
+
+  const completeHit = (scope: ReturnType<typeof createScope>) =>
+    createPageHitEvent({
+      ...scope,
+      pathname: '/pricing',
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0 Safari/537.36',
+      location: 'DE',
+      referrer: 'https://google.com/',
+    });
+
+  it.each([
+    { key: 'pathname', pipe: 'top_pages', column: 'pathname', bucket: '' },
+    { key: 'referrer', pipe: 'top_sources', column: 'referrer', bucket: '' },
+    { key: 'location', pipe: 'top_locations', column: 'location', bucket: '' },
+    {
+      key: 'user_agent',
+      pipe: 'top_browsers',
+      column: 'browser',
+      bucket: 'Unknown',
+    },
+  ])(
+    'files a page hit that has no $key under "$bucket" instead of dropping it',
+    async ({ key, pipe, column, bucket }) => {
+      const scope = createScope();
+      await ingestEvents(env, [without(completeHit(scope), key)]);
+
+      const rows = await waitForPipeRows<Record<string, number | string>>(
+        env,
+        pipe,
+        { tenant_id: scope.tenantId, domain: scope.domain }
+      );
+
+      expect(rows.map(row => row[column])).toEqual([bucket]);
+    }
+  );
 });
