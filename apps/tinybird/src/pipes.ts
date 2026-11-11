@@ -17,7 +17,7 @@ import { dashboardToken } from "./tokens";
  */
 export const analyticsHits = defineEndpoint("analytics_hits", {
   description:
-    "Parsed page_hit events with browser and device detection logic. Use like_filter for arbitrary text filter over the payload column.",
+    "Parsed page_hit events with browser and device detection logic. Use like_filter as a search term over the payload column.",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -58,7 +58,7 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             AND timestamp <= {{ Date(to_date, description="Finishing date for filtering", required=False) }}
             {% end %}
             {% if defined(like_filter) %}
-            AND payload like {{ String(like_filter, description="Filter to apply to the payload JSON string", example="%utm_%") }}
+            AND positionCaseInsensitive(payload, {{ String(like_filter, description="Search term; keeps hits whose payload JSON contains it, ignoring case", example="utm_") }}) > 0
             {% end %}
         {% if defined(hits_limit) %}
             LIMIT {{Int32(hits_limit, 20)}}
@@ -119,7 +119,7 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
     like_filter: p
       .string()
       .optional()
-      .describe("Filter to apply to the payload JSON string"),
+      .describe("Search term matched anywhere in the payload JSON, ignoring case"),
     hits_limit: p.int32().optional(20).describe("Limit for pagination"),
     hits_page: p.int32().optional(0).describe("Page number for pagination"),
   },
