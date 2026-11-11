@@ -1,0 +1,40 @@
+name: Event schema
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Event schema tests and Tinybird typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Event schema unit tests
+        run: pnpm run test:event-schema
+
+      - name: Event schema typecheck
+        run: pnpm run typecheck:event-schema
+
+      - name: Tinybird typecheck
+        run: pnpm run typecheck:tinybird
