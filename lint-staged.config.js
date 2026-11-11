@@ -15,6 +15,11 @@ export default {
     "scripts/**/*.ts": () => [
       "pnpm run test:scripts"
     ],
+    "packages/ingest/src/**/*.ts": () => [
+      "pnpm run typecheck:ingest",
+      "pnpm run test:ingest",
+      "pnpm run typecheck:dashboard"
+    ],
     "apps/dashboard/src/**/*.{ts,tsx}": () => [
       "pnpm run typecheck:dashboard",
       "pnpm run test:dashboard"

@@ -30,6 +30,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Ingest unit tests
+        run: pnpm run test:ingest
+
+      - name: Ingest typecheck
+        run: pnpm run typecheck:ingest
+
       - name: Unit tests
         run: pnpm run test:dashboard
 

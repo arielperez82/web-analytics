@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  createUpstashSessionStore,
   handlePreflight,
   handleTracking,
+  parseSites,
   type TrackingDeps,
-} from "@/lib/tracking-proxy";
-import { parseSites } from "@/lib/sites";
-import { createUpstashSessionStore } from "@/lib/upstash-session-store";
+} from "@web-analytics/ingest";
 
 export const dynamic = "force-dynamic";
 

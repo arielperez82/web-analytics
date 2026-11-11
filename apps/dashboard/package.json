@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@web-analytics/ingest": "workspace:*",
     "next": "16.4.5",
     "next-auth": "4.24.15",
     "react": "^19.3.1",
