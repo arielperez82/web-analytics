@@ -30,6 +30,21 @@ describe('workspaceGaps', () => {
     ]);
   });
 
+  it('lets the root e2e consumer depend on any app or package', () => {
+    const app = pkg({
+      dir: 'apps/dashboard',
+      name: '@web-analytics/dashboard',
+    });
+    const lib = pkg({ dir: 'packages/ingest', name: '@web-analytics/ingest' });
+    const e2e = pkg({
+      dir: 'e2e',
+      name: '@web-analytics/e2e',
+      dependencies: ['@web-analytics/dashboard', '@web-analytics/ingest'],
+    });
+
+    expect(workspaceGaps([app, lib, e2e])).toEqual([]);
+  });
+
   it('flags an internal dependency that the package is not allowed to have', () => {
     const client = pkg({ dir: 'packages/client', name: 'tinybird-analytics' });
     const ingest = pkg({

@@ -17,21 +17,25 @@ const isApp = ({ dir }: WorkspacePackage): boolean => dir.startsWith('apps/');
 const isPackage = ({ dir }: WorkspacePackage): boolean =>
   dir.startsWith('packages/');
 
+const isConsumer = ({ dir }: WorkspacePackage): boolean => dir === 'e2e';
+
 const placementGaps = (pkg: WorkspacePackage): readonly string[] =>
-  isApp(pkg) || isPackage(pkg)
+  isApp(pkg) || isPackage(pkg) || isConsumer(pkg)
     ? []
     : [`${pkg.dir}: move it under apps/ (deployed) or packages/ (imported)`];
 
 const appDependencyGaps = (
-  { dir, dependencies }: WorkspacePackage,
+  pkg: WorkspacePackage,
   appNames: ReadonlySet<string>
 ): readonly string[] =>
-  dependencies
-    .filter(dependency => appNames.has(dependency))
-    .map(
-      dependency =>
-        `${dir}: depends on the app ${dependency}; move the shared code into a package`
-    );
+  isConsumer(pkg)
+    ? []
+    : pkg.dependencies
+        .filter(dependency => appNames.has(dependency))
+        .map(
+          dependency =>
+            `${pkg.dir}: depends on the app ${dependency}; move the shared code into a package`
+        );
 
 const allowedDependencyGaps = (
   { dir, name, dependencies }: WorkspacePackage,
