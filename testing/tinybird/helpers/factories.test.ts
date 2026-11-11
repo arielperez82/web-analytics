@@ -170,7 +170,7 @@ describe('createPageHitEvent', () => {
     ).toEqual(
       expect.objectContaining({
         location: 'DE',
-        'user-agent': 'Mozilla/5.0 (iPhone) Safari',
+        user_agent: 'Mozilla/5.0 (iPhone) Safari',
         referrer: 'https://google.com/',
       })
     );
@@ -180,7 +180,7 @@ describe('createPageHitEvent', () => {
     const payload = payloadOf({});
 
     expect(Object.keys(payload)).not.toContain('location');
-    expect(Object.keys(payload)).not.toContain('user-agent');
+    expect(Object.keys(payload)).not.toContain('user_agent');
     expect(Object.keys(payload)).not.toContain('referrer');
   });
 

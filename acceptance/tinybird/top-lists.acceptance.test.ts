@@ -318,6 +318,44 @@ describe.concurrent('top lists: real-world corner cases', () => {
     expect(browsers).toEqual(['chrome']);
   });
 
+  it('still reads the user agent from the legacy user-agent payload key', async () => {
+    const browsers = await only('top_browsers', 'browser', scope => {
+      const event = createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0',
+      });
+      const { user_agent: userAgent, ...rest } = JSON.parse(
+        event.payload
+      ) as Record<string, unknown>;
+      return {
+        ...event,
+        payload: JSON.stringify({ ...rest, 'user-agent': userAgent }),
+      };
+    });
+
+    expect(browsers).toEqual(['firefox']);
+  });
+
+  it('prefers the user_agent payload key over the legacy user-agent key when both differ', async () => {
+    const browsers = await only('top_browsers', 'browser', scope => {
+      const event = createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0',
+      });
+      return {
+        ...event,
+        payload: JSON.stringify({
+          ...(JSON.parse(event.payload) as Record<string, unknown>),
+          'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) Edg/120.0 Opera/9.8',
+        }),
+      };
+    });
+
+    expect(browsers).toEqual(['firefox']);
+  });
+
   it('counts a crawler as a bot even when it names Android', async () => {
     const devices = await only('top_devices', 'device', scope =>
       createPageHitEvent({

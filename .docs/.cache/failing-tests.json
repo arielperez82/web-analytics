@@ -1,1 +1,0 @@
-{"generated_at": "2026-11-06T11:38:17.678209+00:00", "signal": "output", "tests": [{"file": "detected", "test_id": "any", "last_run_ts": "2026-11-06T11:38:17.678209+00:00", "status": "failing"}], "anchor_trust": "trusted", "anchor_dir": "/Users/ariel/projects/web-analytics-sdk", "repo_root": "/Users/ariel/projects/web-analytics-sdk"}
