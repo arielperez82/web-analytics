@@ -45,6 +45,29 @@ describe('workspaceGaps', () => {
     expect(workspaceGaps([app, lib, e2e])).toEqual([]);
   });
 
+  it('keeps the Tinybird app from learning about the tracking proxy contract', () => {
+    const eventSchema = pkg({
+      dir: 'packages/event-schema',
+      name: '@web-analytics/event-schema',
+    });
+    const trackingSchema = pkg({
+      dir: 'packages/tracking-event-schema',
+      name: '@web-analytics/tracking-event-schema',
+    });
+    const tinybird = pkg({
+      dir: 'apps/tinybird',
+      name: '@web-analytics/tinybird',
+      dependencies: [
+        '@web-analytics/event-schema',
+        '@web-analytics/tracking-event-schema',
+      ],
+    });
+
+    expect(workspaceGaps([eventSchema, trackingSchema, tinybird])).toEqual([
+      'apps/tinybird: may not depend on @web-analytics/tracking-event-schema; allowed internal dependencies: @web-analytics/event-schema',
+    ]);
+  });
+
   it('flags an internal dependency that the package is not allowed to have', () => {
     const client = pkg({ dir: 'packages/client', name: 'tinybird-analytics' });
     const ingest = pkg({

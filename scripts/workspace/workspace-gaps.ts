@@ -10,6 +10,7 @@ const ALLOWED_INTERNAL_DEPENDENCIES: Readonly<
   'tinybird-analytics': [],
   '@web-analytics/contracts': [],
   '@web-analytics/ingest': ['@web-analytics/contracts'],
+  '@web-analytics/tinybird': ['@web-analytics/event-schema'],
 };
 
 const isApp = ({ dir }: WorkspacePackage): boolean => dir.startsWith('apps/');
