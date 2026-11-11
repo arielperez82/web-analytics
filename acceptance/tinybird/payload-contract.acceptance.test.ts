@@ -88,6 +88,24 @@ describe.concurrent('payload contract: web vitals', () => {
 
     expect(rows).toEqual([expect.objectContaining({ value: 1500, delta: 0 })]);
   });
+
+  it('keeps a web vital whose value is a numeric string, reading it as a number', async () => {
+    const scope = createScope();
+    const complete = createWebVitalEvent({
+      ...scope,
+      name: 'LCP',
+      value: 1,
+      pathname: '/page',
+    });
+    await ingestEvents(env, [withValue(complete, 'value', '3000')]);
+
+    const rows = await waitForPipeRows<VitalRow>(env, 'web_vitals_events', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows).toEqual([expect.objectContaining({ value: 3000 })]);
+  });
 });
 
 describe.concurrent('payload contract: page hits', () => {
