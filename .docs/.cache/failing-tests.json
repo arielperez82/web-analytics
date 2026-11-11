@@ -1,1 +1,0 @@
-{"generated_at": "2026-11-11T13:58:57.028158+00:00", "signal": "output+exit_code", "tests": [{"file": "detected", "test_id": "any", "last_run_ts": "2026-11-11T13:58:57.028158+00:00", "status": "failing"}], "anchor_trust": "trusted", "anchor_dir": "/Users/ariel/projects/web-analytics-moves", "repo_root": "/Users/ariel/projects/web-analytics-moves"}

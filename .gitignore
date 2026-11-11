@@ -39,3 +39,6 @@ next-env.d.ts
 # Playwright
 test-results/
 playwright-report/
+
+# local test-run cache (absolute paths)
+.docs/.cache/
