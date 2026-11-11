@@ -110,7 +110,7 @@ describe('initTinybirdAnalytics', () => {
         expect(parsedBody).toMatchObject({
           action: 'test_event',
           parsedPayload: {
-            'user-agent': window.navigator.userAgent,
+            user_agent: window.navigator.userAgent,
             locale: window.navigator.language,
             location: expect.any(String),
             referrer: document.referrer,

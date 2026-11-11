@@ -129,7 +129,7 @@ function getCommonProperties(
   const { country, locale } = getCountryAndLocale();
 
   return {
-    'user-agent': window.navigator.userAgent,
+    user_agent: window.navigator.userAgent,
     locale,
     location: country,
     referrer: document.referrer,

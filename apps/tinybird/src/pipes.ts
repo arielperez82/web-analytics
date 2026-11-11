@@ -42,7 +42,7 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             JSONExtractString(payload, 'visitor_id') as visitor_id,
             JSONExtractString(payload, 'id_mode') as id_mode,
             if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
-            lower(JSONExtractString(payload, 'user-agent')) as user_agent
+            lower(coalesce(nullIf(JSONExtractString(payload, 'user_agent'), ''), JSONExtractString(payload, 'user-agent'))) as user_agent
         FROM analytics_events
         WHERE action = 'page_hit'
             {% if defined(tenant_id) %}
