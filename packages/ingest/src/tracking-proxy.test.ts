@@ -231,6 +231,27 @@ describe("handleTracking origin allowlist", () => {
 });
 
 describe("handlePreflight", () => {
+  it.each([
+    ["the identity secret", { secret: "" }],
+    [
+      "the tinybird token",
+      { tinybird: { host: "http://tb.test", token: "", datasource: "d" } },
+    ],
+    [
+      "the tinybird host",
+      { tinybird: { host: "", token: "t", datasource: "d" } },
+    ],
+  ])("answers 500, not 204, when %s is not configured", (_case, overrides) => {
+    const { deps } = createFakeDeps(overrides);
+
+    const result = handlePreflight(
+      new Headers({ origin: "https://example.com" }),
+      deps,
+    );
+
+    expect(result.status).toBe(500);
+  });
+
   it("allows POST from an allowed origin", () => {
     const { deps } = createFakeDeps();
     const result = handlePreflight(
