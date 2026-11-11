@@ -6,3 +6,8 @@ export {
   type WebVitalParseResult,
   type WebVitalPayload,
 } from "./web-vital-payload";
+export {
+  parsePageHitPayload,
+  type PageHitParseResult,
+  type PageHitPayload,
+} from "./page-hit-payload";
