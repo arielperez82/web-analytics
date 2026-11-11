@@ -15,6 +15,11 @@ export default {
     "scripts/**/*.ts": () => [
       "pnpm run test:scripts"
     ],
+    "packages/event-schema/src/**/*.ts": () => [
+      "pnpm run typecheck:event-schema",
+      "pnpm run test:event-schema",
+      "pnpm run typecheck:tinybird"
+    ],
     "packages/ingest/src/**/*.ts": () => [
       "pnpm run typecheck:ingest",
       "pnpm run test:ingest",
