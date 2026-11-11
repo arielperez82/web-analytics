@@ -65,6 +65,28 @@ describe.concurrent('web_vitals_events pipe', () => {
     }
   );
 
+  it('keeps a CLS of 0, the best case: a page with no layout shifts', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createWebVitalEvent({
+        ...scope,
+        name: 'CLS',
+        value: 0,
+        pathname: '/home',
+      }),
+    ]);
+
+    const rows = await events(scope);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        metric_name: 'CLS',
+        value: 0,
+        performance_category: 'excellent',
+      }),
+    ]);
+  });
+
   it.each([
     { pathname: '/', route: '/' },
     { pathname: '/pricing', route: 'pricing' },
