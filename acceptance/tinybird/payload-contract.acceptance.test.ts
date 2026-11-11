@@ -106,6 +106,63 @@ describe.concurrent('payload contract: web vitals', () => {
 
     expect(rows).toEqual([expect.objectContaining({ value: 3000 })]);
   });
+
+  it.each([
+    { case: 'a name that is not a metric', key: 'name', value: 'BOGUS' },
+    { case: 'a name that is a number', key: 'name', value: 123 },
+    { case: 'a value that is not a number', key: 'value', value: 'abc' },
+    { case: 'a null value', key: 'value', value: null },
+  ])('drops a web vital with $case', async ({ key, value }) => {
+    const scope = createScope();
+    const complete = createWebVitalEvent({
+      ...scope,
+      name: 'LCP',
+      value: 1500,
+      pathname: '/dropped',
+    });
+    await ingestEvents(env, [
+      withValue(complete, key, value),
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1200,
+        pathname: '/kept',
+      }),
+    ]);
+
+    const rows = await waitForPipeRows<VitalRow>(env, 'web_vitals_events', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => row.pathname)).toEqual(['/kept']);
+  });
+
+  it('drops a web vital whose payload is not JSON', async () => {
+    const scope = createScope();
+    const complete = createWebVitalEvent({
+      ...scope,
+      name: 'LCP',
+      value: 1500,
+      pathname: '/dropped',
+    });
+    await ingestEvents(env, [
+      { ...complete, payload: 'not json' },
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1200,
+        pathname: '/kept',
+      }),
+    ]);
+
+    const rows = await waitForPipeRows<VitalRow>(env, 'web_vitals_events', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows.map(row => row.pathname)).toEqual(['/kept']);
+  });
 });
 
 describe.concurrent('payload contract: page hits', () => {
