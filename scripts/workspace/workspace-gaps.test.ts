@@ -68,6 +68,22 @@ describe('workspaceGaps', () => {
     ]);
   });
 
+  it('keeps the datastore event schema a leaf that depends on no other package', () => {
+    const trackingSchema = pkg({
+      dir: 'packages/tracking-event-schema',
+      name: '@web-analytics/tracking-event-schema',
+    });
+    const eventSchema = pkg({
+      dir: 'packages/event-schema',
+      name: '@web-analytics/event-schema',
+      dependencies: ['@web-analytics/tracking-event-schema'],
+    });
+
+    expect(workspaceGaps([trackingSchema, eventSchema])).toEqual([
+      'packages/event-schema: may not depend on @web-analytics/tracking-event-schema; allowed internal dependencies: none',
+    ]);
+  });
+
   it('flags an internal dependency that the package is not allowed to have', () => {
     const client = pkg({ dir: 'packages/client', name: 'tinybird-analytics' });
     const ingest = pkg({
