@@ -50,7 +50,7 @@ const createProxy = (scope: Scope, origin = `https://${scope.domain}`) => {
       {
         headers: new Headers({
           'x-forwarded-for': ip,
-          user_agent: 'Mozilla/5.0 (e2e)',
+          'user-agent': 'Mozilla/5.0 (e2e)',
           origin,
         }),
         body: JSON.stringify({
