@@ -7,11 +7,17 @@ export type WorkspacePackage = {
 const ALLOWED_INTERNAL_DEPENDENCIES: Readonly<
   Record<string, readonly string[]>
 > = {
-  'tinybird-analytics': [],
-  '@web-analytics/contracts': [],
-  '@web-analytics/ingest': ['@web-analytics/contracts'],
+  'tinybird-analytics': [
+    '@web-analytics/event-schema',
+    '@web-analytics/tracking-event-schema',
+  ],
+  '@web-analytics/ingest': [
+    '@web-analytics/event-schema',
+    '@web-analytics/tracking-event-schema',
+  ],
   '@web-analytics/tinybird': ['@web-analytics/event-schema'],
   '@web-analytics/event-schema': [],
+  '@web-analytics/tracking-event-schema': ['@web-analytics/event-schema'],
 };
 
 const isApp = ({ dir }: WorkspacePackage): boolean => dir.startsWith('apps/');
