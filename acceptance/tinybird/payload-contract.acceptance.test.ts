@@ -59,4 +59,23 @@ describe.concurrent('payload contract: web vitals', () => {
       expect(rows.map(row => row.pathname)).toEqual(['/kept']);
     }
   );
+
+  it('keeps a web vital that has no delta, reading it as 0', async () => {
+    const scope = createScope();
+    const complete = createWebVitalEvent({
+      ...scope,
+      name: 'LCP',
+      value: 1500,
+      delta: 100,
+      pathname: '/page',
+    });
+    await ingestEvents(env, [without(complete, 'delta')]);
+
+    const rows = await waitForPipeRows<VitalRow>(env, 'web_vitals_events', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+    });
+
+    expect(rows).toEqual([expect.objectContaining({ value: 1500, delta: 0 })]);
+  });
 });
