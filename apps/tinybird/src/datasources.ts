@@ -3,6 +3,7 @@
  */
 
 import { defineDatasource, t, engine, type InferRow } from "@tinybirdco/sdk";
+import { analyticsEventsColumns } from "@web-analytics/event-schema";
 import { trackerToken } from "./tokens";
 
 /**
@@ -26,15 +27,7 @@ const countState = {
 export const analyticsEvents = defineDatasource("analytics_events", {
   tokens: [{ token: trackerToken, scope: "APPEND" }],
   description: "Analytics events landing data source",
-  schema: {
-    timestamp: t.dateTime(),
-    session_id: t.string().nullable(),
-    action: t.string().lowCardinality(),
-    version: t.string().lowCardinality(),
-    payload: t.string(),
-    tenant_id: t.string().default(""),
-    domain: t.string().default(""),
-  },
+  schema: analyticsEventsColumns,
   engine: engine.mergeTree({
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],

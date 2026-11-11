@@ -108,6 +108,9 @@ importers:
       '@tinybirdco/sdk':
         specifier: 0.0.27
         version: 0.0.27
+      '@web-analytics/event-schema':
+        specifier: workspace:*
+        version: link:../../packages/event-schema
     devDependencies:
       '@types/node':
         specifier: ^22.13.10
