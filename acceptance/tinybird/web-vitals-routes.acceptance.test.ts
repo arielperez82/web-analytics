@@ -119,6 +119,44 @@ describe.concurrent('web_vitals_routes pipe', () => {
     expect(rows.map(row => row.route)).toEqual(['steady']);
   });
 
+  it('keeps a route with fewer measurements when min_measurements is lowered', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...lcpEvents(scope, '/steady', GOOD_LCP),
+      ...lcpEvents(scope, '/barely-visited', GOOD_LCP, 1),
+    ]);
+
+    const rows = await routes(scope, { min_measurements: 1 }, 2);
+
+    expect(
+      rows.map(row => row.route).sort((a, b) => a.localeCompare(b))
+    ).toEqual(['barely-visited', 'steady']);
+  });
+
+  it('leaves out a route that falls short of a raised min_measurements', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...lcpEvents(scope, '/steady', GOOD_LCP),
+      ...lcpEvents(scope, '/modest', GOOD_LCP, 4),
+    ]);
+
+    const rows = await routes(scope, { min_measurements: 5 });
+
+    expect(rows.map(row => row.route)).toEqual(['steady']);
+  });
+
+  it('groups locale-prefixed pages under their locale, since a route is the first path segment', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...lcpEvents(scope, '/en/pricing', GOOD_LCP),
+      ...lcpEvents(scope, '/en/blog', GOOD_LCP),
+    ]);
+
+    const rows = await routes(scope);
+
+    expect(rows.map(row => row.route)).toEqual(['en']);
+  });
+
   it('pages through routes with skip and limit', async () => {
     const scope = createScope();
     await ingestEvents(env, [
