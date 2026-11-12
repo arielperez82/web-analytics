@@ -650,7 +650,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             {% if defined(analysis_type) and analysis_type == 'pathnames' %}
             , full_pathname, route
             {% end %}
-        HAVING measurements >= 3
+        HAVING measurements >= {{Int32(min_measurements, 3, description="Fewest measurements a route or page needs to be listed")}}
       `,
     }),
     node({
@@ -735,6 +735,10 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
     domain: p.string().optional().describe("Domain to filter"),
     route: p.string().optional().describe("Route to filter by"),
     analysis_type: p.string().optional().describe("'routes' or 'pathnames'"),
+    min_measurements: p
+      .int32()
+      .optional(3)
+      .describe("Fewest measurements a route or page needs to be listed"),
     sort_order: p
       .string()
       .optional()
