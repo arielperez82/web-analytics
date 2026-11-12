@@ -72,8 +72,6 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe
       options: --ipc=host
-    env:
-      TB_LOCAL_URL: http://tinybird:7181
     services:
       tinybird:
         image: tinybirdco/tinybird-local:latest
@@ -93,6 +91,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Forward localhost:7181 to the Tinybird service
+        run: |
+          nohup pnpm exec tsx scripts/ci/forward-port-cli.ts 7181 tinybird 7181 > forward-port.log 2>&1 &
+          sleep 3
+          cat forward-port.log
 
       - name: Run tests
         run: pnpm run test:e2e:browser
