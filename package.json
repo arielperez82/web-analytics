@@ -37,7 +37,8 @@
     "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run test:event-schema && pnpm run typecheck:event-schema && pnpm run test:ingest && pnpm run typecheck:ingest && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts && pnpm run check:workspace",
     "build:tinybird": "cd apps/tinybird && pnpm exec tinybird build",
     "test:scripts": "vitest run --dir scripts",
-    "check:workspace": "tsx scripts/workspace/check-workspace.ts"
+    "check:workspace": "tsx scripts/workspace/check-workspace.ts",
+    "check:playwright-image": "tsx scripts/ci/check-playwright-image.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

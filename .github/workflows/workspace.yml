@@ -35,3 +35,6 @@ jobs:
 
       - name: Workspace check
         run: pnpm run check:workspace
+
+      - name: Playwright image check
+        run: pnpm run check:playwright-image
