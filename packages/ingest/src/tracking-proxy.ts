@@ -116,10 +116,14 @@ const forward = async (
   return respond(response.ok ? 202 : 502, headers);
 };
 
+const isConfigured = (deps: TrackingDeps): boolean =>
+  Boolean(deps.secret && deps.tinybird.token && deps.tinybird.host);
+
 export const handlePreflight = (
   headers: Headers,
   deps: TrackingDeps,
 ): TrackingResult => {
+  if (!isConfigured(deps)) return respond(500);
   const origin = matchedSite(headers, deps)?.origin;
   return origin
     ? respond(204, {
@@ -135,8 +139,7 @@ export const handleTracking = async (
   request: TrackingRequest,
   deps: TrackingDeps,
 ): Promise<TrackingResult> => {
-  if (!deps.secret || !deps.tinybird.token || !deps.tinybird.host)
-    return respond(500);
+  if (!isConfigured(deps)) return respond(500);
   const site = matchedSite(request.headers, deps);
   if (!site) return respond(403);
   const { origin } = site;
