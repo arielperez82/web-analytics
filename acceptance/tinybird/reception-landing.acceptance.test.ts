@@ -44,4 +44,36 @@ describe.concurrent('reception landing', () => {
     expect(Number(row?.received_ms)).toBeGreaterThanOrEqual(before - 1000);
     expect(Number(row?.received_ms)).toBeLessThanOrEqual(Date.now() + 1000);
   });
+
+  const HOUR_MS = 3_600_000;
+  const MINUTE_MS = 60_000;
+
+  it.each([
+    { label: '2 hours in the past', offsetMs: -2 * HOUR_MS, kept: true },
+    { label: '7 hours in the past', offsetMs: -7 * HOUR_MS, kept: false },
+    { label: '1 minute in the future', offsetMs: MINUTE_MS, kept: true },
+    {
+      label: '10 minutes in the future',
+      offsetMs: 10 * MINUTE_MS,
+      kept: false,
+    },
+  ])(
+    'a supplied reception_timestamp $label is kept: $kept',
+    async ({ offsetMs, kept }) => {
+      const scope = createScope();
+      const supplied = Date.now() + offsetMs;
+      await ingestEvents(env, [
+        {
+          ...createPageHitEvent(scope),
+          reception_timestamp: new Date(supplied).toISOString(),
+        },
+      ]);
+
+      const [row] = await storedFor(env, scope.tenantId);
+
+      const received = Number(row?.received_ms);
+      expect(Math.abs(received - supplied) < 2000).toBe(kept);
+      expect(Math.abs(received - Date.now()) < 30_000).toBe(!kept);
+    }
+  );
 });
