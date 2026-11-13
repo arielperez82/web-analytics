@@ -78,7 +78,8 @@ Two timestamps travel with every event:
 Events are trusted only when `timestamp` is within 24 hours of
 `reception_timestamp`, because DAY is the smallest materialized granularity.
 Revisit the window if a finer granularity is added. Events outside it go to
-`analytics_events_rejected` with a `reason`, kept for 30 days.
+`analytics_events_rejected` with a `reason`, kept for 30 days. The `rejected_events`
+endpoint summarizes them per tenant by day, site and reason, with the largest skew.
 
 Senders append to `analytics_events_landing`. History older than the window
 cannot come through it; seed such data directly into `analytics_events` with
