@@ -85,4 +85,4 @@ cannot come through it; seed such data directly into `analytics_events` with
 `reception_timestamp` equal to `timestamp` (the acceptance helpers do this).
 
 Ingestion lag is read from Tinybird's own ingestion log
-(`tinybird.datasources_ops_log`), not from a column.
+(`organization.datasource_ops_log`), not from a column.
