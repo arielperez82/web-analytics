@@ -74,6 +74,14 @@ export interface TinybirdIdentityEvent {
 
 export type TinybirdEvent = Record<string, unknown>;
 
+const siteFields = (config: {
+  readonly tenantId?: string;
+  readonly domain?: string | null;
+}): Record<string, string> => ({
+  ...(config.tenantId ? { tenant_id: config.tenantId } : {}),
+  ...(config.domain ? { domain: config.domain } : {}),
+});
+
 export interface CountryLocale {
   country?: string;
   locale?: string;
@@ -399,6 +407,7 @@ const tinybirdAnalytics = (
       action: eventName,
       version: '1',
       ...(identity.sessionId && { session_id: identity.sessionId }),
+      ...siteFields(config),
       payload: processedPayload,
     };
 

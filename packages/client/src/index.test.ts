@@ -91,6 +91,17 @@ describe('initTinybirdAnalytics', () => {
       });
     });
 
+    it('sends the tenant (defaulting to the domain) and the domain with every event', async () => {
+      void analytics?.track('some_event');
+
+      await vi.waitFor(() => {
+        expect(parsedBody).toMatchObject({
+          tenant_id: 'example.com',
+          domain: 'example.com',
+        });
+      });
+    });
+
     it('merges global attributes into every event', async () => {
       void analytics?.track('some_event');
 
@@ -287,6 +298,34 @@ describe('initTinybirdAnalytics', () => {
 
       await vi.waitFor(() => {
         expect(urls[0]).toContain('name=analytics_events_landing');
+      });
+    });
+  });
+
+  describe('when a tenant id is configured', () => {
+    it('sends it as tenant_id, next to the domain', async () => {
+      let body: Record<string, unknown> | null = null;
+      server.use(
+        http.post('http://test.com/v0/events', async ({ request }) => {
+          body = (await request.clone().json()) as Record<string, unknown>;
+          return new HttpResponse(null, { status: 202 });
+        })
+      );
+      const analytics = initTinybirdAnalytics({
+        token: 'token',
+        host: 'http://test.com',
+        domain: 'example.com',
+        tenantId: 'the-tenant',
+        webVitals: false,
+      });
+
+      void analytics.track('button_clicked', {});
+
+      await vi.waitFor(() => {
+        expect(body).toMatchObject({
+          tenant_id: 'the-tenant',
+          domain: 'example.com',
+        });
       });
     });
   });
