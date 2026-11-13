@@ -1,3 +1,4 @@
+import type { ProxyStamps } from "./forwarded-event";
 import type { Site } from "./sites";
 import { resolveProxyIdentity, type SessionStore } from "./proxy-identity";
 
@@ -98,7 +99,7 @@ const withProxyIdentity = async (
 };
 
 const forward = async (
-  event: TrackingEvent,
+  event: TrackingEvent & ProxyStamps,
   deps: TrackingDeps,
   headers: Readonly<Record<string, string>>,
 ): Promise<TrackingResult> => {
