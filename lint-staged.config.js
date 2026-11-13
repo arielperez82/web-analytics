@@ -20,6 +20,12 @@ export default {
       "pnpm run test:event-schema",
       "pnpm run typecheck:tinybird"
     ],
+    "packages/tracking-event-schema/src/**/*.ts": () => [
+      "pnpm run typecheck:tracking-event-schema",
+      "pnpm run test:tracking-event-schema",
+      "pnpm run typecheck:ingest",
+      "pnpm run test:client"
+    ],
     "packages/ingest/src/**/*.ts": () => [
       "pnpm run typecheck:ingest",
       "pnpm run test:ingest",

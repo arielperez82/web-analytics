@@ -1,3 +1,4 @@
+import type { ProxyStamps } from "./forwarded-event";
 import type { Site } from "./sites";
 import { resolveProxyIdentity, type SessionStore } from "./proxy-identity";
 
@@ -98,7 +99,7 @@ const withProxyIdentity = async (
 };
 
 const forward = async (
-  event: TrackingEvent,
+  event: TrackingEvent & ProxyStamps,
   deps: TrackingDeps,
   headers: Readonly<Record<string, string>>,
 ): Promise<TrackingResult> => {
@@ -139,6 +140,7 @@ export const handleTracking = async (
   request: TrackingRequest,
   deps: TrackingDeps,
 ): Promise<TrackingResult> => {
+  const receivedAt = deps.now();
   if (!isConfigured(deps)) return respond(500);
   const site = matchedSite(request.headers, deps);
   if (!site) return respond(403);
@@ -153,6 +155,7 @@ export const handleTracking = async (
     return await forward(
       {
         ...outgoing,
+        reception_timestamp: new Date(receivedAt).toISOString(),
         tenant_id: site.tenantId,
         domain: new URL(site.origin).hostname,
       },

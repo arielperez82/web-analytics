@@ -67,7 +67,7 @@ analytics.identify("user123", {
 
 ### Optional Parameters
 
-- `datasource`: Tinybird datasource name (default: `analytics_events`)
+- `datasource`: Tinybird datasource name (default: `analytics_events_landing`)
 - `storage`: Storage method for session data (default: `localStorage`)
 - `webVitals`: Enable web vitals tracking (default: `true`)
 - `enableClickTracking`: Enable automatic click tracking for links with

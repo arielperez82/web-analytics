@@ -6,35 +6,68 @@ import { defineDatasource, t, engine, type InferRow } from "@tinybirdco/sdk";
 import { analyticsEventsColumns } from "@web-analytics/event-schema";
 import { trackerToken } from "./tokens";
 
-/**
- * AggregateFunction(count) with no argument type, matching what countState()
- * produces. SDK 0.0.27 cannot express this (aggregateFunction requires an
- * argument type), so the type string is overridden. Replace with
- * t.aggregateFunction("count") once the SDK is bumped (0.0.84+ is variadic).
- */
-const countState = {
-  ...t.aggregateFunction("count", t.uint64()),
-  _tinybirdType: "AggregateFunction(count)",
-} as unknown as ReturnType<typeof t.uint64>;
-
 // ============================================================================
 // Landing Datasource
 // ============================================================================
 
 /**
- * Analytics events - landing data source for all analytics events
+ * Analytics events - stored events. Written only by analytics_events_accepted,
+ * never directly by senders; they append to analytics_events_landing.
  */
 export const analyticsEvents = defineDatasource("analytics_events", {
-  tokens: [{ token: trackerToken, scope: "APPEND" }],
   description: "Analytics events landing data source",
-  schema: analyticsEventsColumns,
+  schema: {
+    ...analyticsEventsColumns,
+    reception_timestamp: t.dateTime64(3),
+  },
   engine: engine.mergeTree({
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
   forwardQuery:
-    "SELECT timestamp, session_id, action, version, payload, 'the-adaptive-alchemist' AS tenant_id, 'adaptivealchemist.com' AS domain",
+    "SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp",
 });
+
+/**
+ * Events refused at the landing, kept briefly so a skewed client or a bad
+ * sender can be diagnosed instead of silently losing data.
+ */
+export const analyticsEventsRejected = defineDatasource(
+  "analytics_events_rejected",
+  {
+    description: "Events refused by the landing, with the reason",
+    schema: {
+      ...analyticsEventsColumns,
+      reception_timestamp: t.dateTime64(3),
+      reason: t.string().lowCardinality(),
+    },
+    engine: engine.mergeTree({
+      partitionKey: "toYYYYMM(reception_timestamp)",
+      sortingKey: ["tenant_id", "domain", "reception_timestamp"],
+      ttl: "toDateTime(reception_timestamp) + INTERVAL 30 DAY",
+    }),
+  },
+);
+
+/**
+ * Null-engine landing: stores nothing. Every event enters here and the
+ * materialized views in materializations.ts decide what is stored, so
+ * ingest-time logic lives in SQL rather than in post-processing.
+ * reception_timestamp is the first time any of our servers received the event,
+ * not the time Tinybird did.
+ */
+export const analyticsEventsLanding = defineDatasource(
+  "analytics_events_landing",
+  {
+    tokens: [{ token: trackerToken, scope: "APPEND" }],
+    description: "Null-engine landing for analytics events",
+    schema: {
+      ...analyticsEventsColumns,
+      reception_timestamp: t.dateTime64(3).defaultExpr("now64(3)"),
+    },
+    engine: engine.null(),
+  },
+);
 
 export type AnalyticsEventsRow = InferRow<typeof analyticsEvents>;
 
@@ -56,7 +89,7 @@ export const analyticsPagesMv = defineDatasource("analytics_pages_mv", {
     location: t.string(),
     pathname: t.string(),
     visits: t.aggregateFunction("uniq", t.string()),
-    hits: countState,
+    hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -87,7 +120,7 @@ export const analyticsSessionsMv = defineDatasource("analytics_sessions_mv", {
     location: t.simpleAggregateFunction("any", t.string()),
     first_hit: t.simpleAggregateFunction("min", t.dateTime()),
     latest_hit: t.simpleAggregateFunction("max", t.dateTime()),
-    hits: countState,
+    hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -109,7 +142,7 @@ export const analyticsSourcesMv = defineDatasource("analytics_sources_mv", {
     location: t.string(),
     referrer: t.string(),
     visits: t.aggregateFunction("uniq", t.string()),
-    hits: countState,
+    hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(date)",
@@ -138,7 +171,7 @@ export const tenantActionsMv = defineDatasource("tenant_actions_mv", {
     action: t.string(),
     last_payload: t.simpleAggregateFunction("any", t.string()),
     last_seen: t.simpleAggregateFunction("max", t.dateTime()),
-    total_occurrences: countState,
+    total_occurrences: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(last_seen)",
@@ -157,7 +190,7 @@ export const tenantDomainsMv = defineDatasource("tenant_domains_mv", {
     domain: t.string(),
     first_seen: t.simpleAggregateFunction("min", t.dateTime()),
     last_seen: t.simpleAggregateFunction("max", t.dateTime()),
-    total_hits: countState,
+    total_hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
     partitionKey: "toYYYYMM(last_seen)",

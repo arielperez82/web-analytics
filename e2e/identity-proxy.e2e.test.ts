@@ -20,17 +20,32 @@ const env = inject('tinybird');
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
-const yesterdayNoonUtc = (): number =>
-  Math.floor(Date.now() / DAY_MS) * DAY_MS - DAY_MS / 2;
+const HOUR_MS = 3_600_000;
+const SAFE_HOURS_UTC = [-3, 3, 9, 15, 21] as const;
+
+/**
+ * The latest instant, at most six hours back, that is at least three hours
+ * from a UTC midnight, so a few minutes either side stay on one day and the
+ * event stays well inside the landing's one-day trust window.
+ */
+const recentSafeInstantUtc = (): number => {
+  const now = Date.now();
+  const midnight = Math.floor(now / DAY_MS) * DAY_MS;
+  return Math.max(
+    ...SAFE_HOURS_UTC.map(hour => midnight + hour * HOUR_MS).filter(
+      instant => instant <= now
+    )
+  );
+};
 
 const createProxy = (scope: Scope, origin = `https://${scope.domain}`) => {
-  const anchor = yesterdayNoonUtc();
+  const anchor = recentSafeInstantUtc();
   const clock = { now: anchor };
   const deps: TrackingDeps = {
     tinybird: {
       host: env.host,
       token: env.token,
-      datasource: 'analytics_events',
+      datasource: 'analytics_events_landing',
     },
     secret: 'e2e-salt-secret',
     sites: [{ origin: `https://${scope.domain}`, tenantId: scope.tenantId }],
