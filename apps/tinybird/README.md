@@ -35,11 +35,16 @@ See `web_vitals` folder for example endpoints.
 
 ```bash
 tb local start        # or: docker run -d -p 7181:7181 tinybirdco/tinybird-local:latest
-export TINYBIRD_HOST=http://localhost:7181 TINYBIRD_TOKEN=placeholder
+export TINYBIRD_HOST=http://localhost:7181
+export TINYBIRD_TOKEN=$(curl -s localhost:7181/tokens | jq -r .workspace_admin_token)
 pnpm run build:tinybird -- --local   # build into a per-branch Local workspace
 pnpm run typecheck:tinybird
 pnpm test:acceptance:tinybird         # from the repo root
 ```
+
+SDK 0.0.84 authenticates the local build against Tinybird Local, so
+`TINYBIRD_TOKEN` must be the real local admin token, not a placeholder (the
+acceptance and e2e setups fetch it for you).
 
 Use `http://localhost:7181` as NEXT_PUBLIC_TINYBIRD_HOST and the workspace
 admin token in the [dashboard](../dashboard/README.md).

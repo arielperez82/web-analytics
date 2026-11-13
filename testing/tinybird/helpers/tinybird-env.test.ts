@@ -7,7 +7,7 @@ const LOCAL = 'http://localhost:7181';
 const buildOutput = (workspace: string): string =>
   [
     '» Git branch:      feat/tinybird-sdk',
-    `» Local workspace: ${workspace} existing`,
+    `» Tinybird Local branch: ${workspace} existing`,
     '  ↳ https://cloud.tinybird.co/local/7181/x',
     '✓ Build completed in 3.5s',
   ].join('\n');
@@ -53,6 +53,25 @@ describe('resolveTinybirdEnv', () => {
     });
 
     expect(env).toEqual({ host: LOCAL, token: 'p.branch-admin' });
+  });
+
+  it('hands the local admin token to the build, because the SDK authenticates against Tinybird Local', async () => {
+    const received: string[] = [];
+
+    await resolveTinybirdEnv({
+      env: {},
+      buildLocal: token => {
+        received.push(token);
+        return buildOutput('ws');
+      },
+      // eslint-disable-next-line @typescript-eslint/require-await -- fake of an async port
+      fetchLocal: async path =>
+        path === '/tokens'
+          ? { user_token: 'user-token', workspace_admin_token: 'admin-token' }
+          : { workspaces: [{ name: 'ws', token: 'ws-token' }] },
+    });
+
+    expect(received).toEqual(['admin-token']);
   });
 
   it('honours TB_LOCAL_URL for the host', async () => {
