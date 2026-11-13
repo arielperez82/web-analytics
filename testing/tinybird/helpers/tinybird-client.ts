@@ -4,7 +4,7 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export type PipeParams = Readonly<Record<string, boolean | number | string>>;
 
-const DATASOURCE = 'analytics_events';
+const DEFAULT_DATASOURCE = 'analytics_events';
 
 const authHeaders = (env: TinybirdEnv): Record<string, string> => ({
   Authorization: `Bearer ${env.token}`,
@@ -17,13 +17,18 @@ const assertOk = async (response: Response, action: string): Promise<void> => {
   );
 };
 
+type IngestOptions = {
+  readonly datasource?: string;
+  readonly fetchImpl?: FetchLike;
+};
+
 export const ingestEvents = async (
   env: TinybirdEnv,
   rows: readonly object[],
-  fetchImpl: FetchLike = fetch
+  { datasource = DEFAULT_DATASOURCE, fetchImpl = fetch }: IngestOptions = {}
 ): Promise<void> => {
   const response = await fetchImpl(
-    `${env.host}/v0/events?name=${DATASOURCE}&wait=true`,
+    `${env.host}/v0/events?name=${datasource}&wait=true`,
     {
       method: 'POST',
       headers: authHeaders(env),
@@ -53,4 +58,17 @@ export const queryPipe = async <T>(
   );
   await assertOk(response, `query ${pipe}`);
   return (await response.json()) as { readonly data: readonly T[] };
+};
+
+export const querySql = async <T>(
+  env: TinybirdEnv,
+  statement: string,
+  fetchImpl: FetchLike = fetch
+): Promise<readonly T[]> => {
+  const query = encodeURIComponent(statement + ' FORMAT JSON');
+  const response = await fetchImpl(`${env.host}/v0/sql?q=${query}`, {
+    headers: authHeaders(env),
+  });
+  await assertOk(response, 'sql');
+  return ((await response.json()) as { readonly data: readonly T[] }).data;
 };
