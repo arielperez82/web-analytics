@@ -27,14 +27,37 @@ const countState = {
 export const analyticsEvents = defineDatasource("analytics_events", {
   tokens: [{ token: trackerToken, scope: "APPEND" }],
   description: "Analytics events landing data source",
-  schema: analyticsEventsColumns,
+  schema: {
+    ...analyticsEventsColumns,
+    reception_timestamp: t.dateTime64(3),
+  },
   engine: engine.mergeTree({
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
   forwardQuery:
-    "SELECT timestamp, session_id, action, version, payload, 'the-adaptive-alchemist' AS tenant_id, 'adaptivealchemist.com' AS domain",
+    "SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp",
 });
+
+/**
+ * Null-engine landing: stores nothing. Every event enters here and the
+ * materialized views in materializations.ts decide what is stored, so
+ * ingest-time logic lives in SQL rather than in post-processing.
+ * reception_timestamp is the first time any of our servers received the event,
+ * not the time Tinybird did.
+ */
+export const analyticsEventsLanding = defineDatasource(
+  "analytics_events_landing",
+  {
+    tokens: [{ token: trackerToken, scope: "APPEND" }],
+    description: "Null-engine landing for analytics events",
+    schema: {
+      ...analyticsEventsColumns,
+      reception_timestamp: t.dateTime64(3).defaultExpr("now64(3)"),
+    },
+    engine: engine.null(),
+  },
+);
 
 export type AnalyticsEventsRow = InferRow<typeof analyticsEvents>;
 

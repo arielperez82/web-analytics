@@ -12,6 +12,7 @@ import { dirname } from "path";
 // Datasources
 import {
   analyticsEvents,
+  analyticsEventsLanding,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
@@ -24,6 +25,7 @@ import { analyticsHits } from "./pipes";
 
 // Materializations
 import {
+  analyticsEventsAccepted,
   analyticsPages,
   analyticsSessions,
   analyticsSources,
@@ -64,6 +66,7 @@ import {
  */
 export const datasources = {
   analyticsEvents,
+  analyticsEventsLanding,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
@@ -78,6 +81,7 @@ export const pipes = {
   // Internal pipes
   analyticsHits,
   // Materializations
+  analyticsEventsAccepted,
   analyticsPages,
   analyticsSessions,
   analyticsSources,

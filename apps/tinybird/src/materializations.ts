@@ -4,12 +4,47 @@
 
 import { defineMaterializedView, node } from "@tinybirdco/sdk";
 import {
+  analyticsEvents,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
   tenantActionsMv,
   tenantDomainsMv,
 } from "./datasources";
+
+/**
+ * Stores landed events. A supplied reception_timestamp is kept only inside a
+ * window around now (late inserts are real, so the past bound is wide; the
+ * future bound is only clock skew); otherwise the landing time stands in.
+ */
+export const analyticsEventsAccepted = defineMaterializedView(
+  "analytics_events_accepted",
+  {
+    datasource: analyticsEvents,
+    nodes: [
+      node({
+        name: "analytics_events_accepted_1",
+        description: "Move landed events into the stored table",
+        sql: `
+        SELECT
+            timestamp,
+            session_id,
+            action,
+            version,
+            payload,
+            tenant_id,
+            domain,
+            if(
+                reception_timestamp BETWEEN now64(3) - INTERVAL 6 HOUR AND now64(3) + INTERVAL 5 MINUTE,
+                reception_timestamp,
+                now64(3)
+            ) AS reception_timestamp
+        FROM analytics_events_landing
+      `,
+      }),
+    ],
+  },
+);
 
 /**
  * Analytics pages materialization pipe

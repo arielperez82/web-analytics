@@ -4,7 +4,7 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export type PipeParams = Readonly<Record<string, boolean | number | string>>;
 
-const DEFAULT_DATASOURCE = 'analytics_events';
+const DEFAULT_DATASOURCE = 'analytics_events_landing';
 
 const authHeaders = (env: TinybirdEnv): Record<string, string> => ({
   Authorization: `Bearer ${env.token}`,
