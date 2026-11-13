@@ -3,6 +3,7 @@
  * Compatible with Tinybird Web Analytics Starter Kit
  */
 
+import type { SubmittedEvent } from '@web-analytics/tracking-event-schema';
 import { getCountryForTimezone } from 'countries-and-timezones';
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals';
 
@@ -402,7 +403,9 @@ const tinybirdAnalytics = (
       processedPayload = parseEvent(maskedStr);
     }
 
-    const tinybirdEvent = {
+    const tinybirdEvent: Omit<SubmittedEvent, 'payload'> & {
+      readonly payload: TinybirdEvent | string;
+    } = {
       timestamp: new Date().toISOString(),
       action: eventName,
       version: '1',

@@ -152,6 +152,9 @@ importers:
       '@vitest/eslint-plugin':
         specifier: ^1.6.28
         version: 1.6.28(@typescript-eslint/eslint-plugin@8.72.1(@typescript-eslint/parser@8.72.1(eslint@10.14.0)(typescript@6.0.3))(eslint@10.14.0)(typescript@6.0.3))(eslint@10.14.0)(typescript@6.0.3)(vitest@5.1.0)
+      '@web-analytics/tracking-event-schema':
+        specifier: workspace:*
+        version: link:../tracking-event-schema
       eslint:
         specifier: ^10.14.0
         version: 10.14.0
