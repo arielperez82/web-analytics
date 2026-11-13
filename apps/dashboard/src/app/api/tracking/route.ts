@@ -14,7 +14,7 @@ const buildDeps = (env: NodeJS.ProcessEnv): TrackingDeps => ({
   tinybird: {
     host: env.TINYBIRD_HOST ?? "",
     token: env.TRACKING_TINYBIRD_TOKEN ?? "",
-    datasource: env.TRACKING_DATASOURCE ?? "analytics_events",
+    datasource: env.TRACKING_DATASOURCE ?? "analytics_events_landing",
   },
   secret: env.IDENTITY_SALT_SECRET ?? "",
   sites: parseSites(env.TRACKING_ALLOWED_ORIGINS),

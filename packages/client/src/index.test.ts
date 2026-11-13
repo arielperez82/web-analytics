@@ -266,4 +266,29 @@ describe('initTinybirdAnalytics', () => {
 
   });
 
+
+  describe('when no datasource is configured', () => {
+    it('sends events to the landing datasource, not the stored table', async () => {
+      const urls: string[] = [];
+      server.use(
+        http.post('http://test.com/v0/events', ({ request }) => {
+          urls.push(request.url);
+          return new HttpResponse(null, { status: 202 });
+        })
+      );
+      const analytics = initTinybirdAnalytics({
+        token: 'token',
+        host: 'http://test.com',
+        domain: 'example.com',
+        webVitals: false,
+      });
+
+      void analytics.track('button_clicked', {});
+
+      await vi.waitFor(() => {
+        expect(urls[0]).toContain('name=analytics_events_landing');
+      });
+    });
+  });
 });
+

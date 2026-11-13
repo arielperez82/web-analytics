@@ -35,7 +35,7 @@ a disallowed origin or a session-store error means the event is dropped, never f
 | `IDENTITY_SALT_SECRET`                               | Secret keying the daily salt. Rotating it resets every visitor id.                                                                                                                                                      |
 | `TRACKING_ALLOWED_ORIGINS`                           | Comma-separated `origin=tenant` pairs, e.g. `https://spliceops.ai=splice,https://splicelabs.ai=splice`. The proxy stamps `tenant_id` and `domain` from the matching pair; malformed pairs are dropped; empty drops all. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Session cache (Vercel Marketplace Upstash Redis). Keys expire after a day.                                                                                                                                              |
-| `TRACKING_DATASOURCE`                                | Optional. Defaults to `analytics_events`.                                                                                                                                                                               |
+| `TRACKING_DATASOURCE`                                | Optional. Defaults to `analytics_events_landing`.                                                                                                                                                                       |
 
 Several domains can share one tenant (for example `spliceops.ai` and `splicelabs.ai` under `splice`); set
 `DASHBOARD_TENANT_ID=splice` and the domain dropdown still separates them. The map fails closed: a pair with

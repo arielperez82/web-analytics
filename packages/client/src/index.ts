@@ -52,7 +52,7 @@ export function initTinybirdAnalytics(config: TinybirdPluginConfig) {
 
   // Set defaults
   const finalConfig = {
-    datasource: 'analytics_events',
+    datasource: 'analytics_events_landing',
     storage: 'localStorage' as const,
     webVitals: true,
     globalAttributes: {},

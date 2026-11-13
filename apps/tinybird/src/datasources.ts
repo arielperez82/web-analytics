@@ -22,10 +22,10 @@ const countState = {
 // ============================================================================
 
 /**
- * Analytics events - landing data source for all analytics events
+ * Analytics events - stored events. Written only by analytics_events_accepted,
+ * never directly by senders; they append to analytics_events_landing.
  */
 export const analyticsEvents = defineDatasource("analytics_events", {
-  tokens: [{ token: trackerToken, scope: "APPEND" }],
   description: "Analytics events landing data source",
   schema: {
     ...analyticsEventsColumns,

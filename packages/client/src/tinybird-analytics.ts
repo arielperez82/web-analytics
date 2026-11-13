@@ -258,7 +258,7 @@ const tinybirdAnalytics = (
     proxy: null,
     proxyUrl: null,
     domain: null,
-    datasource: 'analytics_events',
+    datasource: 'analytics_events_landing',
     storage: 'localStorage',
     storageFallbacks: ['sessionStorage', 'cookie'] as StorageMethod[],
     enableMemoryFallback: true,

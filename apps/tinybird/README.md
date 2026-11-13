@@ -23,8 +23,10 @@ tinybird/
 ## Project description
 
 The Tinybird data project for web analytics includes datasources, endpoints, and
-materializations to power analytics dashboards and APIs. The main datasource
-analytics_events`, collects events from the tracker script. Endpoints provide
+materializations to power analytics dashboards and APIs. Senders append events
+to `analytics_events_landing`, a Null-engine datasource that stores nothing;
+materialized views move trusted events into `analytics_events` (stamping
+`reception_timestamp`) and untrusted ones into `analytics_events_rejected`. Endpoints provide
 parsed and aggregated analytics, and materializations enable efficient querying
 for dashboards.
 
