@@ -40,6 +40,27 @@ export const analyticsEvents = defineDatasource("analytics_events", {
 });
 
 /**
+ * Events refused at the landing, kept briefly so a skewed client or a bad
+ * sender can be diagnosed instead of silently losing data.
+ */
+export const analyticsEventsRejected = defineDatasource(
+  "analytics_events_rejected",
+  {
+    description: "Events refused by the landing, with the reason",
+    schema: {
+      ...analyticsEventsColumns,
+      reception_timestamp: t.dateTime64(3),
+      reason: t.string().lowCardinality(),
+    },
+    engine: engine.mergeTree({
+      partitionKey: "toYYYYMM(reception_timestamp)",
+      sortingKey: ["tenant_id", "domain", "reception_timestamp"],
+      ttl: "toDateTime(reception_timestamp) + INTERVAL 30 DAY",
+    }),
+  },
+);
+
+/**
  * Null-engine landing: stores nothing. Every event enters here and the
  * materialized views in materializations.ts decide what is stored, so
  * ingest-time logic lives in SQL rather than in post-processing.

@@ -16,6 +16,10 @@ import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
  * server of ours received the event, not the time Tinybird did.
  */
 
+const LANDING = 'analytics_events_landing';
+
+type RejectedRow = { readonly reason: string };
+
 type StoredRow = { readonly received_ms: string; readonly timestamp: string };
 
 const storedFor = (
@@ -37,7 +41,9 @@ describe.concurrent('reception landing', () => {
   it('stamps reception_timestamp with the current time when the event carries none', async () => {
     const scope = createScope();
     const before = Date.now();
-    await ingestEvents(env, [createPageHitEvent(scope)]);
+    await ingestEvents(env, [createPageHitEvent(scope)], {
+      datasource: LANDING,
+    });
 
     const [row] = await storedFor(env, scope.tenantId);
 
@@ -62,12 +68,16 @@ describe.concurrent('reception landing', () => {
     async ({ offsetMs, kept }) => {
       const scope = createScope();
       const supplied = Date.now() + offsetMs;
-      await ingestEvents(env, [
-        {
-          ...createPageHitEvent(scope),
-          reception_timestamp: new Date(supplied).toISOString(),
-        },
-      ]);
+      await ingestEvents(
+        env,
+        [
+          {
+            ...createPageHitEvent(scope),
+            reception_timestamp: new Date(supplied).toISOString(),
+          },
+        ],
+        { datasource: LANDING }
+      );
 
       const [row] = await storedFor(env, scope.tenantId);
 
@@ -76,4 +86,60 @@ describe.concurrent('reception landing', () => {
       expect(Math.abs(received - Date.now()) < 30_000).toBe(!kept);
     }
   );
+
+  const DAY_MS = 86_400_000;
+
+  const rejectedFor = (tenantId: string): Promise<readonly RejectedRow[]> =>
+    waitForRow(
+      () =>
+        querySql<RejectedRow>(
+          env,
+          `SELECT reason FROM analytics_events_rejected WHERE tenant_id = '${tenantId}'`
+        ),
+      rows => rows.length > 0
+    );
+
+  it.each([
+    { label: '3 days old', offsetMs: -3 * DAY_MS },
+    { label: '2 days ahead', offsetMs: 2 * DAY_MS },
+  ])(
+    'routes an event whose timestamp is $label to rejected, not stored',
+    async ({ offsetMs }) => {
+      const scope = createScope();
+      const event = createPageHitEvent({
+        ...scope,
+        now: new Date(Date.now() + offsetMs),
+      });
+      await ingestEvents(env, [event], { datasource: LANDING });
+
+      const rejected = await rejectedFor(scope.tenantId);
+      const stored = await querySql<StoredRow>(
+        env,
+        `SELECT toUnixTimestamp64Milli(reception_timestamp) AS received_ms, toString(timestamp) AS timestamp FROM analytics_events WHERE tenant_id = '${scope.tenantId}'`
+      );
+
+      expect(rejected.map(row => row.reason)).toEqual([
+        'timestamp_outside_trust_window',
+      ]);
+      expect(stored).toEqual([]);
+    }
+  );
+
+  it('stores an event whose timestamp is 23 hours old', async () => {
+    const scope = createScope();
+    await ingestEvents(
+      env,
+      [
+        createPageHitEvent({
+          ...scope,
+          now: new Date(Date.now() - 23 * 3_600_000),
+        }),
+      ],
+      { datasource: LANDING }
+    );
+
+    const rows = await storedFor(env, scope.tenantId);
+
+    expect(rows).toHaveLength(1);
+  });
 });
