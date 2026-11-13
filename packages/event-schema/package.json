@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tinybirdco/sdk": "0.0.27"
+    "@tinybirdco/sdk": "0.0.84"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

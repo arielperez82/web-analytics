@@ -6,7 +6,7 @@
   "type": "module",
   "main": "src/client.ts",
   "dependencies": {
-    "@tinybirdco/sdk": "0.0.27",
+    "@tinybirdco/sdk": "0.0.84",
     "@web-analytics/event-schema": "workspace:*"
   },
   "devDependencies": {
