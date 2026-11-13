@@ -5,13 +5,15 @@
  * This can be imported from other packages in the monorepo.
  */
 
-import { createTinybirdClient } from "@tinybirdco/sdk";
+import { Tinybird } from "@tinybirdco/sdk";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
 // Datasources
 import {
   analyticsEvents,
+  analyticsEventsLanding,
+  analyticsEventsRejected,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
@@ -24,6 +26,8 @@ import { analyticsHits } from "./pipes";
 
 // Materializations
 import {
+  analyticsEventsAccepted,
+  analyticsEventsRejection,
   analyticsPages,
   analyticsSessions,
   analyticsSources,
@@ -64,6 +68,8 @@ import {
  */
 export const datasources = {
   analyticsEvents,
+  analyticsEventsLanding,
+  analyticsEventsRejected,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
@@ -78,6 +84,8 @@ export const pipes = {
   // Internal pipes
   analyticsHits,
   // Materializations
+  analyticsEventsAccepted,
+  analyticsEventsRejection,
   analyticsPages,
   analyticsSessions,
   analyticsSources,
@@ -121,16 +129,14 @@ interface CreateAnalyticsClientOptions {
  * Create a Tinybird client with custom configuration
  */
 export function createAnalyticsClient(options?: CreateAnalyticsClientOptions) {
-  const clientOptions: Parameters<typeof createTinybirdClient>[0] = {
+  return new Tinybird({
     datasources,
     pipes,
     configDir: __configDir,
     baseUrl: options?.baseUrl ?? process.env.TINYBIRD_HOST,
     token: options?.token ?? process.env.TINYBIRD_TOKEN,
     devMode: options?.devMode ?? process.env.NODE_ENV === "development",
-  };
-
-  return createTinybirdClient(clientOptions);
+  });
 }
 
 /**

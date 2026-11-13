@@ -7,7 +7,7 @@ checklist for the first deployment. Variable reference: [dashboard README](../ap
 
 1. **Tinybird first.** From an up-to-date `main`: `pnpm run check:tinybird`, then deploy (see
    [apps/tinybird/README.md](../apps/tinybird/README.md)). Cloud deployment 10 lacks the `conversions` endpoint (#30).
-2. **Tracker token.** Mint an append-only Tinybird token for `analytics_events`; set it as
+2. **Tracker token.** Mint an append-only Tinybird token for `analytics_events_landing`; set it as
    `TRACKING_TINYBIRD_TOKEN`. Keep it separate from the read token (`TINYBIRD_TOKEN`).
 3. **Upstash Redis** (Vercel Marketplace): set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 4. **Salt.** Set `IDENTITY_SALT_SECRET`. Rotating it resets every visitor id.

@@ -36,5 +36,11 @@ jobs:
       - name: Event schema typecheck
         run: pnpm run typecheck:event-schema
 
+      - name: Tracking event schema unit tests
+        run: pnpm run test:tracking-event-schema
+
+      - name: Tracking event schema typecheck
+        run: pnpm run typecheck:tracking-event-schema
+
       - name: Tinybird typecheck
         run: pnpm run typecheck:tinybird

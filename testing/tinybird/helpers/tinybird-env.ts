@@ -7,14 +7,14 @@ type Workspace = { readonly name: string; readonly token: string };
 
 type ResolveOptions = {
   readonly env?: Readonly<Record<string, string | undefined>>;
-  readonly buildLocal: () => string;
+  readonly buildLocal: (localAdminToken: string) => string;
   readonly fetchLocal: (path: string, bearer?: string) => Promise<unknown>;
 };
 
 const DEFAULT_LOCAL_URL = 'http://localhost:7181';
 
 const parseWorkspaceName = (buildOutput: string): string => {
-  const match = /Local workspace:\s+(\S+)/.exec(buildOutput);
+  const match = /Tinybird Local branch:\s+(\S+)/.exec(buildOutput);
   if (!match?.[1])
     throw new Error('build output named no local workspace to resolve');
   return match[1];
@@ -33,10 +33,12 @@ export const resolveTinybirdEnv = async ({
 }: ResolveOptions): Promise<TinybirdEnv> => {
   if (env.TB_HOST && env.TB_TOKEN)
     return { host: env.TB_HOST, token: env.TB_TOKEN };
-  const name = parseWorkspaceName(buildLocal());
-  const { user_token: userToken } = (await fetchLocal('/tokens')) as {
-    user_token: string;
-  };
+  const { user_token: userToken, workspace_admin_token: adminToken } =
+    (await fetchLocal('/tokens')) as {
+      user_token: string;
+      workspace_admin_token: string;
+    };
+  const name = parseWorkspaceName(buildLocal(adminToken));
   const { workspaces } = (await fetchLocal(
     '/v1/user/workspaces?with_organization=false',
     userToken

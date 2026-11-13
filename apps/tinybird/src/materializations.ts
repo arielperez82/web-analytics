@@ -4,12 +4,95 @@
 
 import { defineMaterializedView, node } from "@tinybirdco/sdk";
 import {
+  analyticsEvents,
+  analyticsEventsRejected,
   analyticsPagesMv,
   analyticsSessionsMv,
   analyticsSourcesMv,
   tenantActionsMv,
   tenantDomainsMv,
 } from "./datasources";
+
+/**
+ * A supplied reception_timestamp is kept only inside a window around now: late
+ * inserts are real, so the past bound is wide; the future bound is only clock
+ * skew. Outside it the landing time stands in.
+ */
+const RECEPTION_PAST_HOURS = 6;
+const RECEPTION_FUTURE_MINUTES = 5;
+/**
+ * An event is trusted only when its client timestamp is within this distance of
+ * its reception time. One day, because DAY is the smallest materialized
+ * granularity; revisit if a finer one is added.
+ */
+const TRUST_WINDOW_HOURS = 24;
+
+const receptionTimestamp = `if(
+                reception_timestamp BETWEEN now64(3) - INTERVAL ${RECEPTION_PAST_HOURS} HOUR AND now64(3) + INTERVAL ${RECEPTION_FUTURE_MINUTES} MINUTE,
+                reception_timestamp,
+                now64(3)
+            )`;
+
+const insideTrustWindow = `abs(dateDiff('second', timestamp, toDateTime(${receptionTimestamp}))) <= ${TRUST_WINDOW_HOURS * 3600}`;
+
+/**
+ * Stores landed events whose client timestamp is inside the trust window.
+ */
+export const analyticsEventsAccepted = defineMaterializedView(
+  "analytics_events_accepted",
+  {
+    datasource: analyticsEvents,
+    nodes: [
+      node({
+        name: "analytics_events_accepted_1",
+        description: "Move trusted landed events into the stored table",
+        sql: `
+        SELECT
+            timestamp,
+            session_id,
+            action,
+            version,
+            payload,
+            tenant_id,
+            domain,
+            ${receptionTimestamp} AS reception_timestamp
+        FROM analytics_events_landing
+        WHERE ${insideTrustWindow}
+      `,
+      }),
+    ],
+  },
+);
+
+/**
+ * Keeps landed events whose client timestamp is outside the trust window.
+ */
+export const analyticsEventsRejection = defineMaterializedView(
+  "analytics_events_rejection",
+  {
+    datasource: analyticsEventsRejected,
+    nodes: [
+      node({
+        name: "analytics_events_rejection_1",
+        description: "Keep untrusted landed events with the reason",
+        sql: `
+        SELECT
+            timestamp,
+            session_id,
+            action,
+            version,
+            payload,
+            tenant_id,
+            domain,
+            ${receptionTimestamp} AS reception_timestamp,
+            'timestamp_outside_trust_window' AS reason
+        FROM analytics_events_landing
+        WHERE NOT (${insideTrustWindow})
+      `,
+      }),
+    ],
+  },
+);
 
 /**
  * Analytics pages materialization pipe

@@ -3,6 +3,7 @@
  * Compatible with Tinybird Web Analytics Starter Kit
  */
 
+import type { SubmittedEvent } from '@web-analytics/tracking-event-schema';
 import { getCountryForTimezone } from 'countries-and-timezones';
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals';
 
@@ -73,6 +74,14 @@ export interface TinybirdIdentityEvent {
 }
 
 export type TinybirdEvent = Record<string, unknown>;
+
+const siteFields = (config: {
+  readonly tenantId?: string;
+  readonly domain?: string | null;
+}): Record<string, string> => ({
+  ...(config.tenantId ? { tenant_id: config.tenantId } : {}),
+  ...(config.domain ? { domain: config.domain } : {}),
+});
 
 export interface CountryLocale {
   country?: string;
@@ -258,7 +267,7 @@ const tinybirdAnalytics = (
     proxy: null,
     proxyUrl: null,
     domain: null,
-    datasource: 'analytics_events',
+    datasource: 'analytics_events_landing',
     storage: 'localStorage',
     storageFallbacks: ['sessionStorage', 'cookie'] as StorageMethod[],
     enableMemoryFallback: true,
@@ -394,11 +403,14 @@ const tinybirdAnalytics = (
       processedPayload = parseEvent(maskedStr);
     }
 
-    const tinybirdEvent = {
+    const tinybirdEvent: Omit<SubmittedEvent, 'payload'> & {
+      readonly payload: TinybirdEvent | string;
+    } = {
       timestamp: new Date().toISOString(),
       action: eventName,
       version: '1',
       ...(identity.sessionId && { session_id: identity.sessionId }),
+      ...siteFields(config),
       payload: processedPayload,
     };
 

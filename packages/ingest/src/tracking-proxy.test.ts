@@ -148,6 +148,7 @@ describe("handleTracking client-identified events", () => {
     await handleTracking(post(persistent), deps);
     expect(forwarded[0]?.body).toEqual({
       ...persistent,
+      reception_timestamp: "2026-11-10T09:00:00.000Z",
       tenant_id: "acme",
       domain: "example.com",
     });
@@ -289,5 +290,40 @@ describe("handleTracking when the session store fails", () => {
     const result = await handleTracking(post(anonymousEvent), deps);
     expect(result.status).toBe(502);
     expect(forwarded).toHaveLength(0);
+  });
+});
+
+describe("handleTracking reception time", () => {
+  const receivedAt = Date.UTC(2026, 10, 10, 9, 0, 0);
+
+  it("stamps reception_timestamp from the proxy clock", async () => {
+    const { deps, forwarded } = createFakeDeps({ now: () => receivedAt });
+    await handleTracking(post(anonymousEvent), deps);
+    expect(forwarded[0]?.body["reception_timestamp"]).toBe(
+      "2026-11-10T09:00:00.000Z",
+    );
+  });
+
+  it("ignores a reception_timestamp claimed by the client", async () => {
+    const { deps, forwarded } = createFakeDeps({ now: () => receivedAt });
+    await handleTracking(
+      post({ ...anonymousEvent, reception_timestamp: "1999-01-01T00:00:00.000Z" }),
+      deps,
+    );
+    expect(forwarded[0]?.body["reception_timestamp"]).toBe(
+      "2026-11-10T09:00:00.000Z",
+    );
+  });
+
+  it("leaves the client-generated timestamp untouched, even when the clocks disagree", async () => {
+    const { deps, forwarded } = createFakeDeps({ now: () => receivedAt });
+    await handleTracking(
+      post({ ...anonymousEvent, timestamp: "2026-11-09T09:00:00.000Z" }),
+      deps,
+    );
+    expect(forwarded[0]?.body["timestamp"]).toBe("2026-11-09T09:00:00.000Z");
+    expect(forwarded[0]?.body["reception_timestamp"]).toBe(
+      "2026-11-10T09:00:00.000Z",
+    );
   });
 });
