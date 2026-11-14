@@ -191,6 +191,47 @@ export const actions = defineEndpoint("actions", {
   },
 });
 
+/**
+ * Rejected events - what the landing refused for a tenant, to diagnose skewed
+ * clocks and bad senders
+ */
+export const rejectedEvents = defineEndpoint("rejected_events", {
+  description:
+    "Count the events the landing refused for a tenant, by day, site and reason, with the largest clock skew",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "endpoint",
+      description: "Group refused events for a specific tenant",
+      sql: `
+        SELECT
+            toDate(reception_timestamp) AS date,
+            domain,
+            reason,
+            count() AS events,
+            toUInt64(max(abs(dateDiff('second', timestamp, toDateTime(reception_timestamp))))) AS max_skew_seconds
+        FROM analytics_events_rejected
+        WHERE tenant_id = {{ String(tenant_id, description="Tenant ID to filter", default="") }}
+        GROUP BY date, domain, reason
+        ORDER BY date DESC, domain ASC, reason ASC
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional("").describe("Tenant ID to filter"),
+  },
+  output: {
+    date: t.date(),
+    domain: t.string(),
+    reason: t.string(),
+    events: t.uint64(),
+    max_skew_seconds: t.uint64(),
+  },
+});
+
+export type RejectedEventsParams = InferParams<typeof rejectedEvents>;
+export type RejectedEventsOutput = InferOutputRow<typeof rejectedEvents>;
+
 export type ActionsParams = InferParams<typeof actions>;
 export type ActionsOutput = InferOutputRow<typeof actions>;
 
