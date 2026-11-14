@@ -2,7 +2,18 @@
 name: tinybird-migration-test
 type: skill
 description: Test deploying a changed Tinybird schema over a populated analytics_events on Tinybird Local using the SDK's tinybird deploy. Use when checking a forwardQuery or backfill, a schema migration, or that a deploy over existing data works. Trigger patterns include forwardQuery backfill, migration test, deploy over populated table, tinybird deploy local.
-allowed-tools: Read, Write, Bash(tb local start:*), Bash(tb local stop:*), Bash(pnpm exec tinybird deploy:*), Bash(curl:*), Bash(jq:*), Bash(docker ps:*), Bash(git show:*), Bash(mkdir:*), Bash(ln:*), Bash(echo:*)
+allowed-tools:
+  - Read
+  - Write
+  - Bash(tb local start:*)
+  - Bash(tb local stop:*)
+  - Bash(pnpm exec tinybird deploy:*)
+  - Bash(curl *localhost:7181*)
+  - Bash(jq:*)
+  - Bash(git show:*)
+  - Bash(mkdir:*)
+  - Bash(ln:*)
+  - Bash(echo:*)
 ---
 
 # Tinybird migration test (local)
