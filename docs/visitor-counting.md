@@ -30,7 +30,7 @@ it is only approximate. Our answer: we never publish one blended "unique visitor
 5. **`current_visitors`:** Renamed to **active visits** (it counts sessions).
 6. **Time zone:** UTC for day and range boundaries everywhere. Local time is a display aid only (section 6).
 7. **Consent marker:** None. Nothing is live, so there is no history to mark.
-8. **Distinct counting:** `uniqCombined64`, with `uniqExact` kept as the audit path (section 9).
+8. **Distinct counting:** `uniqCombined64`; `uniqExact` is never used (section 9).
 9. **Local-zone view:** Not built, including for consented-only traffic. Not needed (section 6).
 
 ## 3. Vocabulary
@@ -176,24 +176,27 @@ the top lists.
 ## 9. Exactness: `uniqCombined64`
 
 - **Decision:** `uniqCombined64` for visitor and visit counts. It hashes every type with 64 bits (plain `uniqCombined`
-  uses 32 bits for non-strings and is badly wrong at high cardinality). `uniqExact` stays as the audit path; its state
-  is unbounded, but at our volume that is cheap.
+  uses 32 bits for non-strings and is badly wrong at high cardinality). `uniqExact` is not used anywhere, not even as
+  an audit path: its state grows with the number of distinct values, so it can exhaust memory as counts rise.
 - **What the ClickHouse docs say:** `uniqCombined` uses an array, then a hash set, then HyperLogLog with an error
-  correction table; default `HLL_precision` 17 is about 96 KiB per state. The docs do **not** claim exact results at
-  any cardinality and give no numeric thresholds. Sources: the ClickHouse reference pages for `uniq`, `uniqCombined`,
-  `uniqExact`.
-- **Derived, not measured:** with 64-bit hashes, collision probability at 10,000 ids is about n^2 / 2^65, roughly
-  3e-12. HyperLogLog at precision 17 has standard error about 1.04 / sqrt(2^17), about 0.29% (about 290 at 100k).
-- **Proposed UI wording until tested:** "exact under N, about 0.3% above", where N is found by the test below.
-- **Test before shipping** (this is also the first TDD cycle of the implementation):
-  - Synthetic UUID strings at n = 1 to 50 (every value), then 100, 1k, 5k, 10k, 100k and 1M, with many seeds at small n.
-  - Per-day `uniqCombined64State` merged with `uniqCombined64Merge` over 90 days with overlapping ids, against
-    `uniqExact`.
-  - A shadow comparison against `uniqExact` on real hits after launch.
-  - Tolerance: zero difference up to the empirical exact ceiling (require at least 5k); above it, relative error at
-    most 1%.
-- **Unverified:** the array and hash-set thresholds `uniqCombined` actually uses (they are template parameters in
-  `CombinedCardinalityEstimator.h`; the concrete values were not confirmed).
+  correction table; default `HLL_precision` 17 is about 96 KiB per state. The docs give no numeric thresholds. Sources:
+  the ClickHouse reference pages for `uniq`, `uniqCombined` and `uniqExact`.
+- **Measured on Tinybird Local, 2026-11-14:** ids are 128-bit hex strings built to be distinct (`hex(sipHash128(number,
+seed))`), so the true count is known without `uniqExact`.
+  - **Exact up to 4,096 distinct ids.** Zero error at n = 1 to 50 (every value), 100, 500 and 1,000 to 4,000 with 100
+    seeds each, and at 4,096 with 200 seeds. At 4,097 the estimate is off in 191 of 200 seeds (largest error 26,
+    0.6%). So the step is sharp, at 2^12.
+  - **Above 4,096 it is an estimate.** Largest relative error seen: 0.70% across n = 5,000 to 10,000,000 (20 seeds up
+    to 200k, 5 at 500k and 1M, 3 at 10M). The 0.29% figure derived from the HyperLogLog formula was too optimistic at
+    these sizes. Plan for 1%.
+  - **Merged daily states behave the same.** 90 per-day `uniqCombined64State` merged with `uniqCombined64Merge`, with
+    overlapping ids: union of 2,890 ids exact; 109,000, 495,000 and 1,980,000 off by 0.28%, 0.26% and 0.20%.
+  - Not measured: memory per state, and behaviour on real traffic, since ids there repeat in skewed ways. The error
+    figures come from uniformly distinct ids.
+- **UI wording:** exact up to 4,096 visitors in the period, about 1% above.
+- **Test to keep** (first TDD cycle of the implementation): the sweep above as an acceptance test with the same
+  construction. Zero difference up to 4,096 distinct ids (many seeds), relative error at most 1% above, and the same
+  for merged daily states. It never needs `uniqExact` because the truth is built in.
 
 ## 10. How other tools handle it
 
@@ -270,7 +273,7 @@ Constraints that come straight from the definitions:
 
 ## 13. Open items
 
-- **Unverified:** `uniqCombined` array and hash-set thresholds; exactness at our volumes (section 9).
+- **Unverified:** estimator error on real, skewed traffic (section 9 measures uniformly distinct ids).
 - **Unverified:** the production rollout date of `visitor_id` and how much existing traffic predates it.
 - **Unverified:** Plausible's rotation time zone and the report time zones of Umami, Matomo and Simple Analytics.
 - Decide pipes vs materialized views once the `uniqCombined64` test (section 9) is done.
