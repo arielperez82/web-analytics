@@ -193,7 +193,8 @@ seed))`), so the true count is known without `uniqExact`.
     overlapping ids: union of 2,890 ids exact; 109,000, 495,000 and 1,980,000 off by 0.28%, 0.26% and 0.20%.
   - Not measured: memory per state, and behaviour on real traffic, since ids there repeat in skewed ways. The error
     figures come from uniformly distinct ids.
-- **UI wording:** exact up to 4,096 visitors in the period, about 1% above.
+- **UI wording:** no number in the UI. Show an asterisk on distinct counts, with a hover that says "Exact for small
+  counts, within 1% for large ones." The 4,096 and 1% figures stay in this document.
 - **Test to keep** (first TDD cycle of the implementation): the sweep above as an acceptance test with the same
   construction. Zero difference up to 4,096 distinct ids (many seeds), relative error at most 1% above, and the same
   for merged daily states. It never needs `uniqExact` because the truth is built in.
