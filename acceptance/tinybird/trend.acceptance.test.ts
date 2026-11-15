@@ -16,6 +16,8 @@ type TrendRow = { t: string; visits: number | string | null };
 const MINUTE_MS = 60_000;
 const minutesAgo = (minutes: number): Date =>
   new Date(Date.now() - minutes * MINUTE_MS);
+const startOfMinute = (ms: number): number =>
+  Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 const toTime = (t: string): number => Date.parse(`${t.replace(' ', 'T')}Z`);
 const totalVisits = (rows: readonly TrendRow[]) =>
   rows.reduce((sum, row) => sum + Number(row.visits ?? 0), 0);
@@ -67,14 +69,15 @@ describe.concurrent('live trend', () => {
 
   it('puts a visit in the minute it happened', async () => {
     const scope = createScope();
-    await ingestEvents(env, [hitAt(scope, 10)]);
+    const event = hitAt(scope, 10);
+    await ingestEvents(env, [event]);
 
     const rows = await series(scope, 1);
 
     const busy = rows.find(row => Number(row.visits ?? 0) > 0);
-    const age = Date.now() - toTime(busy?.t ?? '1970-01-01 00:00:00');
-    expect(age).toBeGreaterThanOrEqual(9 * MINUTE_MS);
-    expect(age).toBeLessThanOrEqual(11 * MINUTE_MS);
+    expect(toTime(busy?.t ?? '1970-01-01 00:00:00')).toBe(
+      startOfMinute(toTime(event.timestamp))
+    );
   });
 
   it('counts a visitor who viewed several pages in one minute once', async () => {
