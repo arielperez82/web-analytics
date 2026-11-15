@@ -5,6 +5,7 @@
 import { defineDatasource, t, engine, type InferRow } from "@tinybirdco/sdk";
 import { analyticsEventsColumns } from "@web-analytics/event-schema";
 import { CLASSIFIER_VERSION, isBotSql } from "./bot-classifier";
+import { payloadColumnSql, payloadColumnsSelect } from "./payload-columns";
 import { trackerToken } from "./tokens";
 
 // ============================================================================
@@ -20,6 +21,19 @@ export const analyticsEvents = defineDatasource("analytics_events", {
   schema: {
     ...analyticsEventsColumns,
     reception_timestamp: t.dateTime64(3),
+    pathname: t.string().defaultExpr(payloadColumnSql.pathname),
+    href: t.string().defaultExpr(payloadColumnSql.href),
+    referrer: t.string().defaultExpr(payloadColumnSql.referrer),
+    location: t.string().defaultExpr(payloadColumnSql.location),
+    locale: t.string().defaultExpr(payloadColumnSql.locale),
+    domain_from_payload: t
+      .string()
+      .defaultExpr(payloadColumnSql.domain_from_payload),
+    visitor_id: t.string().defaultExpr(payloadColumnSql.visitor_id),
+    id_mode: t.string().defaultExpr(payloadColumnSql.id_mode),
+    utm_source: t.string().defaultExpr(payloadColumnSql.utm_source),
+    utm_medium: t.string().defaultExpr(payloadColumnSql.utm_medium),
+    user_agent: t.string().defaultExpr(payloadColumnSql.user_agent),
     is_bot: t.uint8().defaultExpr(isBotSql),
     classifier_version: t
       .string()
@@ -30,7 +44,7 @@ export const analyticsEvents = defineDatasource("analytics_events", {
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
-  forwardQuery: `SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp, ${isBotSql} AS is_bot, toLowCardinality('${CLASSIFIER_VERSION}') AS classifier_version`,
+  forwardQuery: `SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp, ${payloadColumnsSelect.replace(/\n\s+/g, " ")}, ${isBotSql} AS is_bot, toLowCardinality('${CLASSIFIER_VERSION}') AS classifier_version`,
 });
 
 /**

@@ -7,6 +7,6 @@ export const CLASSIFIER_VERSION = "ua-regex-v1";
 const BOT_USER_AGENT_PATTERN =
   "wget|ahrefsbot|curl|urllib|bitdiscovery|[+]https://|googlebot";
 
-const payloadUserAgent = `lower(coalesce(nullIf(JSONExtractString(payload, 'user_agent'), ''), JSONExtractString(payload, 'user-agent')))`;
+export const payloadUserAgent = `lower(coalesce(nullIf(JSONExtractString(payload, 'user_agent'), ''), JSONExtractString(payload, 'user-agent')))`;
 
 export const isBotSql = `toUInt8(match(${payloadUserAgent}, '${BOT_USER_AGENT_PATTERN}'))`;

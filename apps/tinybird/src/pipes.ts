@@ -31,20 +31,20 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             coalesce(session_id, '0') as session_id,
             tenant_id,
             multiIf(domain != '', domain, current_domain != '', current_domain, domain_from_payload) as domain,
-            JSONExtractString(payload, 'domain') as domain_from_payload,
-            JSONExtractString(payload, 'locale') as locale,
-            JSONExtractString(payload, 'location') as location,
-            JSONExtractString(payload, 'referrer') as referrer,
-            JSONExtractString(payload, 'pathname') as pathname,
-            JSONExtractString(payload, 'href') as href,
-            JSONExtractString(payload, 'utm_source') as utm_source,
-            JSONExtractString(payload, 'utm_medium') as utm_medium,
-            JSONExtractString(payload, 'visitor_id') as visitor_id,
-            JSONExtractString(payload, 'id_mode') as id_mode,
+            domain_from_payload,
+            locale,
+            location,
+            referrer,
+            pathname,
+            href,
+            utm_source,
+            utm_medium,
+            visitor_id,
+            id_mode,
             if(visitor_id != '', visitor_id, concat('legacy:', session_id)) as visitor_key,
             is_bot,
             if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
-            lower(coalesce(nullIf(JSONExtractString(payload, 'user_agent'), ''), JSONExtractString(payload, 'user-agent'))) as user_agent
+            user_agent
         FROM analytics_events
         WHERE action = 'page_hit'
             {% if defined(tenant_id) %}

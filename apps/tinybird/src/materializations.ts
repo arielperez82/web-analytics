@@ -4,6 +4,7 @@
 
 import { defineMaterializedView, node } from "@tinybirdco/sdk";
 import { CLASSIFIER_VERSION, isBotSql } from "./bot-classifier";
+import { payloadColumnsSelect } from "./payload-columns";
 import {
   analyticsEvents,
   analyticsEventsRejected,
@@ -57,6 +58,7 @@ export const analyticsEventsAccepted = defineMaterializedView(
             tenant_id,
             domain,
             ${receptionTimestamp} AS reception_timestamp,
+            ${payloadColumnsSelect},
             ${isBotSql} AS is_bot,
             '${CLASSIFIER_VERSION}' AS classifier_version
         FROM analytics_events_landing
@@ -192,9 +194,7 @@ export const tenantActions = defineMaterializedView("tenant_actions", {
       description: "Aggregate distinct actions per tenant/domain",
       sql: `
         with multiIf(domain != '', domain, current_domain != '', current_domain, domain_from_payload) as domain,
-            JSONExtractString(payload, 'domain') as domain_from_payload,
-            if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
-            JSONExtractString(payload, 'href') as href
+            if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain
         SELECT
             tenant_id,
             domain,

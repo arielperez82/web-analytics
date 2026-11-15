@@ -97,6 +97,7 @@ type PageHitOptions = {
   readonly domain: string;
   readonly pathname: string;
   readonly location?: string;
+  readonly locale?: string;
   readonly userAgent?: string;
   readonly referrer?: string;
   readonly sessionId?: string;
@@ -112,6 +113,7 @@ export const createPageHitEvent = ({
   domain,
   pathname,
   location,
+  locale,
   userAgent,
   referrer,
   sessionId = crypto.randomUUID(),
@@ -132,6 +134,7 @@ export const createPageHitEvent = ({
     domain,
     href: `https://${domain}${pathname}`,
     ...(location === undefined ? {} : { location }),
+    ...(locale === undefined ? {} : { locale }),
     ...(userAgent === undefined ? {} : { user_agent: userAgent }),
     ...(referrer === undefined ? {} : { referrer }),
     ...(visitorId === undefined ? {} : { visitor_id: visitorId }),
