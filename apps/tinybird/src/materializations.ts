@@ -194,9 +194,7 @@ export const tenantActions = defineMaterializedView("tenant_actions", {
       description: "Aggregate distinct actions per tenant/domain",
       sql: `
         with multiIf(domain != '', domain, current_domain != '', current_domain, domain_from_payload) as domain,
-            JSONExtractString(payload, 'domain') as domain_from_payload,
-            if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
-            JSONExtractString(payload, 'href') as href
+            if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain
         SELECT
             tenant_id,
             domain,
