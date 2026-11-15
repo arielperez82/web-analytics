@@ -47,9 +47,12 @@ export const currentVisitors = defineEndpoint("current_visitors", {
     node({
       name: "get_current_visitors",
       sql: `
-        SELECT uniq(session_id) AS visits
+        SELECT uniqCombined64(session_id) AS visits
         FROM analytics_hits
         WHERE timestamp >= (now() - interval 5 minute)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -62,6 +65,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
   params: {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     visits: t.uint64(),

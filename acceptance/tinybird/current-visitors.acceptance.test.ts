@@ -19,12 +19,17 @@ const minutesAgo = (minutes: number): Date =>
 describe.concurrent('current visitors', () => {
   const env = inject('tinybird');
 
-  const online = async (scope: Scope, expected: number) => {
+  const online = async (
+    scope: Scope,
+    expected: number,
+    params: Readonly<Record<string, number>> = {}
+  ) => {
     const rows = await waitForRow(
       () =>
         pipeRows<VisitorsRow>(env, 'current_visitors', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
+          ...params,
         }),
       data => Number(data[0]?.visits) === expected
     );
@@ -92,6 +97,21 @@ describe.concurrent('current visitors', () => {
     });
 
     expect(rows.map(row => Number(row.visits))).toEqual([0]);
+  });
+
+  it('leaves bots out unless asked to include them', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createPageHitEvent({ ...scope, pathname: '/' }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1',
+      }),
+    ]);
+
+    expect(await online(scope, 1)).toBe(1);
+    expect(await online(scope, 2, { include_bots: 1 })).toBe(2);
   });
 
   it('never counts the visitors of a sibling site', async () => {

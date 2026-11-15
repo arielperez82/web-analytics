@@ -277,7 +277,8 @@ Constraints that come straight from the definitions:
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
   set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows, and the
   `visitor_counts` endpoint that reads it (known, daily as person-days, legacy, visits; bots out unless
-  `include_bots=1`). Not built yet: `current_visitors`, `trend` and `kpis` on the new definitions.
+  `include_bots=1`). `current_visitors` also leaves bots out unless `include_bots=1`. Not built yet: `trend` and
+  `kpis` on the new definitions.
 
 ## 13. Open items
 
