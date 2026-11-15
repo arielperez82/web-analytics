@@ -34,6 +34,12 @@ export const analyticsEvents = defineDatasource("analytics_events", {
     utm_source: t.string().defaultExpr(payloadColumnSql.utm_source),
     utm_medium: t.string().defaultExpr(payloadColumnSql.utm_medium),
     user_agent: t.string().defaultExpr(payloadColumnSql.user_agent),
+    vital_name: t.string().defaultExpr(payloadColumnSql.vital_name),
+    vital_value: t.float64().defaultExpr(payloadColumnSql.vital_value),
+    vital_delta: t.float64().defaultExpr(payloadColumnSql.vital_delta),
+    vital_value_present: t
+      .uint8()
+      .defaultExpr(payloadColumnSql.vital_value_present),
     is_bot: t.uint8().defaultExpr(isBotSql),
     classifier_version: t
       .string()

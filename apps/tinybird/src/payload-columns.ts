@@ -19,6 +19,11 @@ export const payloadColumnSql = {
   utm_source: fromPayload("utm_source"),
   utm_medium: fromPayload("utm_medium"),
   user_agent: payloadUserAgent,
+  vital_name: fromPayload("name"),
+  vital_value: "JSONExtractFloat(payload, 'value')",
+  vital_delta: "JSONExtractFloat(payload, 'delta')",
+  vital_value_present:
+    "toUInt8(JSONHas(payload, 'value') AND (JSONType(payload, 'value') IN ('Int64', 'UInt64', 'Double') OR toFloat64OrNull(JSONExtractString(payload, 'value')) IS NOT NULL))",
 } as const;
 
 export const payloadColumnNames = Object.keys(
