@@ -97,3 +97,14 @@ cannot come through it; seed such data directly into `analytics_events` with
 
 Ingestion lag is read from Tinybird's own ingestion log
 (`organization.datasource_ops_log`), not from a column.
+
+## Typed payload columns
+
+`analytics_events` stores the payload fields the dashboards read as typed
+columns (`pathname`, `href`, `referrer`, `location`, `locale`, `visitor_id`,
+`id_mode`, `utm_source`, `utm_medium`, `user_agent`, `domain_from_payload`),
+parsed once at ingest. `analytics_hits` and `tenant_actions` read the columns,
+not the JSON. The expressions live in `src/payload-columns.ts` and feed the
+accepted view, the column defaults and the `forwardQuery`, so new rows, direct
+writes and backfilled history agree. `web_vital` events still parse their own
+fields from the payload.

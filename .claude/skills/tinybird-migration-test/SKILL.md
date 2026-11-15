@@ -65,8 +65,10 @@ row count tested, so the reader knows the scale the result covers.
    returns 200: `tb local start` can exceed a two-minute tool timeout.
 2. Create the probe workspace (e.g. `sdk_deploy_probe`) and read its admin
    token. If it already exists, delete it first (step 5) or stop and ask.
-3. Deploy the old schema from a scratch SDK project, seed rows, then
-   deploy the current `apps/tinybird` project over it.
+3. Deploy the full previous `apps/tinybird` (from `git archive`) into the
+   probe workspace, seed rows with every required column, then deploy the
+   current `apps/tinybird` project over it. Read a failed deploy's cause
+   through `--no-wait --no-auto` and `GET /v1/deployments`.
 4. Check `reception_timestamp = timestamp` on the old rows (required).
 5. Run `tb local stop`. If the instance is kept, delete the probe
    workspace and confirm by listing workspaces: DELETE may return 500

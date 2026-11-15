@@ -35,18 +35,19 @@ not a CI test. If it is needed often, script it.
      | jq -r '.workspaces[] | select(.name=="sdk_deploy_probe") | .token')
    ```
 
-3. Make a scratch SDK project (outside the repo, in the scratchpad):
-   `tinybird.json` with `include: ["src/datasources.ts"]`, `token`
-   `${TINYBIRD_TOKEN}`, `baseUrl` `${TINYBIRD_HOST}`;
-   `node_modules` symlinked to `apps/tinybird/node_modules`;
-   `src/datasources.ts` defining only the OLD `analytics_events` schema
-   (take it from `git show <commit before the change>:apps/tinybird/src/datasources.ts`).
-4. Deploy the old schema:
+3. Make the baseline project outside the repo, in the scratchpad: the
+   whole previous `apps/tinybird`, not just its datasources, because
+   production already holds the previous views and pipes.
+   `git archive <commit before the change> apps/tinybird | tar -x -C <scratch>`,
+   then symlink `node_modules` to this repo's `apps/tinybird/node_modules`.
+4. Deploy the baseline:
    `TINYBIRD_HOST=http://localhost:7181 TINYBIRD_TOKEN=$TOK pnpm exec tinybird deploy`
-   from the scratch project. Expect `Deployment #1 is live!`.
+   from `<scratch>/apps/tinybird`. Expect `Deployment #1 is live!`.
 5. Seed rows through the Events API:
    `POST localhost:7181/v0/events?name=analytics_events&wait=true` with
-   `Authorization: Bearer $TOK`. Expect `quarantined_rows: 0`.
+   `Authorization: Bearer $TOK`. Expect `quarantined_rows: 0`. Include every
+   column the stored table requires, `reception_timestamp` among them:
+   a missing one quarantines the row.
 6. Deploy the current schema from `apps/tinybird` with the same two
    variables. Expect `Deployment #2 is live!` (about one minute).
 7. Check (required, it is the point of the test):
@@ -68,6 +69,18 @@ not a CI test. If it is needed often, script it.
   workspace tied to the current directory, with its own token. The
   `workspace_admin_token` from `/tokens` belongs to another workspace, so
   the Events API reports the datasource as not found.
+- A failed deployment deletes itself and its error, and `--debug` shows
+  only `status: deleting`. Read the cause by running
+  `pnpm exec tinybird deploy --no-wait --no-auto`, then polling
+  `GET /v1/deployments` with the probe token: its `errors` list holds the
+  message for a few seconds. `deploy --check` validates only and can pass
+  while the real deploy fails.
+- A baseline holding only the datasources fails the deploy with
+  `some referenced tables do not exist` on views that are new in the
+  deploy. Use the full previous project (step 3).
+- Re-running `tinybird build --local` after a column gains only a `DEFAULT`
+  fails with `leftover forward query`. The local branch workspace already
+  has the column, so delete that branch workspace and rebuild.
 - Tinybird warns that a datasource with an explicit `FORWARD_QUERY` is
   backfilled by copying all data. On a large table this is a full copy
   at promotion time.
@@ -79,3 +92,8 @@ not a CI test. If it is needed often, script it.
 Run on 2026-11-14 with SDK 0.0.84 and `tb` 5.0.3: both SDK deploys
 succeeded and the seeded row got `reception_timestamp = timestamp`.
 Result is a single row, so it shows the mechanism, not scale.
+
+Run on 2026-11-15 for typed payload columns: baseline is the full #53
+project (`72aa52a`), 3 seeded rows, Deployment #2 live in 60.8 s, all
+three rows came out with the new columns parsed from their payload and
+`is_bot` unchanged. Three rows show the mechanism, not scale.
