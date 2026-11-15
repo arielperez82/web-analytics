@@ -25,12 +25,17 @@ const totalVisits = (rows: readonly TrendRow[]) =>
 describe.concurrent('live trend', () => {
   const env = inject('tinybird');
 
-  const series = (scope: Scope, expectedVisits: number) =>
+  const series = (
+    scope: Scope,
+    expectedVisits: number,
+    params: Readonly<Record<string, number>> = {}
+  ) =>
     waitForRow(
       () =>
         pipeRows<TrendRow>(env, 'trend', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
+          ...params,
         }),
       rows => totalVisits(rows) === expectedVisits
     );
@@ -128,6 +133,21 @@ describe.concurrent('live trend', () => {
     const rows = await series(scope, 25);
 
     expect(totalVisits(rows)).toBe(25);
+  });
+
+  it('leaves bots out unless asked to include them', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createPageHitEvent({ ...scope, pathname: '/' }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        userAgent: 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1',
+      }),
+    ]);
+
+    expect(totalVisits(await series(scope, 1))).toBe(1);
+    expect(totalVisits(await series(scope, 2, { include_bots: 1 }))).toBe(2);
   });
 
   it('never shows the traffic of a sibling site', async () => {

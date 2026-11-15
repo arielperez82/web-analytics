@@ -599,9 +599,12 @@ export const trend = defineEndpoint("trend", {
       name: "hits",
       description: "Get last 30 minutes metrics grouped by minute",
       sql: `
-        select toStartOfMinute(timestamp) as t, uniq(session_id) as visits
+        select toStartOfMinute(timestamp) as t, uniqCombined64(session_id) as visits
         from analytics_hits
         where timestamp >= (now() - interval 30 minute)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -623,6 +626,7 @@ export const trend = defineEndpoint("trend", {
   params: {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     t: t.dateTime(),
