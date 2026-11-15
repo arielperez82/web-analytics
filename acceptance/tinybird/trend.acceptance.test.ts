@@ -16,6 +16,8 @@ type TrendRow = { t: string; visits: number | string | null };
 const MINUTE_MS = 60_000;
 const minutesAgo = (minutes: number): Date =>
   new Date(Date.now() - minutes * MINUTE_MS);
+const startOfMinute = (ms: number): number =>
+  Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 const toTime = (t: string): number => Date.parse(`${t.replace(' ', 'T')}Z`);
 const totalVisits = (rows: readonly TrendRow[]) =>
   rows.reduce((sum, row) => sum + Number(row.visits ?? 0), 0);
@@ -56,35 +58,36 @@ describe.concurrent('live trend', () => {
     const scope = createScope();
     await ingestEvents(env, [createPageHitEvent({ ...scope, pathname: '/' })]);
 
+    const queriedFrom = Date.now();
     const rows = await series(scope, 1);
+    const queriedUntil = Date.now();
 
     const times = rows.map(row => toTime(row.t));
+    const newest = times.at(-1) ?? 0;
     expect(rows).toHaveLength(30);
     expect(times).toEqual([...times].sort((a, b) => a - b));
-    expect(Date.now() - (times.at(-1) ?? 0)).toBeLessThan(2 * MINUTE_MS);
-    expect(Date.now() - (times[0] ?? 0)).toBeGreaterThan(27 * MINUTE_MS);
+    expect(newest).toBeGreaterThanOrEqual(startOfMinute(queriedFrom));
+    expect(newest).toBeLessThanOrEqual(startOfMinute(queriedUntil));
+    expect(times[0]).toBe(newest - 29 * MINUTE_MS);
   });
 
   it('puts a visit in the minute it happened', async () => {
     const scope = createScope();
-    await ingestEvents(env, [hitAt(scope, 10)]);
+    const event = hitAt(scope, 10);
+    await ingestEvents(env, [event]);
 
     const rows = await series(scope, 1);
 
     const busy = rows.find(row => Number(row.visits ?? 0) > 0);
-    const age = Date.now() - toTime(busy?.t ?? '1970-01-01 00:00:00');
-    expect(age).toBeGreaterThanOrEqual(9 * MINUTE_MS);
-    expect(age).toBeLessThanOrEqual(11 * MINUTE_MS);
+    expect(toTime(busy?.t ?? '1970-01-01 00:00:00')).toBe(
+      startOfMinute(toTime(event.timestamp))
+    );
   });
 
   it('counts a visitor who viewed several pages in one minute once', async () => {
     const scope = createScope();
-    const sessionId = crypto.randomUUID();
-    await ingestEvents(env, [
-      hitAt(scope, 5, sessionId),
-      hitAt(scope, 5, sessionId),
-      hitAt(scope, 5, sessionId),
-    ]);
+    const hit = hitAt(scope, 5, crypto.randomUUID());
+    await ingestEvents(env, [hit, hit, hit]);
 
     const rows = await series(scope, 1);
 
