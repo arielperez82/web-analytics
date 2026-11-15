@@ -102,9 +102,10 @@ Ingestion lag is read from Tinybird's own ingestion log
 
 `analytics_events` stores the payload fields the dashboards read as typed
 columns (`pathname`, `href`, `referrer`, `location`, `locale`, `visitor_id`,
-`id_mode`, `utm_source`, `utm_medium`, `user_agent`, `domain_from_payload`),
-parsed once at ingest. `analytics_hits` and `tenant_actions` read the columns,
-not the JSON. The expressions live in `src/payload-columns.ts` and feed the
+`id_mode`, `utm_source`, `utm_medium`, `user_agent`, `domain_from_payload`,
+and the web vital fields `vital_name`, `vital_value`, `vital_delta`,
+`vital_value_present`),
+parsed once at ingest. `analytics_hits`, `tenant_actions` and the web vitals pipes read the
+columns, not the JSON. The expressions live in `src/payload-columns.ts` and feed the
 accepted view, the column defaults and the `forwardQuery`, so new rows, direct
-writes and backfilled history agree. `web_vital` events still parse their own
-fields from the payload.
+writes and backfilled history agree.

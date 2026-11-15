@@ -97,3 +97,8 @@ Run on 2026-11-15 for typed payload columns: baseline is the full #53
 project (`72aa52a`), 3 seeded rows, Deployment #2 live in 60.8 s, all
 three rows came out with the new columns parsed from their payload and
 `is_bot` unchanged. Three rows show the mechanism, not scale.
+
+Run on 2026-11-15 for typed web vital columns: baseline is the typed
+payload columns project, 3 seeded rows (LCP, a CLS of 0, a page hit),
+Deployment #2 live in 55.9 s, all rows backfilled and `web_vitals_current`
+counted the LCP and the zero CLS.
