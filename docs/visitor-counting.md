@@ -245,6 +245,8 @@ Layout (separate cards grouped by what they measure; one chart series at a time,
   - Visits: "Browsing sessions; one person can make several."
   - Active visits now: "Sessions with activity in the last 5 minutes."
 - Show the consented share (known visits over all visits) beside the visitor cards and channel rows.
+- The UI never calculates. Totals, rates, growth, shares and bar ratios all come from the API (see
+  `apps/dashboard/AGENTS.md`), which is also how the card totals and the exports stay identical.
 - Every explanation has three layers: a one-line caption, a keyboard-focusable popover, and a "How we count" link.
 - Chart caption: bars are per-day counts and can add up to more than the card.
 - Legacy periods: a chart band reading "Earlier data: visitors counted per session", and a card footnote only when the
