@@ -4,7 +4,7 @@
 
 import { defineMaterializedView, node } from "@tinybirdco/sdk";
 import { CLASSIFIER_VERSION, isBotSql } from "./bot-classifier";
-import { payloadColumnsSelect } from "./payload-columns";
+import { payloadColumnsSelect, visitorClassSql } from "./payload-columns";
 import {
   analyticsEvents,
   analyticsEventsRejected,
@@ -143,7 +143,7 @@ export const visitorStateDaily = defineMaterializedView("visitor_state_daily", {
             tenant_id,
             domain,
             is_bot,
-            multiIf(visitor_id = '', 'legacy', id_mode = 'persistent', 'known', id_mode IN ('daily_direct', 'daily_proxy'), 'daily', 'unknown') AS visitor_class,
+            ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors,
             uniqCombined64State(session_id) AS visits,
             countState() AS hits

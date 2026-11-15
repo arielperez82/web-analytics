@@ -10,6 +10,7 @@ import {
   type InferParams,
   type InferOutputRow,
 } from "@tinybirdco/sdk";
+import { visitorClassSql } from "./payload-columns";
 import { dashboardToken } from "./tokens";
 
 // ============================================================================
@@ -86,8 +87,29 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
   nodes: [
     node({
       name: "state_in_range",
-      description: "Daily visitor state inside the range, for the tenant and domain",
+      description:
+        "Per-day visitor states inside the range. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
       sql: `
+        {% if defined(location) or defined(device) or defined(browser) %}
+        SELECT
+            toDate(timestamp) AS date,
+            ${visitorClassSql} AS visitor_class,
+            uniqCombined64State(visitor_key) AS visitors,
+            uniqCombined64State(session_id) AS visits
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %}
+            AND toDate(timestamp) <= {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %}
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY date, visitor_class
+        {% else %}
         SELECT date, visitor_class, visitors, visits
         FROM visitor_state_daily_mv
         WHERE date >= {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %}
@@ -101,6 +123,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
+        {% end %}
       `,
     }),
     node({
@@ -129,6 +152,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    ...crossFilterParams,
     include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {

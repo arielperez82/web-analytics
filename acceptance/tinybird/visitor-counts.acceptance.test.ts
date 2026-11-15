@@ -11,6 +11,8 @@ import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CHROME_DESKTOP = 'Mozilla/5.0 (Macintosh) Chrome/120';
+const SAFARI_IPHONE = 'Mozilla/5.0 (iPhone) Safari';
 const CRAWLER = 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1';
 const daysAgo = (days: number): Date => new Date(Date.now() - days * DAY_MS);
 const dayOf = (days: number): string =>
@@ -179,5 +181,98 @@ describe.concurrent('visitor counts', () => {
     const result = await counts(mine, 1);
 
     expect(result).toMatchObject({ known: 1, visits: 1 });
+  });
+  describe('with cross filters', () => {
+    const visitor = (
+      scope: Scope,
+      visitorId: string,
+      options: { location?: string; userAgent?: string; days?: number }
+    ) =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        visitorId,
+        idMode: 'persistent',
+        now: daysAgo(options.days ?? 1),
+        ...(options.location === undefined
+          ? {}
+          : { location: options.location }),
+        ...(options.userAgent === undefined
+          ? {}
+          : { userAgent: options.userAgent }),
+      });
+
+    it('counts only the visitors from the chosen country, across days', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        visitor(scope, 'v-es', { location: 'ES', days: 3 }),
+        visitor(scope, 'v-es', { location: 'ES', days: 2 }),
+        visitor(scope, 'v-us', { location: 'US' }),
+      ]);
+
+      const result = await counts(scope, 2, { location: 'ES' });
+
+      expect(result).toEqual({ known: 1, daily: 0, legacy: 0, visits: 2 });
+    });
+
+    it('counts only the chosen device and the chosen browser', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        visitor(scope, 'v-phone', { userAgent: SAFARI_IPHONE }),
+        visitor(scope, 'v-desk-1', { userAgent: CHROME_DESKTOP }),
+        visitor(scope, 'v-desk-2', { userAgent: CHROME_DESKTOP }),
+      ]);
+
+      const phones = await counts(scope, 1, { device: 'mobile-ios' });
+      const chrome = await counts(scope, 2, { browser: 'chrome' });
+
+      expect(phones).toMatchObject({ known: 1, visits: 1 });
+      expect(chrome).toMatchObject({ known: 2, visits: 2 });
+    });
+
+    it('agrees with the unfiltered counts when the filter matches everything', async () => {
+      const scope = createScope();
+      const daily = (visitorId: string, days: number) =>
+        createPageHitEvent({
+          ...scope,
+          pathname: '/a',
+          visitorId,
+          idMode: 'daily_direct',
+          location: 'ES',
+          now: daysAgo(days),
+        });
+      await ingestEvents(env, [
+        visitor(scope, 'v-1', { location: 'ES', days: 3 }),
+        visitor(scope, 'v-1', { location: 'ES', days: 2 }),
+        visitor(scope, 'v-2', { location: 'ES', days: 2 }),
+        daily('d-1', 2),
+        daily('d-1', 1),
+        createPageHitEvent({
+          ...scope,
+          pathname: '/a',
+          sessionId: 'l-1',
+          location: 'ES',
+        }),
+      ]);
+
+      const unfiltered = await counts(scope, 6);
+      const filtered = await counts(scope, 6, { location: 'ES' });
+
+      expect(filtered).toEqual(unfiltered);
+      expect(unfiltered).toMatchObject({ known: 2, daily: 2, legacy: 1 });
+    });
+
+    it('shows bot traffic when the device filter asks for bots', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        visitor(scope, 'v-human', { userAgent: CHROME_DESKTOP }),
+        visitor(scope, 'v-crawler-1', { userAgent: CRAWLER }),
+        visitor(scope, 'v-crawler-2', { userAgent: CRAWLER }),
+      ]);
+
+      const result = await counts(scope, 2, { device: 'bot' });
+
+      expect(result).toMatchObject({ known: 2, visits: 2 });
+    });
   });
 });

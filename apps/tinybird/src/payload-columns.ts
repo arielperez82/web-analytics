@@ -33,3 +33,6 @@ export const payloadColumnNames = Object.keys(
 export const payloadColumnsSelect = payloadColumnNames
   .map((name) => `${payloadColumnSql[name]} AS ${name}`)
   .join(",\n            ");
+
+export const visitorClassSql =
+  "multiIf(visitor_id = '', 'legacy', id_mode = 'persistent', 'known', id_mode IN ('daily_direct', 'daily_proxy'), 'daily', 'unknown')";
