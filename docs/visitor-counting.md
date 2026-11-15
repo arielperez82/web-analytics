@@ -265,19 +265,21 @@ Constraints that come straight from the definitions:
   `device`/`browser`/`location` as `any(...)`, so it already loses multi-valued hits.
 - Per-UTC-day states cannot be re-cut into other zones. This is fine because the time zone decision is UTC.
 - State size is up to about 96 KiB per group at high cardinality, so a wide dimension cross-product bloats storage.
-- Whether we need a materialized view at all depends on volume: **unverified.** Counting directly from `analytics_hits`
-  for the current scale may be simpler and exact.
+- **Decided: both.** The unfiltered headline counts (D1 to D3) read `visitor_state_daily_mv`, which holds mergeable
+  `uniqCombined64State` states per UTC day, tenant, domain, bot flag and visitor class (`known`, `daily`, `legacy`).
+  Cross-filtered queries (section 7) read `analytics_hits` directly, because a state answers only the dimensions it
+  keeps. Whether the volume needs the state at all is still **unverified**; it is cheap to keep and a deploy
+  populates it from existing history (checked locally on 3 rows).
 - Ingest-time logic lives in the Null-engine landing and its views (`apps/tinybird/README.md`), including the
   reception-time bounds and the trust window, so aggregates only ever see trusted events.
 - `visitor_id` and `id_mode` are already columns of `analytics_hits`. **Built:** `is_bot` and `classifier_version`
   (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
-  set `is_bot`: the landing has no such column. Not built yet: the include-bots toggle and bot exclusion in the visitor
-  and visit counts.
+  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows. Not
+  built yet: the endpoints that read it, and the include-bots toggle.
 
 ## 13. Open items
 
 - **Unverified:** estimator error on real, skewed traffic (section 9 measures uniformly distinct ids).
 - **Unverified:** the production rollout date of `visitor_id` and how much existing traffic predates it.
 - **Unverified:** Plausible's rotation time zone and the report time zones of Umami, Matomo and Simple Analytics.
-- Decide pipes vs materialized views once the `uniqCombined64` test (section 9) is done.
