@@ -3,6 +3,7 @@
  */
 
 import { defineMaterializedView, node } from "@tinybirdco/sdk";
+import { CLASSIFIER_VERSION, isBotSql } from "./bot-classifier";
 import {
   analyticsEvents,
   analyticsEventsRejected,
@@ -55,7 +56,9 @@ export const analyticsEventsAccepted = defineMaterializedView(
             payload,
             tenant_id,
             domain,
-            ${receptionTimestamp} AS reception_timestamp
+            ${receptionTimestamp} AS reception_timestamp,
+            ${isBotSql} AS is_bot,
+            '${CLASSIFIER_VERSION}' AS classifier_version
         FROM analytics_events_landing
         WHERE ${insideTrustWindow}
       `,

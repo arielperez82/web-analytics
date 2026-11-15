@@ -61,6 +61,16 @@ Deploy from an up-to-date `main`, never from a branch behind it, and run the che
 endpoint (#30) is not in cloud deployment 10; until the next deploy the dashboard's conversions panels fail
 against the cloud workspace. The `tinybird` CLI must be on `PATH` for `check:tinybird`.
 
+## Bots and the visitor key
+
+`is_bot` and `classifier_version` are stamped once, when the accepted view stores an event, from the user agent in the
+payload (`src/bot-classifier.ts`). Senders cannot set them: the landing has no such columns. Change the rule and
+`CLASSIFIER_VERSION` together so stored history keeps the classification it was written with. The migration
+`forwardQuery` and the column defaults use the same expression, so existing rows and direct seeds are classified too.
+
+`analytics_hits` exposes `is_bot` and `visitor_key`: the `visitor_id` when present, otherwise `legacy:` plus the
+session id, so legacy keys can never collide with real visitor ids.
+
 ## Ingest and time
 
 Two timestamps travel with every event:

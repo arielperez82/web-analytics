@@ -41,6 +41,8 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             JSONExtractString(payload, 'utm_medium') as utm_medium,
             JSONExtractString(payload, 'visitor_id') as visitor_id,
             JSONExtractString(payload, 'id_mode') as id_mode,
+            if(visitor_id != '', visitor_id, concat('legacy:', session_id)) as visitor_key,
+            is_bot,
             if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
             lower(coalesce(nullIf(JSONExtractString(payload, 'user_agent'), ''), JSONExtractString(payload, 'user-agent'))) as user_agent
         FROM analytics_events
@@ -84,9 +86,11 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             utm_medium,
             visitor_id,
             id_mode,
+            visitor_key,
+            is_bot,
             current_domain,
             case
-                when match(user_agent, 'wget|ahrefsbot|curl|urllib|bitdiscovery|\\+https://|googlebot')
+                when is_bot = 1
                 then 'bot'
                 when match(user_agent, 'android')
                 then 'mobile-android'
@@ -138,6 +142,8 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
     utm_medium: t.string(),
     visitor_id: t.string(),
     id_mode: t.string(),
+    visitor_key: t.string(),
+    is_bot: t.uint8(),
     current_domain: t.string(),
     device: t.string(),
     browser: t.string(),

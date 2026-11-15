@@ -269,8 +269,11 @@ Constraints that come straight from the definitions:
   for the current scale may be simpler and exact.
 - Ingest-time logic lives in the Null-engine landing and its views (`apps/tinybird/README.md`), including the
   reception-time bounds and the trust window, so aggregates only ever see trusted events.
-- `visitor_id` and `id_mode` are already columns of `analytics_hits`. `is_bot` and `classifier_version` (section 8) and
-  the `legacy:` key namespacing (D6) are the only ingest-adjacent additions.
+- `visitor_id` and `id_mode` are already columns of `analytics_hits`. **Built:** `is_bot` and `classifier_version`
+  (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
+  `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
+  set `is_bot`: the landing has no such column. Not built yet: the include-bots toggle and bot exclusion in the visitor
+  and visit counts.
 
 ## 13. Open items
 
