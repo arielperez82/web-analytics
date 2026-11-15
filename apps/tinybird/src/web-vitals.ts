@@ -66,12 +66,12 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             tenant_id,
             multiIf(domain != '', domain, current_domain != '', current_domain, domain_from_payload) as domain,
             if(domainWithoutWWW(href) = '' and href is not null and href != '', URLHierarchy(href)[1], domainWithoutWWW(href)) as current_domain,
-            JSONExtractString(payload, 'name') as metric_name,
-            JSONExtractFloat(payload, 'value') as value,
-            JSONExtractFloat(payload, 'delta') as delta,
-            JSONExtractString(payload, 'pathname') as pathname,
-            JSONExtractString(payload, 'domain') as domain_from_payload,
-            JSONExtractString(payload, 'href') as href
+            vital_name as metric_name,
+            vital_value as value,
+            vital_delta as delta,
+            pathname,
+            domain_from_payload,
+            href
         FROM analytics_events
         WHERE action = 'web_vital'
             {% if defined(from_date) %}
@@ -80,27 +80,23 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             {% if defined(to_date) %}
             AND timestamp <= {{ Date(to_date, description="Finishing date", required=False) }}
             {% end %}
-            AND JSONExtractString(payload, 'name') IN ('LCP', 'TTFB', 'FCP', 'INP', 'CLS')
-            AND JSONExtractString(payload, 'pathname') != ''
+            AND vital_name IN ('LCP', 'TTFB', 'FCP', 'INP', 'CLS')
+            AND pathname != ''
             AND (
-                JSONExtractFloat(payload, 'value') > 0
+                vital_value > 0
                 OR (
-                    JSONExtractString(payload, 'name') = 'CLS'
-                    AND JSONExtractFloat(payload, 'value') = 0
-                    AND JSONHas(payload, 'value')
-                    AND (
-                        JSONType(payload, 'value') IN ('Int64', 'UInt64', 'Double')
-                        OR toFloat64OrNull(JSONExtractString(payload, 'value')) IS NOT NULL
-                    )
+                    vital_name = 'CLS'
+                    AND vital_value = 0
+                    AND vital_value_present = 1
                 )
             )
-            AND JSONExtractFloat(payload, 'value') < 60000
+            AND vital_value < 60000
             AND (
-                (JSONExtractString(payload, 'name') = 'LCP' AND JSONExtractFloat(payload, 'value') < 30000) OR
-                (JSONExtractString(payload, 'name') = 'TTFB' AND JSONExtractFloat(payload, 'value') < 30000) OR
-                (JSONExtractString(payload, 'name') = 'FCP' AND JSONExtractFloat(payload, 'value') < 30000) OR
-                (JSONExtractString(payload, 'name') = 'INP' AND JSONExtractFloat(payload, 'value') < 10000) OR
-                (JSONExtractString(payload, 'name') = 'CLS' AND JSONExtractFloat(payload, 'value') < 1)
+                (vital_name = 'LCP' AND vital_value < 30000) OR
+                (vital_name = 'TTFB' AND vital_value < 30000) OR
+                (vital_name = 'FCP' AND vital_value < 30000) OR
+                (vital_name = 'INP' AND vital_value < 10000) OR
+                (vital_name = 'CLS' AND vital_value < 1)
             )
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
