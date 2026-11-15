@@ -275,8 +275,9 @@ Constraints that come straight from the definitions:
 - `visitor_id` and `id_mode` are already columns of `analytics_hits`. **Built:** `is_bot` and `classifier_version`
   (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
-  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows. Not
-  built yet: the endpoints that read it, and the include-bots toggle.
+  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows, and the
+  `visitor_counts` endpoint that reads it (known, daily as person-days, legacy, visits; bots out unless
+  `include_bots=1`). Not built yet: `current_visitors`, `trend` and `kpis` on the new definitions.
 
 ## 13. Open items
 

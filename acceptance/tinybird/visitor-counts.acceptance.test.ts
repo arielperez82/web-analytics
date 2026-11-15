@@ -1,0 +1,183 @@
+import { describe, expect, inject, it } from 'vitest';
+
+import {
+  createPageHitEvent,
+  createRivalTenant,
+  createScope,
+  type Scope,
+} from '../../testing/tinybird/helpers/factories';
+import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
+import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
+import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CRAWLER = 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1';
+const daysAgo = (days: number): Date => new Date(Date.now() - days * DAY_MS);
+const dayOf = (days: number): string =>
+  daysAgo(days).toISOString().slice(0, 10);
+
+type CountsRow = {
+  known_visitors: number | string;
+  daily_visitors: number | string;
+  legacy_visitors: number | string;
+  visits: number | string;
+};
+
+type Counts = {
+  readonly known: number;
+  readonly daily: number;
+  readonly legacy: number;
+  readonly visits: number;
+};
+
+describe.concurrent('visitor counts', () => {
+  const env = inject('tinybird');
+
+  const counts = (
+    scope: Scope,
+    expectedVisits: number,
+    params: Readonly<Record<string, number | string>> = {}
+  ): Promise<Counts> =>
+    waitForRow(
+      () =>
+        pipeRows<CountsRow>(env, 'visitor_counts', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          date_from: dayOf(10),
+          date_to: dayOf(0),
+          ...params,
+        }),
+      rows => Number(rows[0]?.visits) === expectedVisits
+    ).then(rows => ({
+      known: Number(rows[0]?.known_visitors),
+      daily: Number(rows[0]?.daily_visitors),
+      legacy: Number(rows[0]?.legacy_visitors),
+      visits: Number(rows[0]?.visits),
+    }));
+
+  const persistent = (scope: Scope, visitorId: string, days: number) =>
+    createPageHitEvent({
+      ...scope,
+      pathname: '/a',
+      visitorId,
+      idMode: 'persistent',
+      now: daysAgo(days),
+    });
+
+  it('counts a known visitor once however many days they came', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      persistent(scope, 'v-1', 3),
+      persistent(scope, 'v-1', 2),
+      persistent(scope, 'v-1', 1),
+    ]);
+
+    const result = await counts(scope, 3);
+
+    expect(result).toEqual({ known: 1, daily: 0, legacy: 0, visits: 3 });
+  });
+
+  it('adds up daily visitors day by day', async () => {
+    const scope = createScope();
+    const daily = (visitorId: string, days: number) =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        visitorId,
+        idMode: 'daily_direct',
+        now: daysAgo(days),
+      });
+    await ingestEvents(env, [
+      daily('d-1', 2),
+      daily('d-1', 1),
+      daily('d-2', 1),
+    ]);
+
+    const result = await counts(scope, 3);
+
+    expect(result).toMatchObject({ known: 0, daily: 3 });
+  });
+
+  it('counts a session that crosses a UTC midnight as one visit', async () => {
+    const scope = createScope();
+    const crossing = (days: number) =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        sessionId: 's-crossing',
+        visitorId: 'v-x',
+        idMode: 'persistent',
+        now: daysAgo(days),
+      });
+    await ingestEvents(env, [crossing(2), crossing(1)]);
+
+    const result = await counts(scope, 1);
+
+    expect(result).toMatchObject({ known: 1, visits: 1 });
+  });
+
+  it('reports legacy visitors apart from known ones', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createPageHitEvent({ ...scope, pathname: '/a', sessionId: 'l-1' }),
+      createPageHitEvent({ ...scope, pathname: '/b', sessionId: 'l-2' }),
+      persistent(scope, 'v-1', 1),
+    ]);
+
+    const result = await counts(scope, 3);
+
+    expect(result).toMatchObject({ known: 1, legacy: 2 });
+  });
+
+  it('leaves bots out unless asked to include them', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      persistent(scope, 'v-human', 1),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        visitorId: 'v-crawler',
+        idMode: 'persistent',
+        userAgent: CRAWLER,
+        now: daysAgo(1),
+      }),
+    ]);
+
+    const humans = await counts(scope, 1);
+    const everyone = await counts(scope, 2, { include_bots: 1 });
+
+    expect(humans).toMatchObject({ known: 1, visits: 1 });
+    expect(everyone).toMatchObject({ known: 2, visits: 2 });
+  });
+
+  it('counts only the days inside the range, both ends included', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      persistent(scope, 'v-old', 5),
+      persistent(scope, 'v-first', 3),
+      persistent(scope, 'v-last', 2),
+      persistent(scope, 'v-new', 1),
+    ]);
+
+    const result = await counts(scope, 2, {
+      date_from: dayOf(3),
+      date_to: dayOf(2),
+    });
+
+    expect(result).toMatchObject({ known: 2, visits: 2 });
+  });
+
+  it('never shows the visitors of another tenant on the same domain', async () => {
+    const mine = createScope();
+    const rival = createRivalTenant(mine);
+    await ingestEvents(env, [
+      persistent(mine, 'v-mine', 1),
+      persistent(rival, 'v-rival-1', 1),
+      persistent(rival, 'v-rival-2', 1),
+    ]);
+
+    const result = await counts(mine, 1);
+
+    expect(result).toMatchObject({ known: 1, visits: 1 });
+  });
+});

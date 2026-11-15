@@ -72,6 +72,73 @@ export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
 /**
+ * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, read from the
+ * daily visitor state. Bots are left out unless include_bots=1.
+ */
+export const visitorCounts = defineEndpoint("visitor_counts", {
+  description:
+    "Known visitors, daily visitors (person-days), legacy visitors and visits over a UTC date range, bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "state_in_range",
+      description: "Daily visitor state inside the range, for the tenant and domain",
+      sql: `
+        SELECT date, visitor_class, visitors, visits
+        FROM visitor_state_daily_mv
+        WHERE date >= {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %}
+            AND date <= {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
+      name: "daily_visitors_per_day",
+      description: "Daily ids cannot be linked across days, so count them per day",
+      sql: `
+        SELECT date, uniqCombined64MergeIf(visitors, visitor_class = 'daily') AS n
+        FROM state_in_range
+        GROUP BY date
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            uniqCombined64MergeIf(visitors, visitor_class = 'known') AS known_visitors,
+            (SELECT sum(n) FROM daily_visitors_per_day) AS daily_visitors,
+            uniqCombined64MergeIf(visitors, visitor_class = 'legacy') AS legacy_visitors,
+            uniqCombined64Merge(visits) AS visits
+        FROM state_in_range
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    known_visitors: t.uint64(),
+    daily_visitors: t.uint64(),
+    legacy_visitors: t.uint64(),
+    visits: t.uint64(),
+  },
+});
+
+export type VisitorCountsParams = InferParams<typeof visitorCounts>;
+export type VisitorCountsOutput = InferOutputRow<typeof visitorCounts>;
+
+/**
  * Tenants - every tenant with its domain count and total hits. Events that
  * carry no tenant appear with an empty tenant_id.
  */
