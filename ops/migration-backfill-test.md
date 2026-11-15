@@ -102,3 +102,9 @@ Run on 2026-11-15 for typed web vital columns: baseline is the typed
 payload columns project, 3 seeded rows (LCP, a CLS of 0, a page hit),
 Deployment #2 live in 55.9 s, all rows backfilled and `web_vitals_current`
 counted the LCP and the zero CLS.
+
+Run on 2026-11-15 for the daily visitor state: baseline is the typed web
+vital columns project, 3 seeded rows (a known visitor over two days, one
+legacy hit), Deployment #2 live in 45.7 s. The new view was populated from
+the existing rows (known visitors 1 and visits 2 over the range), so a deploy
+backfills a new materialized view.
