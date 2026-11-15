@@ -20,6 +20,8 @@ type StoredRow = {
   utm_source: string;
   utm_medium: string;
   user_agent: string;
+  locale: string;
+  domain_from_payload: string;
 };
 
 const LANDING = { datasource: 'analytics_events_landing' };
@@ -32,7 +34,7 @@ describe.concurrent('payload fields parsed once at ingest', () => {
       () =>
         querySql<StoredRow>(
           env,
-          `SELECT pathname, href, referrer, location, visitor_id, id_mode, utm_source, utm_medium, user_agent FROM analytics_events WHERE tenant_id = '${tenantId}'`
+          `SELECT pathname, href, referrer, location, visitor_id, id_mode, utm_source, utm_medium, user_agent, locale, domain_from_payload FROM analytics_events WHERE tenant_id = '${tenantId}'`
         ),
       rows => rows.length > 0
     );
@@ -48,6 +50,7 @@ describe.concurrent('payload fields parsed once at ingest', () => {
           location: 'ES',
           referrer: 'https://news.example/post',
           visitorId: 'v-typed-1',
+          locale: 'es-ES',
           idMode: 'cookieless',
           userAgent: 'Mozilla/5.0 Firefox/120.0',
           utm: { utm_source: 'newsletter', utm_medium: 'email' },
@@ -69,6 +72,8 @@ describe.concurrent('payload fields parsed once at ingest', () => {
         utm_source: 'newsletter',
         utm_medium: 'email',
         user_agent: 'mozilla/5.0 firefox/120.0',
+        locale: 'es-ES',
+        domain_from_payload: scope.domain,
       },
     ]);
   });
@@ -92,6 +97,8 @@ describe.concurrent('payload fields parsed once at ingest', () => {
       utm_source: '',
       utm_medium: '',
       user_agent: '',
+      locale: '',
+      domain_from_payload: scope.domain,
     });
   });
 });

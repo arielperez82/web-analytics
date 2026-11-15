@@ -25,6 +25,10 @@ export const analyticsEvents = defineDatasource("analytics_events", {
     href: t.string().defaultExpr(payloadColumnSql.href),
     referrer: t.string().defaultExpr(payloadColumnSql.referrer),
     location: t.string().defaultExpr(payloadColumnSql.location),
+    locale: t.string().defaultExpr(payloadColumnSql.locale),
+    domain_from_payload: t
+      .string()
+      .defaultExpr(payloadColumnSql.domain_from_payload),
     visitor_id: t.string().defaultExpr(payloadColumnSql.visitor_id),
     id_mode: t.string().defaultExpr(payloadColumnSql.id_mode),
     utm_source: t.string().defaultExpr(payloadColumnSql.utm_source),
@@ -40,7 +44,7 @@ export const analyticsEvents = defineDatasource("analytics_events", {
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
-  forwardQuery: `SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp, ${payloadColumnsSelect.replace(/\n\s+/g, ' ')}, ${isBotSql} AS is_bot, toLowCardinality('${CLASSIFIER_VERSION}') AS classifier_version`,
+  forwardQuery: `SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp, ${payloadColumnsSelect.replace(/\n\s+/g, " ")}, ${isBotSql} AS is_bot, toLowCardinality('${CLASSIFIER_VERSION}') AS classifier_version`,
 });
 
 /**

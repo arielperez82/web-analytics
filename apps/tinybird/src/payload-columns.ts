@@ -12,6 +12,8 @@ export const payloadColumnSql = {
   href: fromPayload("href"),
   referrer: fromPayload("referrer"),
   location: fromPayload("location"),
+  locale: fromPayload("locale"),
+  domain_from_payload: fromPayload("domain"),
   visitor_id: fromPayload("visitor_id"),
   id_mode: fromPayload("id_mode"),
   utm_source: fromPayload("utm_source"),
