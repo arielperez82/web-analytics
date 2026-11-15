@@ -4,6 +4,7 @@
 
 import { defineDatasource, t, engine, type InferRow } from "@tinybirdco/sdk";
 import { analyticsEventsColumns } from "@web-analytics/event-schema";
+import { CLASSIFIER_VERSION, isBotSql } from "./bot-classifier";
 import { trackerToken } from "./tokens";
 
 // ============================================================================
@@ -19,13 +20,17 @@ export const analyticsEvents = defineDatasource("analytics_events", {
   schema: {
     ...analyticsEventsColumns,
     reception_timestamp: t.dateTime64(3),
+    is_bot: t.uint8().defaultExpr(isBotSql),
+    classifier_version: t
+      .string()
+      .lowCardinality()
+      .defaultExpr(`'${CLASSIFIER_VERSION}'`),
   },
   engine: engine.mergeTree({
     partitionKey: "toYYYYMM(timestamp)",
     sortingKey: ["tenant_id", "domain", "timestamp"],
   }),
-  forwardQuery:
-    "SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp",
+  forwardQuery: `SELECT timestamp, session_id, action, version, payload, tenant_id, domain, toDateTime64(timestamp, 3) AS reception_timestamp, ${isBotSql} AS is_bot, toLowCardinality('${CLASSIFIER_VERSION}') AS classifier_version`,
 });
 
 /**
