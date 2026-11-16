@@ -75,7 +75,7 @@ describe("proxyEndpoint", () => {
 
   it("serves the overview endpoints and no longer serves kpis", async () => {
     const { deps } = createFakeDeps();
-    for (const name of ["visitor_counts", "engagement", "daily_series"]) {
+    for (const name of ["visitor_counts", "engagement", "daily_series", "conversion_summary"]) {
       expect((await proxyEndpoint(request(name), deps)).status).toBe(200);
     }
     expect((await proxyEndpoint(request("kpis"), deps)).status).toBe(404);

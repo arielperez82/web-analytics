@@ -12,6 +12,7 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "top_sources",
   "channels",
   "conversions",
+  "conversion_summary",
   "top_locations",
   "top_devices",
   "top_browsers",
