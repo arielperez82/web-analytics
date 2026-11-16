@@ -221,6 +221,141 @@ export type VisitorCountsParams = InferParams<typeof visitorCounts>;
 export type VisitorCountsOutput = InferOutputRow<typeof visitorCounts>;
 
 /**
+ * Engagement - page views, pages per visit, bounce rate and average session length over a UTC date
+ * range, weighted by visit, with the equal-length period before it and growth. Visits that cross a
+ * UTC midnight count once. Bots are left out unless include_bots=1.
+ */
+export const engagement = defineEndpoint("engagement", {
+  description:
+    "Page views, pages per visit, bounce rate (percent) and average session seconds over a UTC date range, weighted by visit, with the previous period and growth. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range and the equal-length period before it",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            dateDiff('day', current_start, current_end) + 1 AS period_days,
+            current_start - period_days AS previous_start
+      `,
+    }),
+    node({
+      name: "engaged_sessions",
+      description: "Visits where the visitor did something besides view pages. Automatic web vitals do not count.",
+      sql: `
+        SELECT DISTINCT session_id
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
+      name: "visits",
+      description: "One row per visit over both periods, placed in the period of its first page view",
+      sql: `
+        SELECT
+            session_id,
+            if(toDate(min(timestamp)) >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            count() AS visit_pageviews,
+            toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
+            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY session_id, tenant_id, domain
+      `,
+    }),
+    node({
+      name: "period_totals",
+      sql: `
+        SELECT
+            countIf(period = 'current') AS visit_count,
+            sumIf(visit_pageviews, period = 'current') AS pageviews,
+            sumIf(is_bounce, period = 'current') AS bounces,
+            sumIf(duration_sec, period = 'current') AS duration_total,
+            countIf(period = 'previous') AS previous_visit_count,
+            sumIf(visit_pageviews, period = 'previous') AS previous_pageviews,
+            sumIf(is_bounce, period = 'previous') AS previous_bounces,
+            sumIf(duration_sec, period = 'previous') AS previous_duration_total
+        FROM visits
+      `,
+    }),
+    node({
+      name: "rates",
+      sql: `
+        SELECT
+            pageviews,
+            round(if(visit_count = 0, 0, pageviews * 1.0 / visit_count), 2) AS views_per_visit,
+            round(if(visit_count = 0, 0, bounces * 100.0 / visit_count), 2) AS bounce_rate_percent,
+            round(if(visit_count = 0, 0, duration_total * 1.0 / visit_count), 2) AS avg_session_sec,
+            previous_pageviews,
+            round(if(previous_visit_count = 0, 0, previous_bounces * 100.0 / previous_visit_count), 2) AS previous_bounce_rate_percent,
+            round(if(previous_visit_count = 0, 0, previous_duration_total * 1.0 / previous_visit_count), 2) AS previous_avg_session_sec
+        FROM period_totals
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            pageviews,
+            views_per_visit,
+            bounce_rate_percent,
+            avg_session_sec,
+            previous_pageviews,
+            previous_bounce_rate_percent,
+            previous_avg_session_sec,
+            ${growthPercentSql("pageviews", "previous_pageviews")} AS pageviews_growth_percent,
+            ${growthPercentSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_growth_percent,
+            ${growthPercentSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_growth_percent
+        FROM rates
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    ...crossFilterParams,
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    pageviews: t.uint64(),
+    views_per_visit: t.float64(),
+    bounce_rate_percent: t.float64(),
+    avg_session_sec: t.float64(),
+    previous_pageviews: t.uint64(),
+    previous_bounce_rate_percent: t.float64(),
+    previous_avg_session_sec: t.float64(),
+    pageviews_growth_percent: t.float64(),
+    bounce_rate_growth_percent: t.float64(),
+    avg_session_sec_growth_percent: t.float64(),
+  },
+});
+
+export type EngagementParams = InferParams<typeof engagement>;
+export type EngagementOutput = InferOutputRow<typeof engagement>;
+
+/**
  * Tenants - every tenant with its domain count and total hits. Events that
  * carry no tenant appear with an empty tenant_id.
  */

@@ -281,7 +281,9 @@ Constraints that come straight from the definitions:
   `visitor_counts` endpoint that reads it (known, daily as person-days, legacy, visits; bots out unless
   `include_bots=1`; with a location, device or browser filter the same per-day states are built from `analytics_hits`,
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
-  `include_bots=1`. Not built yet: `kpis` on the new definitions.
+  `include_bots=1`. **Built:** `engagement` (page views, pages per visit, bounce rate and average session length,
+  weighted by visit over the whole range, with the previous period and growth). Not built yet: the daily series, and
+  the dashboard on these endpoints instead of `kpis`.
 
 ## 13. Open items
 

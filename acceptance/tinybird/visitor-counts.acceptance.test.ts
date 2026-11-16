@@ -16,7 +16,7 @@ const SAFARI_IPHONE = 'Mozilla/5.0 (iPhone) Safari';
 const CRAWLER = 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1';
 const daysAgo = (days: number): Date => new Date(Date.now() - days * DAY_MS);
 const dayOf = (days: number): string =>
-  daysAgo(days).toISOString().slice(0, 10);
+  new Date(daysAgo(days).getTime() - 60_000).toISOString().slice(0, 10);
 
 type CountsRow = {
   known_visitors: number | string;
