@@ -33,6 +33,7 @@ export default {
     ],
     "apps/dashboard/src/**/*.{ts,tsx}": () => [
       "pnpm run typecheck:dashboard",
+      "pnpm run lint:ui-arithmetic",
       "pnpm run test:dashboard"
     ],
     "apps/tinybird/src/**/*.ts": () => [

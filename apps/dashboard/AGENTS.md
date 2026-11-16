@@ -20,3 +20,5 @@ what it receives.
   from one call over the whole range, never from summing per-day rows.
 - If a screen needs a figure no endpoint returns, add or extend an endpoint (with an acceptance test) before writing
   the screen.
+- Enforced by `pnpm lint:ui-arithmetic` (`eslint.ui-arithmetic.config.js`) in `components/` and `app/`: no arithmetic
+  operators, `reduce` or `Math` there. `lib/` is not policed; keep it to formatting, ranges and ordering.

@@ -42,6 +42,9 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck:dashboard
 
+      - name: UI does not calculate
+        run: pnpm run lint:ui-arithmetic
+
       - name: Build
         run: pnpm run build:dashboard
         env:
