@@ -213,7 +213,6 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
-    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     known_visitors: t.uint64(),
@@ -349,7 +348,6 @@ export const engagement = defineEndpoint("engagement", {
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
-    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     pageviews: t.uint64(),
@@ -447,7 +445,6 @@ export const dailySeries = defineEndpoint("daily_series", {
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
     ...crossFilterParams,
-    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     date: t.date(),
