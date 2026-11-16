@@ -8,7 +8,7 @@ import { orderVitals } from "@/lib/vitals-order";
 import { fmt, Panel, Status, type Row } from "./ui";
 
 export const SpeedInsights = ({ params }: { params: QueryParams }) => {
-  const scope = { domain: params.domain, days: params.days };
+  const scope = { domain: params.domain, date_from: params.date_from, date_to: params.date_to };
   const vitals = useEndpoint<Row>("web_vitals_current", scope);
   const routes = useEndpoint<Row>("web_vitals_routes", { ...scope, sort_order: "asc", limit: "10" });
   const ordered = orderVitals(vitals.data ?? []);
