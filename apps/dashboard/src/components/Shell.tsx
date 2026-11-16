@@ -65,6 +65,16 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             <option key={String(row.domain)} value={String(row.domain)}>{String(row.domain)}</option>
           ))}
         </select>
+        {!onSpeed && (
+          <label>
+            <input
+              type="checkbox"
+              checked={state.includeBots === true}
+              onChange={(e) => update({ ...state, includeBots: e.target.checked || undefined })}
+            />{" "}
+            Include bots
+          </label>
+        )}
         <DateRangePicker range={state.range} onChange={(range) => update({ ...state, range })} />
         <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
       </header>

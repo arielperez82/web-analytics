@@ -72,3 +72,59 @@ test('picking a location slices every widget by it', async ({ page }) => {
     .toEqual(['FR', 'FR', 'FR', 'FR']);
   await expect(page).toHaveURL(/location=FR/);
 });
+
+const BOT_AWARE = [
+  'visitor_counts',
+  'engagement',
+  'daily_series',
+  'top_locations',
+  'top_devices',
+  'top_browsers',
+  'top_pages',
+  'top_sources',
+  'channels',
+  'conversions',
+  'conversion_summary',
+];
+
+test('bots are left out until the viewer includes them', async ({ page }) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  await expect(page.getByText('+20% vs previous period')).toBeVisible();
+  for (const endpoint of BOT_AWARE) {
+    expect(api.requestsTo(endpoint).at(-1)?.has('include_bots')).toBe(false);
+  }
+
+  await page.getByRole('checkbox', { name: 'Include bots' }).click();
+
+  await expect(
+    page.getByRole('checkbox', { name: 'Include bots' })
+  ).toBeChecked();
+
+  await expect(page).toHaveURL(/bots=1/);
+  await expect
+    .poll(() =>
+      BOT_AWARE.map(endpoint =>
+        api.requestsTo(endpoint).at(-1)?.get('include_bots')
+      )
+    )
+    .toEqual(BOT_AWARE.map(() => '1'));
+});
+
+test('speed insights do not offer the bot toggle', async ({ page }) => {
+  await stubApi(page, {
+    ...routes,
+    web_vitals_current: [],
+    web_vitals_routes: [],
+  });
+  await signIn(page);
+
+  await page.goto('/speed');
+
+  await expect(
+    page.getByRole('link', { name: 'Speed Insights' })
+  ).toHaveAttribute('aria-current', 'page');
+  await expect(
+    page.getByRole('checkbox', { name: 'Include bots' })
+  ).toHaveCount(0);
+});

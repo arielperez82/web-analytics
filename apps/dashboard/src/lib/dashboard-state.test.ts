@@ -41,6 +41,15 @@ describe("parseState", () => {
   });
 });
 
+describe("parseState bots", () => {
+  it("includes bots only for bots=1", () => {
+    expect(parseState(new URLSearchParams("bots=1")).includeBots).toBe(true);
+    expect(parseState(new URLSearchParams("bots=0")).includeBots).toBeUndefined();
+    expect(parseState(new URLSearchParams("bots=yes")).includeBots).toBeUndefined();
+    expect(parseState(new URLSearchParams("")).includeBots).toBeUndefined();
+  });
+});
+
 describe("toSearch", () => {
   it("omits defaults", () => {
     expect(toSearch({ range: { days: 7 }, filters: {} })).toBe("");
@@ -52,6 +61,16 @@ describe("toSearch", () => {
       domain: "a.com",
       filters: { location: "DE", browser: "safari" },
     };
+    expect(parseState(new URLSearchParams(toSearch(state)))).toEqual(state);
+  });
+
+  it("writes bots=1 only when bots are included", () => {
+    expect(toSearch({ range: { days: 7 }, filters: {}, includeBots: true })).toBe("bots=1");
+    expect(toSearch({ range: { days: 7 }, filters: {}, includeBots: false })).toBe("");
+  });
+
+  it("round-trips including bots", () => {
+    const state = { range: { days: 7 }, filters: {}, includeBots: true };
     expect(parseState(new URLSearchParams(toSearch(state)))).toEqual(state);
   });
 
