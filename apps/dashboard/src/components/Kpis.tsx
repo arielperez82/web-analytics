@@ -68,7 +68,7 @@ export const Kpis = ({
   const engagement = useEndpoint<Row>("engagement", params).data?.[0];
   const { data, loading, error } = useEndpoint<Row>("daily_series", { ...params, metric });
   const rows = data ?? [];
-  const singleDay = params.days === "1";
+  const singleDay = params.date_from === params.date_to;
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Visits";
   return (

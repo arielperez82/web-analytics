@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 const state: DashboardState = { range: { days: 7 }, filters: {} };
-const params = { date_from: "2026-11-10", date_to: "2026-11-16", days: "7", domain: "a.example" };
+const params = { date_from: "2026-11-10", date_to: "2026-11-16", domain: "a.example" };
 
 const counts: ApiRow = {
   known_visitors: 120,
@@ -144,7 +144,7 @@ describe("Kpis", () => {
   });
 
   it("does not offer a drill-down on a single-day range", async () => {
-    renderKpis({ params: { ...params, days: "1" } });
+    renderKpis({ params: { ...params, date_to: "2026-11-10" } });
 
     const chart = await screen.findByRole("group", { name: "Visits chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
