@@ -2,18 +2,14 @@
 
 import Link from "next/link";
 
-import { hrefFor, type DashboardState } from "@/lib/dashboard-state";
+import { type DashboardState,hrefFor } from "@/lib/dashboard-state";
 import type { FilterKey } from "@/lib/filters";
+import { formatSignedPercent } from "@/lib/format";
 import type { Report } from "@/lib/reports";
-import { useEndpoint } from "@/lib/use-endpoint";
 import type { QueryParams } from "@/lib/use-dashboard-state";
+import { useEndpoint } from "@/lib/use-endpoint";
 
-import { fmt, Panel, Status, type Row } from "./ui";
-
-const growth = (value: string | number | null | undefined): string => {
-  const n = Number(value ?? 0);
-  return `${n > 0 ? "+" : ""}${fmt(n)}%`;
-};
+import { fmt, Panel, type Row,Status } from "./ui";
 
 export const RankedTable = ({
   report,
@@ -40,7 +36,6 @@ export const RankedTable = ({
     include_previous_period: comparePrevious ? "true" : undefined,
   });
   const rows = data ?? [];
-  const max = Math.max(1, ...rows.map((row) => Number(row.visits ?? 0)));
   const title = detail ? report.heading : <Link href={hrefFor(`/reports/${report.slug}`, state)}>{report.heading} →</Link>;
   return (
     <Panel title={title}>
@@ -62,12 +57,12 @@ export const RankedTable = ({
                 style={filterKey ? { cursor: "pointer" } : undefined}
               >
                 <td className="label">
-                  <span className="bar" style={{ width: `${(Number(row.visits ?? 0) / max) * 100}%` }} />
+                  <span className="bar" style={{ width: `${Number(row.bar_percent ?? 0)}%` }} />
                   <span className="text">{label || "(direct)"}</span>
                 </td>
                 <td className="num">{fmt(row.visits)}</td>
                 <td className="num muted">{fmt(row.hits)}</td>
-                {comparePrevious && <td className="num muted">{growth(row.visits_growth_percentage)}</td>}
+                {comparePrevious && <td className="num muted">{formatSignedPercent(Number(row.visits_growth_percentage ?? 0))}</td>}
               </tr>
             );
           })}

@@ -23,6 +23,7 @@ export const useDashboardState = () => {
       ...rangeToParams(state.range, new Date()),
       tenant_id: state.tenant,
       domain: state.domain,
+      include_bots: state.includeBots ? "1" : undefined,
       ...state.filters,
     }),
     [state],

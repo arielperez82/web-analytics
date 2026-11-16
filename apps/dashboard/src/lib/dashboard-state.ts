@@ -12,6 +12,7 @@ export type DashboardState = {
   readonly tenant?: string;
   readonly domain?: string;
   readonly filters: Filters;
+  readonly includeBots?: boolean;
 };
 
 const FILTER_KEYS = ["location", "device", "browser"] as const;
@@ -36,6 +37,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
     range: parseRange(search),
     ...(tenant !== null ? { tenant } : {}),
     ...(domain ? { domain } : {}),
+    ...(search.get("bots") === "1" ? { includeBots: true } : {}),
     filters: Object.fromEntries(
       FILTER_KEYS.flatMap((key) => {
         const value = search.get(key);
@@ -45,7 +47,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
   };
 };
 
-export const toSearch = ({ range, tenant, domain, filters }: DashboardState): string =>
+export const toSearch = ({ range, tenant, domain, filters, includeBots }: DashboardState): string =>
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
@@ -54,6 +56,7 @@ export const toSearch = ({ range, tenant, domain, filters }: DashboardState): st
         : [["days", String(range.days)]]),
     ...(tenant !== undefined ? [["tenant", tenant]] : []),
     ...(domain ? [["domain", domain]] : []),
+    ...(includeBots ? [["bots", "1"]] : []),
     ...FILTER_KEYS.flatMap((key) => {
       const value = filters[key];
       return value ? [[key, value]] : [];

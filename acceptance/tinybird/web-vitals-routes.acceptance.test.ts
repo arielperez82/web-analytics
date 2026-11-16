@@ -31,6 +31,9 @@ const GOOD_LCP = 3000;
 const POOR_LCP = 5000;
 const ENOUGH_FOR_A_RELIABLE_AVERAGE = 5;
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+const ONE_MINUTE_MS = 60 * 1000;
+
+const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
 
 const lcpEvents = (
   scope: Scope,
@@ -172,6 +175,30 @@ describe.concurrent('web_vitals_routes pipe', () => {
 
     expect(firstPage.map(row => row.route)).toEqual(['best']);
     expect(secondPage.map(row => row.route)).toEqual(['middle']);
+  });
+
+  it('counts the measurements of the dates requested, also in the past', async () => {
+    const scope = createScope();
+    const twoDaysAgo = new Date(Date.now() - TWO_DAYS_MS);
+    await ingestEvents(env, lcpEvents(scope, '/old', GOOD_LCP, 5, twoDaysAgo));
+    const thatDay = dayOf(new Date(twoDaysAgo.getTime() - ONE_MINUTE_MS));
+    const dates = (from: string, to: string) => ({
+      date_from: from,
+      date_to: to,
+    });
+
+    const onThatDay = await routes(scope, dates(thatDay, thatDay));
+    const today = await pipeRows<RouteRow>(
+      env,
+      'web_vitals_routes',
+      scoped(scope, {
+        analysis_type: 'routes',
+        ...dates(dayOf(new Date()), dayOf(new Date())),
+      })
+    );
+
+    expect(onThatDay.map(row => row.route)).toEqual(['old']);
+    expect(today).toEqual([]);
   });
 
   it('only counts measurements inside the requested number of days', async () => {

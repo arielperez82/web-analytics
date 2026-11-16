@@ -10,6 +10,7 @@ import {
   type InferParams,
   type InferOutputRow,
 } from "@tinybirdco/sdk";
+import { visitorClassSql } from "./payload-columns";
 import { dashboardToken } from "./tokens";
 
 // ============================================================================
@@ -29,12 +30,16 @@ const crossFilters = `
             {% end %}
             {% if defined(browser) %}
             AND browser = {{ String(browser, description="Filter by browser: chrome, firefox, safari, opera, ie or unknown") }}
+            {% end %}
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND device != 'bot'
             {% end %}`;
 
 const crossFilterParams = {
   location: p.string().optional().describe("Filter by visitor country code, e.g. US"),
   device: p.string().optional().describe("Filter by device: desktop, mobile-ios, mobile-android or bot"),
   browser: p.string().optional().describe("Filter by browser: chrome, firefox, safari, opera, ie or unknown"),
+  include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
 };
 
 
@@ -47,9 +52,12 @@ export const currentVisitors = defineEndpoint("current_visitors", {
     node({
       name: "get_current_visitors",
       sql: `
-        SELECT uniq(session_id) AS visits
+        SELECT uniqCombined64(session_id) AS visits
         FROM analytics_hits
         WHERE timestamp >= (now() - interval 5 minute)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -62,6 +70,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
   params: {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     visits: t.uint64(),
@@ -70,6 +79,385 @@ export const currentVisitors = defineEndpoint("current_visitors", {
 
 export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
+
+/**
+ * Percentage change from the previous period to the current one. New traffic against an empty
+ * previous period reads as 100, and two empty periods as 0.
+ */
+const growthPercentSql = (current: string, previous: string): string =>
+  `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
+
+/**
+ * Per-day visitor states from `startColumn` of date_calculations to its current_end, tagged with
+ * their period. Without a cross filter they come from the daily visitor state; with one, they are
+ * built from the hits in the same shape, so one merge serves both paths.
+ */
+const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): string => `
+        {% if defined(location) or defined(device) or defined(browser) %}
+        SELECT
+            toDate(timestamp) AS date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            ${visitorClassSql} AS visitor_class,
+            uniqCombined64State(visitor_key) AS visitors_state,
+            uniqCombined64State(session_id) AS visits_state,
+            countState() AS hits_state
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= (SELECT ${startColumn} FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY date, period, visitor_class
+        {% else %}
+        SELECT
+            date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            visitor_class,
+            visitors AS visitors_state,
+            visits AS visits_state,
+            hits AS hits_state
+        FROM visitor_state_daily_mv
+        WHERE date >= (SELECT ${startColumn} FROM date_calculations)
+            AND date <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+        {% end %}
+      `;
+
+/**
+ * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, with the
+ * equal-length period before it, growth and the consented share. Read from the daily visitor state,
+ * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
+ */
+export const visitorCounts = defineEndpoint("visitor_counts", {
+  description:
+    "Known visitors, daily visitors (person-days), legacy visitors and visits over a UTC date range, with the previous period, growth and consented share. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range and the equal-length period before it",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            dateDiff('day', current_start, current_end) + 1 AS period_days,
+            current_start - period_days AS previous_start
+      `,
+    }),
+    node({
+      name: "state_in_range",
+      description:
+        "Per-day visitor states for both periods. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
+      sql: dailyVisitorStateSql("previous_start"),
+    }),
+    node({
+      name: "daily_visitors_per_day",
+      description: "Daily ids cannot be linked across days, so count them per day",
+      sql: `
+        SELECT date, period, uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS n
+        FROM state_in_range
+        GROUP BY date, period
+      `,
+    }),
+    node({
+      name: "period_counts",
+      sql: `
+        SELECT
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'current') AS known_visitors,
+            (SELECT sumIf(n, period = 'current') FROM daily_visitors_per_day) AS daily_visitors,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'legacy' AND period = 'current') AS legacy_visitors,
+            uniqCombined64MergeIf(visits_state, period = 'current') AS visits,
+            uniqCombined64MergeIf(visits_state, visitor_class = 'known' AND period = 'current') AS known_visits,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'previous') AS previous_known_visitors,
+            (SELECT sumIf(n, period = 'previous') FROM daily_visitors_per_day) AS previous_daily_visitors,
+            uniqCombined64MergeIf(visits_state, period = 'previous') AS previous_visits
+        FROM state_in_range
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            known_visitors,
+            daily_visitors,
+            legacy_visitors,
+            visits,
+            round(if(visits = 0, 0, known_visits * 100.0 / visits), 2) AS consented_visits_percent,
+            previous_known_visitors,
+            previous_daily_visitors,
+            previous_visits,
+            ${growthPercentSql("known_visitors", "previous_known_visitors")} AS known_visitors_growth_percent,
+            ${growthPercentSql("daily_visitors", "previous_daily_visitors")} AS daily_visitors_growth_percent,
+            ${growthPercentSql("visits", "previous_visits")} AS visits_growth_percent
+        FROM period_counts
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    ...crossFilterParams,
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    known_visitors: t.uint64(),
+    daily_visitors: t.uint64(),
+    legacy_visitors: t.uint64(),
+    visits: t.uint64(),
+    consented_visits_percent: t.float64(),
+    previous_known_visitors: t.uint64(),
+    previous_daily_visitors: t.uint64(),
+    previous_visits: t.uint64(),
+    known_visitors_growth_percent: t.float64(),
+    daily_visitors_growth_percent: t.float64(),
+    visits_growth_percent: t.float64(),
+  },
+});
+
+export type VisitorCountsParams = InferParams<typeof visitorCounts>;
+export type VisitorCountsOutput = InferOutputRow<typeof visitorCounts>;
+
+/**
+ * Engagement - page views, pages per visit, bounce rate and average session length over a UTC date
+ * range, weighted by visit, with the equal-length period before it and growth. Visits that cross a
+ * UTC midnight count once. Bots are left out unless include_bots=1.
+ */
+export const engagement = defineEndpoint("engagement", {
+  description:
+    "Page views, pages per visit, bounce rate (percent) and average session seconds over a UTC date range, weighted by visit, with the previous period and growth. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range and the equal-length period before it",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            dateDiff('day', current_start, current_end) + 1 AS period_days,
+            current_start - period_days AS previous_start
+      `,
+    }),
+    node({
+      name: "engaged_sessions",
+      description: "Visits where the visitor did something besides view pages. Automatic web vitals do not count.",
+      sql: `
+        SELECT DISTINCT session_id
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
+      name: "visits",
+      description: "One row per visit over both periods, placed in the period of its first page view",
+      sql: `
+        SELECT
+            session_id,
+            if(toDate(min(timestamp)) >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            count() AS visit_pageviews,
+            toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
+            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY session_id, tenant_id, domain
+      `,
+    }),
+    node({
+      name: "period_totals",
+      sql: `
+        SELECT
+            countIf(period = 'current') AS visit_count,
+            sumIf(visit_pageviews, period = 'current') AS pageviews,
+            sumIf(is_bounce, period = 'current') AS bounces,
+            sumIf(duration_sec, period = 'current') AS duration_total,
+            countIf(period = 'previous') AS previous_visit_count,
+            sumIf(visit_pageviews, period = 'previous') AS previous_pageviews,
+            sumIf(is_bounce, period = 'previous') AS previous_bounces,
+            sumIf(duration_sec, period = 'previous') AS previous_duration_total
+        FROM visits
+      `,
+    }),
+    node({
+      name: "rates",
+      sql: `
+        SELECT
+            pageviews,
+            round(if(visit_count = 0, 0, pageviews * 1.0 / visit_count), 2) AS views_per_visit,
+            round(if(visit_count = 0, 0, bounces * 100.0 / visit_count), 2) AS bounce_rate_percent,
+            round(if(visit_count = 0, 0, duration_total * 1.0 / visit_count), 2) AS avg_session_sec,
+            previous_pageviews,
+            round(if(previous_visit_count = 0, 0, previous_bounces * 100.0 / previous_visit_count), 2) AS previous_bounce_rate_percent,
+            round(if(previous_visit_count = 0, 0, previous_duration_total * 1.0 / previous_visit_count), 2) AS previous_avg_session_sec
+        FROM period_totals
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            pageviews,
+            views_per_visit,
+            bounce_rate_percent,
+            avg_session_sec,
+            previous_pageviews,
+            previous_bounce_rate_percent,
+            previous_avg_session_sec,
+            ${growthPercentSql("pageviews", "previous_pageviews")} AS pageviews_growth_percent,
+            ${growthPercentSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_growth_percent,
+            ${growthPercentSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_growth_percent
+        FROM rates
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    ...crossFilterParams,
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    pageviews: t.uint64(),
+    views_per_visit: t.float64(),
+    bounce_rate_percent: t.float64(),
+    avg_session_sec: t.float64(),
+    previous_pageviews: t.uint64(),
+    previous_bounce_rate_percent: t.float64(),
+    previous_avg_session_sec: t.float64(),
+    pageviews_growth_percent: t.float64(),
+    bounce_rate_growth_percent: t.float64(),
+    avg_session_sec_growth_percent: t.float64(),
+  },
+});
+
+export type EngagementParams = InferParams<typeof engagement>;
+export type EngagementOutput = InferOutputRow<typeof engagement>;
+
+/**
+ * Daily series - one value per UTC day of the range for the chosen metric (visits, known visitors,
+ * daily visitors or pageviews), with each day's bar as a percentage of the busiest day. Days
+ * without traffic are zero. Bots are left out unless include_bots=1.
+ */
+export const dailySeries = defineEndpoint("daily_series", {
+  description:
+    "One value per UTC day for metric = visits, known, daily or pageviews, with bar_percent against the busiest day. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end
+      `,
+    }),
+    node({
+      name: "state_in_range",
+      description: "Per-day visitor states inside the range",
+      sql: dailyVisitorStateSql("current_start"),
+    }),
+    node({
+      name: "per_day",
+      description: "Every metric per day",
+      sql: `
+        SELECT
+            date,
+            uniqCombined64Merge(visits_state) AS visits_count,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known') AS known_count,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS daily_count,
+            countMerge(hits_state) AS pageviews_count
+        FROM state_in_range
+        GROUP BY date
+      `,
+    }),
+    node({
+      name: "days",
+      description: "Every day of the range, so quiet days show zero",
+      sql: `
+        SELECT arrayJoin(arrayMap(x -> toDate(x), range(toUInt32((SELECT current_start FROM date_calculations)), toUInt32((SELECT current_end FROM date_calculations)) + 1))) AS date
+      `,
+    }),
+    node({
+      name: "values",
+      sql: `
+        SELECT
+            d.date AS date,
+            multiIf(
+                {{ String(metric, 'visits', description="visits, known, daily or pageviews") }} = 'known', p.known_count,
+                {{ String(metric, 'visits') }} = 'daily', p.daily_count,
+                {{ String(metric, 'visits') }} = 'pageviews', p.pageviews_count,
+                p.visits_count
+            ) AS value
+        FROM days d
+        LEFT JOIN per_day p ON d.date = p.date
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            date,
+            value,
+            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent
+        FROM values
+        ORDER BY date
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
+    ...crossFilterParams,
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    date: t.date(),
+    value: t.uint64(),
+    bar_percent: t.float64(),
+  },
+});
+
+export type DailySeriesParams = InferParams<typeof dailySeries>;
+export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
 
 /**
  * Tenants - every tenant with its domain count and total hits. Events that
@@ -236,278 +624,6 @@ export type ActionsParams = InferParams<typeof actions>;
 export type ActionsOutput = InferOutputRow<typeof actions>;
 
 /**
- * KPIs - summary with visits, page views, bounce rate, avg session duration
- */
-export const kpis = defineEndpoint("kpis", {
-  description: "Summary KPIs per date with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      description: "Calculate current and previous period date ranges",
-      sql: `
-        WITH
-            {% if defined(date_from) %}
-                toStartOfDay(toDate({{ String(date_from, description="Starting day") }})) as current_start,
-            {% else %} toStartOfDay(timestampAdd(today(), interval -7 day)) as current_start,
-            {% end %}
-            {% if defined(date_to) %}
-                toStartOfDay(toDate({{ String(date_to, description="Finishing day") }})) as current_end
-            {% else %} toStartOfDay(today()) as current_end
-            {% end %}
-        SELECT
-            current_start,
-            current_end,
-            dateDiff('day', current_start, current_end) + 1 as period_days,
-            timestampAdd(current_start, interval -dateDiff('day', current_start, current_end) - 1 day) as previous_start,
-            timestampAdd(current_end, interval -dateDiff('day', current_start, current_end) - 1 day) as previous_end
-      `,
-    }),
-    node({
-      name: "timeseries",
-      description: "Generate timeseries for the time range",
-      sql: `
-        with
-            (SELECT current_start FROM date_calculations) as start,
-            (SELECT current_end FROM date_calculations) as end,
-            (SELECT period_days FROM date_calculations) as days_count,
-            {{ String(date_from, '', description="Start date for range", required=False) }} as _df,
-            {{ String(date_to, '', description="End date for range", required=False) }} as _dt
-        {% if defined(date_from) and defined(date_to) and date_from == date_to %}
-            select arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32(toDateTime(start)), toUInt32(timestampAdd(end, interval 1 day)), 3600))) as date
-        {% else %}
-            select arrayJoin(arrayMap(x -> toDate(x), range(toUInt32(start), toUInt32(timestampAdd(end, interval 1 day)), 24 * 3600))) as date
-        {% end %}
-        where date <= now()
-      `,
-    }),
-    node({
-      name: "engaged_sessions",
-      description: "Visits where the visitor did something besides view pages (clicks, custom events). Automatic web vitals do not count.",
-      sql: `
-        SELECT DISTINCT coalesce(session_id, '0') AS session_id
-        FROM analytics_events
-        WHERE action NOT IN ('page_hit', 'web_vital')
-            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
-      `,
-    }),
-    node({
-      name: "hits",
-      description: "Group by sessions and calculate metrics",
-      sql: `
-        {% if defined(date_from) and defined(date_to) and date_from == date_to %}
-            select
-                toStartOfHour(timestamp) as date,
-                session_id,
-                uniq(session_id) as visits,
-                count() as pageviews,
-                case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
-                max(timestamp) as latest_hit_aux,
-                min(timestamp) as first_hit_aux
-            from analytics_hits
-            where toDate(timestamp) = toDate({{ String(date_from) }})
-                {% if defined(tenant_id) %}
-                AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-                {% end %}
-                {% if defined(domain) %}
-                AND domain = {{ String(domain, description="Filter by domain") }}
-                {% end %}${crossFilters}
-            group by toStartOfHour(timestamp), session_id, tenant_id, domain
-        {% else %}
-            select
-                date,
-                session_id,
-                uniq(session_id) as visits,
-                countMerge(hits) as pageviews,
-                case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
-                max(latest_hit) as latest_hit_aux,
-                min(first_hit) as first_hit_aux
-            from analytics_sessions_mv
-            where
-                date >= (SELECT current_start FROM date_calculations)
-                and date <= (SELECT current_end FROM date_calculations)
-                {% if defined(tenant_id) %}
-                AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-                {% end %}
-                {% if defined(domain) %}
-                AND domain = {{ String(domain, description="Filter by domain") }}
-                {% end %}${crossFilters}
-            group by date, session_id, tenant_id, domain
-        {% end %}
-      `,
-    }),
-    node({
-      name: "current_period_data",
-      description: "General KPIs per date for current period",
-      sql: `
-        select
-            date,
-            uniq(session_id) as current_visits,
-            sum(pageviews) as current_pageviews,
-            sum(is_bounce) / uniq(session_id) as current_bounce_rate,
-            avg(latest_hit_aux - first_hit_aux) as current_avg_session_sec
-        from hits
-        group by date
-      `,
-    }),
-    node({
-      name: "previous_period_hits",
-      description: "Group by sessions for previous period",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-            {% if defined(date_from) and defined(date_to) and date_from == date_to %}
-                select
-                    toStartOfHour(timestamp) as date,
-                    session_id,
-                    uniq(session_id) as visits,
-                    count() as pageviews,
-                    case when count() = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
-                    max(timestamp) as latest_hit_aux,
-                    min(timestamp) as first_hit_aux
-                from analytics_hits
-                where toDate(timestamp) = timestampAdd(toDate({{ String(date_from) }}), interval -1 day)
-                    {% if defined(tenant_id) %}
-                    AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-                    {% end %}
-                    {% if defined(domain) %}
-                    AND domain = {{ String(domain, description="Filter by domain") }}
-                    {% end %}${crossFilters}
-                group by toStartOfHour(timestamp), session_id, tenant_id, domain
-            {% else %}
-                select
-                    date,
-                    session_id,
-                    uniq(session_id) as visits,
-                    countMerge(hits) as pageviews,
-                    case when countMerge(hits) = 1 and session_id NOT IN (SELECT session_id FROM engaged_sessions) then 1 else 0 end as is_bounce,
-                    max(latest_hit) as latest_hit_aux,
-                    min(first_hit) as first_hit_aux
-                from analytics_sessions_mv
-                where
-                    date >= (SELECT previous_start FROM date_calculations)
-                    and date <= (SELECT previous_end FROM date_calculations)
-                    {% if defined(tenant_id) %}
-                    AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-                    {% end %}
-                    {% if defined(domain) %}
-                    AND domain = {{ String(domain, description="Filter by domain") }}
-                    {% end %}${crossFilters}
-                group by date, session_id, tenant_id, domain
-            {% end %}
-        {% else %}
-            SELECT toDate('1900-01-01') as date, '' as session_id, 0 as visits, 0 as pageviews, 0 as is_bounce,
-                   toDateTime('1900-01-01') as latest_hit_aux, toDateTime('1900-01-01') as first_hit_aux WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "previous_period_data",
-      description: "General KPIs per date for previous period",
-      sql: `
-        WITH {{ String(include_previous_period, '', required=False) }} as _ipp
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        select
-            date,
-            uniq(session_id) as previous_visits,
-            sum(pageviews) as previous_pageviews,
-            sum(is_bounce) / uniq(session_id) as previous_bounce_rate,
-            avg(latest_hit_aux - first_hit_aux) as previous_avg_session_sec
-        from previous_period_hits
-        group by date
-        {% else %}
-        SELECT toDate('1900-01-01') as date, 0 as previous_visits, 0 as previous_pageviews,
-               0 as previous_bounce_rate, 0 as previous_avg_session_sec WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "endpoint",
-      description: "Join and generate timeseries with metrics and growth",
-      sql: `
-        WITH {{ String(include_previous_period, '', required=False) }} as _ipp
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            a.date date,
-            coalesce(b.current_visits, 0) as visits,
-            coalesce(b.current_pageviews, 0) as pageviews,
-            coalesce(b.current_bounce_rate, 0) as bounce_rate,
-            coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
-            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit,
-            coalesce(p.previous_visits, 0) as previous_visits,
-            coalesce(p.previous_pageviews, 0) as previous_pageviews,
-            coalesce(p.previous_bounce_rate, 0) as previous_bounce_rate,
-            coalesce(p.previous_avg_session_sec, 0) as previous_avg_session_sec,
-            CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND coalesce(b.current_visits, 0) > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((coalesce(b.current_visits, 0) - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_pageviews, 0) = 0 AND coalesce(b.current_pageviews, 0) > 0 THEN 100.0
-                WHEN coalesce(p.previous_pageviews, 0) = 0 THEN 0.0
-                ELSE round(((coalesce(b.current_pageviews, 0) - coalesce(p.previous_pageviews, 0)) * 100.0) / p.previous_pageviews, 2)
-            END as pageviews_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_bounce_rate, 0) = 0 AND coalesce(b.current_bounce_rate, 0) > 0 THEN 100.0
-                WHEN coalesce(p.previous_bounce_rate, 0) = 0 THEN 0.0
-                ELSE round(((coalesce(b.current_bounce_rate, 0) - coalesce(p.previous_bounce_rate, 0)) * 100.0) / p.previous_bounce_rate, 2)
-            END as bounce_rate_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_avg_session_sec, 0) = 0 AND coalesce(b.current_avg_session_sec, 0) > 0 THEN 100.0
-                WHEN coalesce(p.previous_avg_session_sec, 0) = 0 THEN 0.0
-                ELSE round(((coalesce(b.current_avg_session_sec, 0) - coalesce(p.previous_avg_session_sec, 0)) * 100.0) / p.previous_avg_session_sec, 2)
-            END as avg_session_sec_growth_percentage
-        FROM timeseries a
-        LEFT JOIN current_period_data b ON a.date = b.date
-        LEFT JOIN previous_period_data p ON a.date = timestampAdd(p.date, interval (SELECT period_days FROM date_calculations) day)
-        WHERE a.date >= (SELECT current_start FROM date_calculations)
-            AND a.date <= timestampAdd((SELECT current_end FROM date_calculations), interval 1 day)
-        {% else %}
-        SELECT
-            a.date date,
-            coalesce(b.current_visits, 0) as visits,
-            coalesce(b.current_pageviews, 0) as pageviews,
-            coalesce(b.current_bounce_rate, 0) as bounce_rate,
-            coalesce(b.current_avg_session_sec, 0) as avg_session_sec,
-            if(coalesce(b.current_visits, 0) = 0, 0, coalesce(b.current_pageviews, 0) / b.current_visits) as views_per_visit
-        FROM timeseries a
-        LEFT JOIN current_period_data b USING date
-        {% end %}
-      `,
-    }),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Starting day"),
-    date_to: p.string().optional().describe("Finishing day"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period comparison"),
-  },
-  output: {
-    date: t.date(),
-    visits: t.uint64(),
-    pageviews: t.uint64(),
-    bounce_rate: t.float64(),
-    avg_session_sec: t.float64(),
-    views_per_visit: t.float64(),
-  },
-});
-
-export type KpisParams = InferParams<typeof kpis>;
-export type KpisOutput = InferOutputRow<typeof kpis>;
-
-/**
  * Trend - realtime visits trend for last 30 minutes
  */
 export const trend = defineEndpoint("trend", {
@@ -528,9 +644,12 @@ export const trend = defineEndpoint("trend", {
       name: "hits",
       description: "Get last 30 minutes metrics grouped by minute",
       sql: `
-        select toStartOfMinute(timestamp) as t, uniq(session_id) as visits
+        select toStartOfMinute(timestamp) as t, uniqCombined64(session_id) as visits
         from analytics_hits
         where timestamp >= (now() - interval 30 minute)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -552,6 +671,7 @@ export const trend = defineEndpoint("trend", {
   params: {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
     t: t.dateTime(),
@@ -565,6 +685,23 @@ export type TrendOutput = InferOutputRow<typeof trend>;
 // ============================================================================
 // Top-N Endpoints
 // ============================================================================
+
+/**
+ * Final node for ranked lists: each row's bar as a percentage of the largest row, so the UI sizes
+ * bars without arithmetic.
+ */
+const barPercentNode = () =>
+  node({
+    name: "endpoint",
+    description: "Adds each row's bar size as a percentage of the busiest row",
+    sql: `
+        SELECT
+            *,
+            round(if(max(visits) OVER () = 0, 0, visits * 100.0 / max(visits) OVER ()), 2) AS bar_percent
+        FROM ranked
+        ORDER BY visits DESC
+      `,
+  });
 
 /**
  * Top browsers - ordered by most visits
@@ -637,7 +774,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       description: "Combine with growth calculations",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
@@ -672,6 +809,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -690,6 +828,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
     browser: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -764,7 +903,7 @@ export const topDevices = defineEndpoint("top_devices", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -798,6 +937,7 @@ export const topDevices = defineEndpoint("top_devices", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -816,6 +956,7 @@ export const topDevices = defineEndpoint("top_devices", {
     device: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -890,7 +1031,7 @@ export const topLocations = defineEndpoint("top_locations", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -924,6 +1065,7 @@ export const topLocations = defineEndpoint("top_locations", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -942,6 +1084,7 @@ export const topLocations = defineEndpoint("top_locations", {
     location: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1021,7 +1164,7 @@ export const topPages = defineEndpoint("top_pages", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -1055,6 +1198,7 @@ export const topPages = defineEndpoint("top_pages", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -1073,6 +1217,7 @@ export const topPages = defineEndpoint("top_pages", {
     pathname: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1147,7 +1292,7 @@ export const topSources = defineEndpoint("top_sources", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -1181,6 +1326,7 @@ export const topSources = defineEndpoint("top_sources", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -1199,6 +1345,7 @@ export const topSources = defineEndpoint("top_sources", {
     referrer: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1251,6 +1398,9 @@ const channelVisitsNode = (extraColumns = "") =>
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
         GROUP BY tenant_id, domain, session_id
       `,
   });
@@ -1276,6 +1426,9 @@ const channelVisitorCampaignsNode = () =>
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
             {% end %}
         GROUP BY tenant_id, domain, visitor_id
         HAVING countIf(utm_medium != '') > 0
@@ -1317,6 +1470,7 @@ const channelParams = {
   date_to: p.string().optional().describe("End date"),
   tenant_id: p.string().optional().describe("Filter by tenant ID"),
   domain: p.string().optional().describe("Filter by domain"),
+  include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
 };
 
 /**
@@ -1332,7 +1486,7 @@ export const channels = defineEndpoint("channels", {
     channelVisitorCampaignsNode(),
     channelFirstTouchNode(),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         SELECT
             ${channelSql} as channel,
@@ -1343,12 +1497,14 @@ export const channels = defineEndpoint("channels", {
         ORDER BY visits DESC
       `,
     }),
+    barPercentNode(),
   ],
   params: channelParams,
   output: {
     channel: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1378,10 +1534,10 @@ export const conversions = defineEndpoint("conversions", {
             ${channelSql} as channel,
             count() as visits,
             sum(converted) as conversions,
-            sum(converted) / count() as conversion_rate
+            round(sum(converted) * 100.0 / count(), 2) as conversion_rate_percent
         FROM first_touch
         GROUP BY channel
-        ORDER BY visits DESC
+        ORDER BY conversions DESC, visits DESC
       `,
     }),
   ],
@@ -1395,12 +1551,56 @@ export const conversions = defineEndpoint("conversions", {
     channel: t.string(),
     visits: t.uint64(),
     conversions: t.uint64(),
-    conversion_rate: t.float64(),
+    conversion_rate_percent: t.float64(),
   },
 });
 
 export type ConversionsParams = InferParams<typeof conversions>;
 export type ConversionsOutput = InferOutputRow<typeof conversions>;
+
+/**
+ * Conversion summary - visits and conversions across every channel for one goal page, with the
+ * overall rate, so the UI shows the headline without adding rows up.
+ */
+export const conversionSummary = defineEndpoint("conversion_summary", {
+  description:
+    "For one goal page: total visits, visits that reached it and the overall conversion rate (percent) across every channel",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    channelDateNode(),
+    channelVisitsNode(`,
+            max(${pathKey("pathname")} = ${pathKey(
+              '{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed", required=True) }}',
+            )}) as converted`),
+    channelVisitorCampaignsNode(),
+    channelFirstTouchNode(`,
+            v.converted as converted`),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            count() as visits,
+            sum(converted) as conversions,
+            round(if(count() = 0, 0, sum(converted) * 100.0 / count()), 2) as conversion_rate_percent
+        FROM first_touch
+      `,
+    }),
+  ],
+  params: {
+    ...channelParams,
+    goal_path: p
+      .string()
+      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
+  },
+  output: {
+    visits: t.uint64(),
+    conversions: t.uint64(),
+    conversion_rate_percent: t.float64(),
+  },
+});
+
+export type ConversionSummaryParams = InferParams<typeof conversionSummary>;
+export type ConversionSummaryOutput = InferOutputRow<typeof conversionSummary>;
 
 const normalizedPath = `
     CASE

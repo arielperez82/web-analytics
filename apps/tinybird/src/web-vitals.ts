@@ -201,7 +201,12 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             domain,
             tenant_id
         FROM web_vitals_events
-        WHERE timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+        WHERE {% if defined(date_from) and defined(date_to) %}
+                timestamp >= toDateTime(concat(toString({{ Date(date_from) }}), ' 00:00:00'))
+                AND timestamp <= toDateTime(concat(toString({{ Date(date_to) }}), ' 23:59:59'))
+            {% else %}
+                timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -262,6 +267,14 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
   ],
   params: {
     days: p.int32().optional(1).describe("Number of days to analyze"),
+    date_from: p
+      .date()
+      .optional()
+      .describe("Start date; with date_to it replaces days"),
+    date_to: p
+      .date()
+      .optional()
+      .describe("End date; with date_from it replaces days"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Domain to filter"),
   },
@@ -613,7 +626,12 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             score,
             domain
         FROM web_vitals_events
-        WHERE timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+        WHERE {% if defined(date_from) and defined(date_to) %}
+                timestamp >= toDateTime(concat(toString({{ Date(date_from) }}), ' 00:00:00'))
+                AND timestamp <= toDateTime(concat(toString({{ Date(date_to) }}), ' 23:59:59'))
+            {% else %}
+                timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+            {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -727,6 +745,14 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
   ],
   params: {
     days: p.int32().optional(1).describe("Number of days to analyze"),
+    date_from: p
+      .date()
+      .optional()
+      .describe("Start date; with date_to it replaces days"),
+    date_to: p
+      .date()
+      .optional()
+      .describe("End date; with date_from it replaces days"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Domain to filter"),
     route: p.string().optional().describe("Route to filter by"),

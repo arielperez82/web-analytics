@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
+import { formatNumber } from "@/lib/format";
+
 export type Row = Record<string, string | number | null>;
 
-const nf = new Intl.NumberFormat("en-US");
-
 export const fmt = (value: string | number | null | undefined): string =>
-  typeof value === "number" ? nf.format(Math.round(value * 100) / 100) : (value ?? "—");
+  typeof value === "number" ? formatNumber(value) : (value ?? "—");
 
 export const Panel = ({ title, children }: { title: ReactNode; children: ReactNode }) => (
   <section className="panel">

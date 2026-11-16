@@ -158,6 +158,17 @@ describe.concurrent.each(entries)('top $label', entry => {
     expect(names(rows)).toEqual([first, second, third]);
   });
 
+  it('sizes each row against the busiest one as a percentage', async () => {
+    const scope = createScope();
+    await seedRanked(scope);
+
+    const rows = await list(scope, {}, ranked);
+
+    expect(rows.map(row => Number(row.bar_percent))).toEqual([
+      100, 66.67, 33.33,
+    ]);
+  });
+
   it('shows the visits and page views of each row', async () => {
     const scope = createScope();
     const returning = crypto.randomUUID();
@@ -290,7 +301,8 @@ describe.concurrent('top lists: real-world corner cases', () => {
   const only = async (
     pipe: string,
     column: string,
-    event: (scope: Scope) => AnalyticsEventRow
+    event: (scope: Scope) => AnalyticsEventRow,
+    params: Record<string, string> = {}
   ) => {
     const scope = createScope();
     await ingestEvents(env, [event(scope)]);
@@ -299,6 +311,7 @@ describe.concurrent('top lists: real-world corner cases', () => {
         pipeRows<Row>(env, pipe, {
           tenant_id: scope.tenantId,
           domain: scope.domain,
+          ...params,
         }),
       r => r.length >= 1
     );
@@ -357,12 +370,16 @@ describe.concurrent('top lists: real-world corner cases', () => {
   });
 
   it('counts a crawler as a bot even when it names Android', async () => {
-    const devices = await only('top_devices', 'device', scope =>
-      createPageHitEvent({
-        ...scope,
-        pathname: '/',
-        userAgent: 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1',
-      })
+    const devices = await only(
+      'top_devices',
+      'device',
+      scope =>
+        createPageHitEvent({
+          ...scope,
+          pathname: '/',
+          userAgent: 'Mozilla/5.0 (Linux; Android 10) Googlebot/2.1',
+        }),
+      { include_bots: '1' }
     );
 
     expect(devices).toEqual(['bot']);

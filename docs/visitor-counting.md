@@ -101,8 +101,9 @@ merged with real visitor ids. Each return visit counts as a new legacy visitor.
 
 **D7. Range totals are computed over the range, never summed from buckets, except D2.** A persistent visitor active on
 three days appears in three daily bars and counts once in D1. Today the "Visits" card sums per-day distinct sessions
-(`Kpis.tsx`, `sum("visits")`; the `kpis` pipe groups by `date, session_id`), so a session that crosses UTC midnight
-counts twice. D7 fixes that. **The chart bars can add up to more than the headline, and the UI says so.**
+(`Kpis.tsx`, `sum("visits")`; the `kpis` pipe grouped by `date, session_id`), so a session that crossed UTC midnight
+counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `visitor_counts` and `engagement`.
+**The chart bars can add up to more than the headline, and the UI says so.**
 
 ## 6. Date filters and time zone
 
@@ -134,9 +135,9 @@ counts twice. D7 fixes that. **The chart bars can add up to more than the headli
   materialized granularity; revisit if a finer one is added. History older than the window cannot come through the
   landing and has to be seeded into the stored table directly.
 - **Ingestion lag** is read from Tinybird's ingestion log (`organization.datasource_ops_log`), not from a column.
-- **Previous-period comparison** uses the same number of days immediately before (`date_calculations` in the `kpis`
-  pipe), per metric. Show "n/a" when the previous period starts before identity rollout. Normalise per day when window
-  lengths differ (28 vs 31 days).
+- **Previous-period comparison** uses the same number of days immediately before (`date_calculations` in
+  `visitor_counts` and `engagement`), per metric. Show "n/a" when the previous period starts before identity rollout.
+  Normalise per day when window lengths differ (28 vs 31 days).
 - **Longer ranges lose accuracy for daily traffic.** A returning non-consenting browser counts up to N times in an
   N-day range; a consenting one counts once. Hence the consented share beside the cards.
 - **Small numbers:** show absolute change ("+3") instead of percent when either period is under about 20. Poisson noise
@@ -245,6 +246,8 @@ Layout (separate cards grouped by what they measure; one chart series at a time,
   - Visits: "Browsing sessions; one person can make several."
   - Active visits now: "Sessions with activity in the last 5 minutes."
 - Show the consented share (known visits over all visits) beside the visitor cards and channel rows.
+- The UI never calculates. Totals, rates, growth, shares and bar ratios all come from the API (see
+  `apps/dashboard/AGENTS.md`), which is also how the card totals and the exports stay identical.
 - Every explanation has three layers: a one-line caption, a keyboard-focusable popover, and a "How we count" link.
 - Chart caption: bars are per-day counts and can add up to more than the card.
 - Legacy periods: a chart band reading "Earlier data: visitors counted per session", and a card footnote only when the
@@ -275,8 +278,14 @@ Constraints that come straight from the definitions:
 - `visitor_id` and `id_mode` are already columns of `analytics_hits`. **Built:** `is_bot` and `classifier_version`
   (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
-  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows. Not
-  built yet: the endpoints that read it, and the include-bots toggle.
+  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows, and the
+  `visitor_counts` endpoint that reads it (known, daily as person-days, legacy, visits; bots out unless
+  `include_bots=1`; with a location, device or browser filter the same per-day states are built from `analytics_hits`,
+  so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
+  `include_bots=1`. **Built:** `engagement` (page views, pages per visit, bounce rate and average session length,
+  weighted by visit over the whole range, with the previous period and growth) and `daily_series` (one metric per day
+  with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. Not built yet:
+  an hourly series for single-day ranges.
 
 ## 13. Open items
 
