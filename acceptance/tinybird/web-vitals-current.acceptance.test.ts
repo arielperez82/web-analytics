@@ -21,6 +21,9 @@ type CurrentVitalRow = {
 };
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+const ONE_MINUTE_MS = 60 * 1000;
+
+const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
 
 describe.concurrent('web_vitals_current pipe', () => {
   const env = inject('tinybird');
@@ -102,6 +105,58 @@ describe.concurrent('web_vitals_current pipe', () => {
 
     expect(withinThreeDays.map(row => row.measurements)).toEqual([1]);
     expect(withinOneDay).toEqual([]);
+  });
+
+  it('counts the measurements of the dates requested, also in the past', async () => {
+    const scope = createScope();
+    const twoDaysAgo = new Date(Date.now() - TWO_DAYS_MS);
+    await ingestEvents(env, [
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1000,
+        pathname: '/old',
+        now: twoDaysAgo,
+      }),
+    ]);
+    const filters = { tenant_id: scope.tenantId, domain: scope.domain };
+    const thatDay = dayOf(new Date(twoDaysAgo.getTime() - ONE_MINUTE_MS));
+
+    const onThatDay = await waitForPipeRows<CurrentVitalRow>(
+      env,
+      'web_vitals_current',
+      { ...filters, date_from: thatDay, date_to: thatDay }
+    );
+    const today = await pipeRows<CurrentVitalRow>(env, 'web_vitals_current', {
+      ...filters,
+      date_from: dayOf(new Date()),
+      date_to: dayOf(new Date()),
+    });
+
+    expect(onThatDay.map(row => row.measurements)).toEqual([1]);
+    expect(today).toEqual([]);
+  });
+
+  it('uses the dates over the number of days when both are given', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      createWebVitalEvent({
+        ...scope,
+        name: 'LCP',
+        value: 1000,
+        pathname: '/now',
+      }),
+    ]);
+
+    const rows = await pipeRows<CurrentVitalRow>(env, 'web_vitals_current', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+      days: 30,
+      date_from: '2000-01-01',
+      date_to: '2000-01-02',
+    });
+
+    expect(rows).toEqual([]);
   });
 
   it('filters by tenant alone and by domain alone', async () => {
