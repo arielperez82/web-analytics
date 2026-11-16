@@ -3,20 +3,15 @@
 import { statusClass } from "@/lib/status-class";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
+import { orderVitals } from "@/lib/vitals-order";
 
 import { fmt, Panel, Status, type Row } from "./ui";
-
-const VITALS_ORDER = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 
 export const SpeedInsights = ({ params }: { params: QueryParams }) => {
   const scope = { domain: params.domain, days: params.days };
   const vitals = useEndpoint<Row>("web_vitals_current", scope);
   const routes = useEndpoint<Row>("web_vitals_routes", { ...scope, sort_order: "asc", limit: "10" });
-  const ordered = [...(vitals.data ?? [])].sort(
-    (a, b) =>
-      String(a.domain).localeCompare(String(b.domain)) ||
-      VITALS_ORDER.indexOf(String(a.metric_name)) - VITALS_ORDER.indexOf(String(b.metric_name)),
-  );
+  const ordered = orderVitals(vitals.data ?? []);
   const multiDomain = new Set(ordered.map((row) => row.domain)).size > 1;
   return (
     <>
