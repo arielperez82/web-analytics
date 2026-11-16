@@ -14,6 +14,13 @@ Tinybird acceptance and E2E run against Tinybird Local; `testing/tinybird`
 holds the shared helpers and global setup. Client acceptance and the browser
 E2E use Playwright with a fixture page in `testing/browser`.
 
+To run a Tinybird-backed suite the way CI does, locally, wrap it in
+`scripts/ci/with-tinybird-local.sh` (for example
+`scripts/ci/with-tinybird-local.sh pnpm run test:acceptance:tinybird`). Do not use
+`act` for those jobs: it starts the service container in the host checkout path,
+the image's healthcheck only works from `/app`, and the job aborts with "service
+container failed to start". `act` is fine for the jobs without a Tinybird service.
+
 ## Operations
 
 Deploying and configuring a real environment: see [ops/runbook.md](ops/runbook.md).
