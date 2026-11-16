@@ -284,8 +284,12 @@ Constraints that come straight from the definitions:
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
   `include_bots=1`. **Built:** `engagement` (page views, pages per visit, bounce rate and average session length,
   weighted by visit over the whole range, with the previous period and growth) and `daily_series` (one metric per day
-  with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. Not built yet:
-  an hourly series for single-day ranges.
+  with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. **Built:**
+  `hourly_series`, the same metrics per UTC hour for ranges of at most seven days, shown for single-day ranges. It rolls
+  the hours up from `analytics_hits` at read time and has no materialization: a day for one tenant and domain is a range
+  read on `analytics_events` (sorted by tenant, domain, timestamp), and the filtered `visitor_counts` path already scans
+  `analytics_hits` over longer ranges. Add an hourly materialization only if measured latency for a busy tenant justifies
+  it; each hour counts its own distinct ids, so the hours can add up to more than the day.
 
 ## 13. Open items
 

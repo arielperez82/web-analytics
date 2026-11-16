@@ -54,6 +54,11 @@ const Card = ({
   </div>
 );
 
+const SERIES = {
+  daily: { endpoint: "daily_series", key: "date", unit: "day" },
+  hourly: { endpoint: "hourly_series", key: "hour", unit: "hour" },
+} as const;
+
 export const Kpis = ({
   state,
   params,
@@ -66,9 +71,10 @@ export const Kpis = ({
   const [metric, setMetric] = useState<Metric>("visits");
   const counts = useEndpoint<Row>("visitor_counts", params).data?.[0];
   const engagement = useEndpoint<Row>("engagement", params).data?.[0];
-  const { data, loading, error } = useEndpoint<Row>("daily_series", { ...params, metric });
-  const rows = data ?? [];
   const singleDay = params.date_from === params.date_to;
+  const { endpoint, key, unit } = singleDay ? SERIES.hourly : SERIES.daily;
+  const { data, loading, error } = useEndpoint<Row>(endpoint, { ...params, metric });
+  const rows = data ?? [];
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Visits";
   return (
@@ -110,7 +116,7 @@ export const Kpis = ({
           growth={formatSignedPercent(field(engagement, "avg_session_sec_growth_percent"))}
         />
       </div>
-      <Panel title={`${label} per day · click a bar to drill in`}>
+      <Panel title={singleDay ? `${label} per hour` : `${label} per day · click a bar to drill in`}>
         <div className="chart-metric" role="group" aria-label="Chart series">
           {METRICS.map((option) => (
             <button
@@ -125,7 +131,7 @@ export const Kpis = ({
         <Status loading={loading} error={error} empty={rows.length === 0} />
         <div className="chart" role="group" aria-label={`${label} chart`}>
           {rows.map((row) => {
-            const day = String(row.date);
+            const day = String(row[key]);
             return (
               <button
                 key={day}
@@ -140,7 +146,7 @@ export const Kpis = ({
             );
           })}
         </div>
-        <p className="muted">Bars are per-day counts and can add up to more than the card.</p>
+        <p className="muted">Bars are per-{unit} counts and can add up to more than the card.</p>
       </Panel>
     </>
   );

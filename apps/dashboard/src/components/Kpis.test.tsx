@@ -46,11 +46,17 @@ const series: readonly ApiRow[] = [
   { date: "2026-11-11", value: 90, bar_percent: 25 },
 ];
 
+const hours: readonly ApiRow[] = [
+  { hour: "2026-11-10 09:00:00", value: 7, bar_percent: 100 },
+  { hour: "2026-11-10 10:00:00", value: 2, bar_percent: 30 },
+];
+
 const renderKpis = (overrides: { params?: Record<string, string>; onChange?: (next: DashboardState) => void } = {}) => {
   const api = installFakeApi({
     visitor_counts: [counts],
     engagement: [engagement],
     daily_series: series,
+    hourly_series: hours,
   });
   render(<Kpis state={state} params={overrides.params ?? params} onChange={overrides.onChange ?? (() => undefined)} />);
   return api;
@@ -143,7 +149,22 @@ describe("Kpis", () => {
     expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" } }]);
   });
 
-  it("does not offer a drill-down on a single-day range", async () => {
+  it("shows the hours of a single-day range from the hourly series", async () => {
+    const api = renderKpis({ params: { ...params, date_to: "2026-11-10" } });
+
+    const chart = await screen.findByRole("group", { name: "Visits chart" });
+    await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
+    const heights = within(chart)
+      .getAllByRole("button")
+      .map((bar) => (bar.firstElementChild as HTMLElement).style.height);
+    expect(heights).toEqual(["100%", "30%"]);
+    expect(within(chart).getByTitle("2026-11-10 09:00:00: 7")).toBeTruthy();
+    expect(api.requestsTo("hourly_series")[0]?.get("metric")).toBe("visits");
+    expect(api.requestsTo("daily_series")).toHaveLength(0);
+    expect(await screen.findByText(/per hour/)).toBeTruthy();
+  });
+
+  it("does not offer a drill-down on the hours of a single day", async () => {
     renderKpis({ params: { ...params, date_to: "2026-11-10" } });
 
     const chart = await screen.findByRole("group", { name: "Visits chart" });
@@ -151,9 +172,32 @@ describe("Kpis", () => {
     expect(within(chart).getAllByRole("button").every((bar) => (bar as HTMLButtonElement).disabled)).toBe(true);
   });
 
+  it("asks the hourly series for the metric the viewer picks", async () => {
+    const api = renderKpis({ params: { ...params, date_to: "2026-11-10" } });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Pageviews" }));
+
+    await waitFor(() => expect(api.requestsTo("hourly_series").map((query) => query.get("metric"))).toContain("pageviews"));
+  });
+
+  it("keeps the daily series for ranges longer than a day", async () => {
+    const api = renderKpis();
+
+    await screen.findByRole("group", { name: "Visits chart" });
+    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
+    expect(api.requestsTo("hourly_series")).toHaveLength(0);
+  });
+
   it("says that the bars can add up to more than the card", async () => {
     renderKpis();
 
     expect(await screen.findByText("Bars are per-day counts and can add up to more than the card.")).toBeTruthy();
+  });
+
+  it("says the same of the hours", async () => {
+    renderKpis({ params: { ...params, date_to: "2026-11-10" } });
+
+    expect(await screen.findByText("Bars are per-hour counts and can add up to more than the card.")).toBeTruthy();
   });
 });
