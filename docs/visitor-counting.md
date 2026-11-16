@@ -282,8 +282,9 @@ Constraints that come straight from the definitions:
   `include_bots=1`; with a location, device or browser filter the same per-day states are built from `analytics_hits`,
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
   `include_bots=1`. **Built:** `engagement` (page views, pages per visit, bounce rate and average session length,
-  weighted by visit over the whole range, with the previous period and growth). Not built yet: the daily series, and
-  the dashboard on these endpoints instead of `kpis`.
+  weighted by visit over the whole range, with the previous period and growth) and `daily_series` (one metric per day
+  with the bar size as a percentage, zero for quiet days). Not built yet: the dashboard on these endpoints instead of
+  `kpis`, and an hourly series for single-day ranges.
 
 ## 13. Open items
 

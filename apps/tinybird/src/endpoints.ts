@@ -84,6 +84,56 @@ const growthPercentSql = (current: string, previous: string): string =>
   `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
 
 /**
+ * Per-day visitor states from `startColumn` of date_calculations to its current_end, tagged with
+ * their period. Without a cross filter they come from the daily visitor state; with one, they are
+ * built from the hits in the same shape, so one merge serves both paths.
+ */
+const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): string => `
+        {% if defined(location) or defined(device) or defined(browser) %}
+        SELECT
+            toDate(timestamp) AS date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            ${visitorClassSql} AS visitor_class,
+            uniqCombined64State(visitor_key) AS visitors_state,
+            uniqCombined64State(session_id) AS visits_state,
+            countState() AS hits_state
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= (SELECT ${startColumn} FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY date, period, visitor_class
+        {% else %}
+        SELECT
+            date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            visitor_class,
+            visitors AS visitors_state,
+            visits AS visits_state,
+            hits AS hits_state
+        FROM visitor_state_daily_mv
+        WHERE date >= (SELECT ${startColumn} FROM date_calculations)
+            AND date <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+        {% end %}
+      `;
+
+/**
  * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, with the
  * equal-length period before it, growth and the consented share. Read from the daily visitor state,
  * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
@@ -108,48 +158,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       name: "state_in_range",
       description:
         "Per-day visitor states for both periods. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
-      sql: `
-        {% if defined(location) or defined(device) or defined(browser) %}
-        SELECT
-            toDate(timestamp) AS date,
-            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
-            ${visitorClassSql} AS visitor_class,
-            uniqCombined64State(visitor_key) AS visitors_state,
-            uniqCombined64State(session_id) AS visits_state
-        FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
-            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
-            AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY date, period, visitor_class
-        {% else %}
-        SELECT
-            date,
-            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
-            visitor_class,
-            visitors AS visitors_state,
-            visits AS visits_state
-        FROM visitor_state_daily_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
-            {% if Int32(include_bots, 0) != 1 %}
-            AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
-        {% end %}
-      `,
+      sql: dailyVisitorStateSql("previous_start"),
     }),
     node({
       name: "daily_visitors_per_day",
@@ -354,6 +363,97 @@ export const engagement = defineEndpoint("engagement", {
 
 export type EngagementParams = InferParams<typeof engagement>;
 export type EngagementOutput = InferOutputRow<typeof engagement>;
+
+/**
+ * Daily series - one value per UTC day of the range for the chosen metric (visits, known visitors,
+ * daily visitors or pageviews), with each day's bar as a percentage of the busiest day. Days
+ * without traffic are zero. Bots are left out unless include_bots=1.
+ */
+export const dailySeries = defineEndpoint("daily_series", {
+  description:
+    "One value per UTC day for metric = visits, known, daily or pageviews, with bar_percent against the busiest day. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end
+      `,
+    }),
+    node({
+      name: "state_in_range",
+      description: "Per-day visitor states inside the range",
+      sql: dailyVisitorStateSql("current_start"),
+    }),
+    node({
+      name: "per_day",
+      description: "Every metric per day",
+      sql: `
+        SELECT
+            date,
+            uniqCombined64Merge(visits_state) AS visits_count,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known') AS known_count,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS daily_count,
+            countMerge(hits_state) AS pageviews_count
+        FROM state_in_range
+        GROUP BY date
+      `,
+    }),
+    node({
+      name: "days",
+      description: "Every day of the range, so quiet days show zero",
+      sql: `
+        SELECT arrayJoin(arrayMap(x -> toDate(x), range(toUInt32((SELECT current_start FROM date_calculations)), toUInt32((SELECT current_end FROM date_calculations)) + 1))) AS date
+      `,
+    }),
+    node({
+      name: "values",
+      sql: `
+        SELECT
+            d.date AS date,
+            multiIf(
+                {{ String(metric, 'visits', description="visits, known, daily or pageviews") }} = 'known', p.known_count,
+                {{ String(metric, 'visits') }} = 'daily', p.daily_count,
+                {{ String(metric, 'visits') }} = 'pageviews', p.pageviews_count,
+                p.visits_count
+            ) AS value
+        FROM days d
+        LEFT JOIN per_day p ON d.date = p.date
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            date,
+            value,
+            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent
+        FROM values
+        ORDER BY date
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
+    ...crossFilterParams,
+    include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  },
+  output: {
+    date: t.date(),
+    value: t.uint64(),
+    bar_percent: t.float64(),
+  },
+});
+
+export type DailySeriesParams = InferParams<typeof dailySeries>;
+export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
 
 /**
  * Tenants - every tenant with its domain count and total hits. Events that
