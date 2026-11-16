@@ -30,12 +30,16 @@ const crossFilters = `
             {% end %}
             {% if defined(browser) %}
             AND browser = {{ String(browser, description="Filter by browser: chrome, firefox, safari, opera, ie or unknown") }}
+            {% end %}
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND device != 'bot'
             {% end %}`;
 
 const crossFilterParams = {
   location: p.string().optional().describe("Filter by visitor country code, e.g. US"),
   device: p.string().optional().describe("Filter by device: desktop, mobile-ios, mobile-android or bot"),
   browser: p.string().optional().describe("Filter by browser: chrome, firefox, safari, opera, ie or unknown"),
+  include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
 };
 
 
@@ -1394,6 +1398,9 @@ const channelVisitsNode = (extraColumns = "") =>
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
         GROUP BY tenant_id, domain, session_id
       `,
   });
@@ -1419,6 +1426,9 @@ const channelVisitorCampaignsNode = () =>
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
             {% end %}
         GROUP BY tenant_id, domain, visitor_id
         HAVING countIf(utm_medium != '') > 0
@@ -1460,6 +1470,7 @@ const channelParams = {
   date_to: p.string().optional().describe("End date"),
   tenant_id: p.string().optional().describe("Filter by tenant ID"),
   domain: p.string().optional().describe("Filter by domain"),
+  include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
 };
 
 /**
