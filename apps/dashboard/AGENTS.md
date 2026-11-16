@@ -20,5 +20,8 @@ what it receives.
   from one call over the whole range, never from summing per-day rows.
 - If a screen needs a figure no endpoint returns, add or extend an endpoint (with an acceptance test) before writing
   the screen.
-- Enforced by `pnpm lint:ui-arithmetic` (`eslint.ui-arithmetic.config.js`) in `components/` and `app/`: no arithmetic
-  operators, `reduce` or `Math` there. `lib/` is not policed; keep it to formatting, ranges and ordering.
+- The line is between preparing a request and building a figure. Arithmetic for request parameters (date ranges,
+  paging, clamping a limit) is fine. Combining API results into something shown to the user is not, because two clients
+  could then show conflicting numbers.
+- `pnpm lint:ui-arithmetic` (`eslint.ui-arithmetic.config.js`) catches the common shapes in `components/` and `app/`:
+  arithmetic or `Math` around `Number(...)` of an API value, and `reduce`. It cannot see intent, so review still applies.

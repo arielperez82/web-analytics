@@ -20,42 +20,78 @@ const lint = async (file: string, code: string): Promise<readonly string[]> => {
 
 const component = 'apps/dashboard/src/components/Example.tsx';
 
-describe('the UI does not calculate', () => {
+describe('the UI does not combine API results into figures', () => {
   it.each([
-    ['subtraction', 'export const a = (x: number, y: number) => x - y;'],
-    ['addition', 'export const a = (x: number, y: number) => x + y;'],
-    ['division', 'export const a = (x: number, y: number) => x / y;'],
-    ['multiplication', 'export const a = (x: number, y: number) => x * y;'],
-    ['remainder', 'export const a = (x: number, y: number) => x % y;'],
-    ['negation of a value', 'export const a = (x: number) => -x;'],
-    ['increment', 'export const a = (x: number) => x++;'],
-    ['compound assignment', 'export const a = (x: number) => (x += 2);'],
-    ['reduce', 'export const a = (x: number[]) => x.reduce((n, v) => n, 0);'],
-    ['Math', 'export const a = (x: number) => Math.round(x);'],
+    [
+      'subtracting two API values',
+      'export const a = (r: Row) => Number(r.a) - Number(r.b);',
+    ],
+    [
+      'a ratio of API values',
+      'export const a = (r: Row) => Number(r.a) / Number(r.b);',
+    ],
+    [
+      'a percentage from an API value',
+      'export const a = (r: Row) => Number(r.a) * 100;',
+    ],
+    [
+      'a sum of an API value and a constant',
+      'export const a = (r: Row) => 1 + Number(r.a);',
+    ],
+    [
+      'a compound assignment from an API value',
+      'export const a = (r: Row) => { let t = 0; t += Number(r.a); return t; };',
+    ],
+    ['negating an API value', 'export const a = (r: Row) => -Number(r.a);'],
+    [
+      'rounding an API value',
+      'export const a = (r: Row) => Math.round(Number(r.a));',
+    ],
+    [
+      'reducing rows',
+      'export const a = (rows: Row[]) => rows.reduce((n, r) => n, 0);',
+    ],
   ])('rejects %s in a component', async (_name, code) => {
-    expect(await lint(component, code)).toEqual([
-      expect.stringContaining('does not calculate'),
-    ]);
+    expect(
+      await lint(
+        component,
+        `type Row = Record<string, string | number | null>;\n${code}`
+      )
+    ).toEqual([expect.stringContaining('combine')]);
   });
 
-  it('rejects arithmetic under app/ too', async () => {
+  it('rejects it under app/ too', async () => {
     const messages = await lint(
       'apps/dashboard/src/app/(dash)/Example.tsx',
-      'export const a = (x: number, y: number) => x - y;'
+      'export const a = (r: Record<string, number>) => Number(r.a) - Number(r.b);'
     );
     expect(messages).toHaveLength(1);
   });
 
-  it('allows formatting, comparison and template strings', async () => {
-    const code =
-      'export const a = (x: number, y: string) => (x > 3 ? `${y}%` : String(x));';
+  it.each([
+    ['paging a request', 'export const a = (limit: number) => limit + 100;'],
+    ['a date range', 'export const a = (t: Date) => t.getTime() - 86_400_000;'],
+    [
+      'clamping a request size',
+      'export const a = (n: number) => Math.min(n, 1000);',
+    ],
+    ['a counter', 'export const a = (n: number) => n++;'],
+    [
+      'coercing for display',
+      'export const a = (v: string | number | null) => String(Number(v));',
+    ],
+    [
+      'comparing and formatting',
+      'export const a = (x: number, y: string) => (x > 3 ? `${y}%` : String(x));',
+    ],
+  ])('allows %s, which prepares a request or formats', async (_name, code) => {
     expect(await lint(component, code)).toEqual([]);
   });
 
   it('does not police lib, where ranges and formatting are built', async () => {
     const messages = await lint(
       'apps/dashboard/src/lib/time-range.ts',
-      'export const a = (x: number, y: number) => x - y;'
+      'export const a = (r: Record<string, number>) => Number(r.a) - Number(r.b);'
     );
     expect(messages).toEqual([]);
   });

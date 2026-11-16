@@ -9,19 +9,19 @@ import { toggleFilter, type FilterKey } from "@/lib/filters";
 import type { Report } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
-const LIMITS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+const PAGE_SIZE = 100;
+const MAX_ROWS = 1000;
 
 export const ReportView = ({ report }: { report: Report }) => {
   const { state, update, params } = useDashboardState();
-  const [limit, setLimit] = useState(LIMITS[0] ?? 100);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const pick = (key: FilterKey, value: string) => update({ ...state, filters: toggleFilter(state.filters, key, value) });
-  const nextLimit = LIMITS.find((candidate) => candidate > limit);
   return (
     <>
       <p><Link href={hrefFor("/", state)}>← Overview</Link></p>
       <RankedTable report={report} state={state} params={params} onPick={pick} limit={limit}
         detail
-        onMore={nextLimit !== undefined ? () => setLimit(nextLimit) : undefined}
+        onMore={limit < MAX_ROWS ? () => setLimit(limit + PAGE_SIZE) : undefined}
       />
     </>
   );
