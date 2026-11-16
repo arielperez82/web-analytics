@@ -41,6 +41,7 @@ import {
 import {
   channels,
   conversions,
+  conversionSummary,
   currentVisitors,
   visitorCounts,
   engagement,
@@ -101,6 +102,7 @@ export const pipes = {
   // Endpoints
   channels,
   conversions,
+  conversionSummary,
   currentVisitors,
   visitorCounts,
   engagement,
@@ -160,6 +162,8 @@ export type {
   ChannelsOutput,
   ConversionsParams,
   ConversionsOutput,
+  ConversionSummaryParams,
+  ConversionSummaryOutput,
   EntryPagesParams,
   EntryPagesOutput,
   ExitPagesParams,

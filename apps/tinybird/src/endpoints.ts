@@ -683,6 +683,23 @@ export type TrendOutput = InferOutputRow<typeof trend>;
 // ============================================================================
 
 /**
+ * Final node for ranked lists: each row's bar as a percentage of the largest row, so the UI sizes
+ * bars without arithmetic.
+ */
+const barPercentNode = () =>
+  node({
+    name: "endpoint",
+    description: "Adds each row's bar size as a percentage of the busiest row",
+    sql: `
+        SELECT
+            *,
+            round(if(max(visits) OVER () = 0, 0, visits * 100.0 / max(visits) OVER ()), 2) AS bar_percent
+        FROM ranked
+        ORDER BY visits DESC
+      `,
+  });
+
+/**
  * Top browsers - ordered by most visits
  */
 export const topBrowsers = defineEndpoint("top_browsers", {
@@ -753,7 +770,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       description: "Combine with growth calculations",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
@@ -788,6 +805,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -806,6 +824,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
     browser: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -880,7 +899,7 @@ export const topDevices = defineEndpoint("top_devices", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -914,6 +933,7 @@ export const topDevices = defineEndpoint("top_devices", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -932,6 +952,7 @@ export const topDevices = defineEndpoint("top_devices", {
     device: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1006,7 +1027,7 @@ export const topLocations = defineEndpoint("top_locations", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -1040,6 +1061,7 @@ export const topLocations = defineEndpoint("top_locations", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -1058,6 +1080,7 @@ export const topLocations = defineEndpoint("top_locations", {
     location: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1137,7 +1160,7 @@ export const topPages = defineEndpoint("top_pages", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -1171,6 +1194,7 @@ export const topPages = defineEndpoint("top_pages", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -1189,6 +1213,7 @@ export const topPages = defineEndpoint("top_pages", {
     pathname: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1263,7 +1288,7 @@ export const topSources = defineEndpoint("top_sources", {
       `,
     }),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
@@ -1297,6 +1322,7 @@ export const topSources = defineEndpoint("top_sources", {
         {% end %}
       `,
     }),
+    barPercentNode(),
   ],
   params: {
     date_from: p.string().optional().describe("Start date"),
@@ -1315,6 +1341,7 @@ export const topSources = defineEndpoint("top_sources", {
     referrer: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1448,7 +1475,7 @@ export const channels = defineEndpoint("channels", {
     channelVisitorCampaignsNode(),
     channelFirstTouchNode(),
     node({
-      name: "endpoint",
+      name: "ranked",
       sql: `
         SELECT
             ${channelSql} as channel,
@@ -1459,12 +1486,14 @@ export const channels = defineEndpoint("channels", {
         ORDER BY visits DESC
       `,
     }),
+    barPercentNode(),
   ],
   params: channelParams,
   output: {
     channel: t.string(),
     visits: t.uint64(),
     hits: t.uint64(),
+    bar_percent: t.float64(),
   },
 });
 
@@ -1494,10 +1523,10 @@ export const conversions = defineEndpoint("conversions", {
             ${channelSql} as channel,
             count() as visits,
             sum(converted) as conversions,
-            sum(converted) / count() as conversion_rate
+            round(sum(converted) * 100.0 / count(), 2) as conversion_rate_percent
         FROM first_touch
         GROUP BY channel
-        ORDER BY visits DESC
+        ORDER BY conversions DESC, visits DESC
       `,
     }),
   ],
@@ -1511,12 +1540,56 @@ export const conversions = defineEndpoint("conversions", {
     channel: t.string(),
     visits: t.uint64(),
     conversions: t.uint64(),
-    conversion_rate: t.float64(),
+    conversion_rate_percent: t.float64(),
   },
 });
 
 export type ConversionsParams = InferParams<typeof conversions>;
 export type ConversionsOutput = InferOutputRow<typeof conversions>;
+
+/**
+ * Conversion summary - visits and conversions across every channel for one goal page, with the
+ * overall rate, so the UI shows the headline without adding rows up.
+ */
+export const conversionSummary = defineEndpoint("conversion_summary", {
+  description:
+    "For one goal page: total visits, visits that reached it and the overall conversion rate (percent) across every channel",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    channelDateNode(),
+    channelVisitsNode(`,
+            max(${pathKey("pathname")} = ${pathKey(
+              '{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed", required=True) }}',
+            )}) as converted`),
+    channelVisitorCampaignsNode(),
+    channelFirstTouchNode(`,
+            v.converted as converted`),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            count() as visits,
+            sum(converted) as conversions,
+            round(if(count() = 0, 0, sum(converted) * 100.0 / count()), 2) as conversion_rate_percent
+        FROM first_touch
+      `,
+    }),
+  ],
+  params: {
+    ...channelParams,
+    goal_path: p
+      .string()
+      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
+  },
+  output: {
+    visits: t.uint64(),
+    conversions: t.uint64(),
+    conversion_rate_percent: t.float64(),
+  },
+});
+
+export type ConversionSummaryParams = InferParams<typeof conversionSummary>;
+export type ConversionSummaryOutput = InferOutputRow<typeof conversionSummary>;
 
 const normalizedPath = `
     CASE

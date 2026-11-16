@@ -11,12 +11,13 @@ import {
   waitForPipeRows,
 } from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
+import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type ConversionRow = {
   channel: string;
   visits: number | string;
   conversions: number | string;
-  conversion_rate: number | string;
+  conversion_rate_percent: number | string;
 };
 
 const GOAL = '/welcome/done';
@@ -50,7 +51,7 @@ describe.concurrent('conversions pipe', () => {
     );
   const rateByChannel = (rows: readonly ConversionRow[]) =>
     Object.fromEntries(
-      rows.map(row => [row.channel, Number(row.conversion_rate)])
+      rows.map(row => [row.channel, Number(row.conversion_rate_percent)])
     );
   const hit = (
     scope: Scope,
@@ -85,7 +86,7 @@ describe.concurrent('conversions pipe', () => {
       Email: { visits: 1, conversions: 0 },
       Direct: { visits: 1, conversions: 0 },
     });
-    expect(rateByChannel(rows)).toEqual({ Paid: 0.5, Email: 0, Direct: 0 });
+    expect(rateByChannel(rows)).toEqual({ Paid: 50, Email: 0, Direct: 0 });
   });
 
   it('counts a visit once however many times it reaches the goal page', async () => {
@@ -228,5 +229,76 @@ describe.concurrent('conversions pipe', () => {
         domain: scope.domain,
       })
     ).rejects.toThrow(/goal_path/);
+  });
+
+  it('lists the channel with the most conversions first', async () => {
+    const scope = createScope();
+    const won = session('won');
+    const mail = session('mail');
+    await ingestEvents(env, [
+      hit(scope, '/', session('lost-1'), paid),
+      hit(scope, '/', session('lost-2'), paid),
+      hit(scope, '/', session('lost-3'), paid),
+      hit(scope, '/', mail, { ...email, offsetSeconds: 0 }),
+      hit(scope, GOAL, mail, { offsetSeconds: 10 }),
+      hit(scope, '/', won, { ...email, offsetSeconds: 0 }),
+      hit(scope, GOAL, won, { offsetSeconds: 10 }),
+    ]);
+
+    const rows = await conversions(scope, 2);
+
+    expect(rows.map(row => row.channel)).toEqual(['Email', 'Paid']);
+  });
+
+  describe('summary', () => {
+    type SummaryRow = {
+      visits: number | string;
+      conversions: number | string;
+      conversion_rate_percent: number | string;
+    };
+    const summary = (scope: Scope, expectedVisits: number) =>
+      waitForRow(
+        () =>
+          pipeRows<SummaryRow>(env, 'conversion_summary', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            goal_path: GOAL,
+          }),
+        rows => Number(rows[0]?.visits) === expectedVisits
+      ).then(rows => rows[0]);
+
+    it('totals the visits and conversions of every channel with the overall rate', async () => {
+      const scope = createScope();
+      const won = session('won');
+      await ingestEvents(env, [
+        hit(scope, '/', won, { ...paid, offsetSeconds: 0 }),
+        hit(scope, GOAL, won, { offsetSeconds: 10 }),
+        hit(scope, '/', session('lost'), paid),
+        hit(scope, '/', session('mail'), email),
+        hit(scope, '/', session('direct')),
+      ]);
+
+      const row = await summary(scope, 4);
+
+      expect(row).toMatchObject({
+        visits: 4,
+        conversions: 1,
+        conversion_rate_percent: 25,
+      });
+    });
+
+    it('shows zeros for a tenant with no visits', async () => {
+      const scope = createScope();
+
+      const rows = await pipeRows<SummaryRow>(env, 'conversion_summary', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        goal_path: GOAL,
+      });
+
+      expect(rows).toEqual([
+        { visits: 0, conversions: 0, conversion_rate_percent: 0 },
+      ]);
+    });
   });
 });

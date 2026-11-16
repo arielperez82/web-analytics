@@ -423,4 +423,37 @@ describe.concurrent('channels pipe', () => {
       expect(visitsByChannel(rows)).toEqual({ Direct: 1 });
     });
   });
+
+  it('sizes each channel against the busiest one as a percentage', async () => {
+    const env = inject('tinybird');
+    const scope = createScope();
+    const direct = () =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        sessionId: crypto.randomUUID(),
+      });
+    await ingestEvents(env, [
+      direct(),
+      direct(),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/',
+        sessionId: crypto.randomUUID(),
+        utm: { utm_medium: 'cpc' },
+      }),
+    ]);
+
+    const rows = await waitForPipeRows<ChannelRow & { bar_percent: number }>(
+      env,
+      'channels',
+      { tenant_id: scope.tenantId, domain: scope.domain },
+      2
+    );
+
+    expect(rows.map(row => [row.channel, Number(row.bar_percent)])).toEqual([
+      ['Direct', 100],
+      ['Paid', 50],
+    ]);
+  });
 });
