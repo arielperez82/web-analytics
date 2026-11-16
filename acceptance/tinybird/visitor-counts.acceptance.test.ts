@@ -275,4 +275,92 @@ describe.concurrent('visitor counts', () => {
       expect(result).toMatchObject({ known: 2, visits: 2 });
     });
   });
+  describe('against the previous period', () => {
+    type Row = Record<string, number | string>;
+
+    const comparison = (scope: Scope, expectedVisits: number) =>
+      waitForRow(
+        () =>
+          pipeRows<Row>(env, 'visitor_counts', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            date_from: dayOf(2),
+            date_to: dayOf(0),
+          }),
+        rows =>
+          Number(rows[0]?.visits) + Number(rows[0]?.previous_visits) ===
+          expectedVisits
+      ).then(rows => rows[0] ?? {});
+
+    it('counts the equal-length period before the range on its own', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        persistent(scope, 'v-both', 1),
+        persistent(scope, 'v-both', 4),
+        persistent(scope, 'v-before', 5),
+        persistent(scope, 'v-before', 4),
+      ]);
+
+      const row = await comparison(scope, 4);
+
+      expect(row).toMatchObject({
+        known_visitors: 1,
+        visits: 1,
+        previous_known_visitors: 2,
+        previous_visits: 3,
+      });
+    });
+
+    it('reports growth as a percentage of the previous period', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        persistent(scope, 'v-1', 1),
+        persistent(scope, 'v-2', 1),
+        persistent(scope, 'v-3', 1),
+        persistent(scope, 'v-4', 4),
+        persistent(scope, 'v-5', 4),
+      ]);
+
+      const row = await comparison(scope, 5);
+
+      expect(row).toMatchObject({
+        visits_growth_percent: 50,
+        known_visitors_growth_percent: 50,
+      });
+    });
+
+    it('calls new traffic 100 percent growth and no traffic zero', async () => {
+      const fresh = createScope();
+      const idle = createScope();
+      await ingestEvents(env, [persistent(fresh, 'v-1', 1)]);
+
+      const grown = await comparison(fresh, 1);
+      const none = await pipeRows<Row>(env, 'visitor_counts', {
+        tenant_id: idle.tenantId,
+        domain: idle.domain,
+        date_from: dayOf(2),
+        date_to: dayOf(0),
+      });
+
+      expect(grown).toMatchObject({ visits_growth_percent: 100 });
+      expect(none[0]).toMatchObject({
+        visits_growth_percent: 0,
+        known_visitors_growth_percent: 0,
+      });
+    });
+
+    it('gives the share of visits that came from consenting visitors', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        persistent(scope, 'v-1', 1),
+        createPageHitEvent({ ...scope, pathname: '/a', sessionId: 'l-1' }),
+        createPageHitEvent({ ...scope, pathname: '/a', sessionId: 'l-2' }),
+        createPageHitEvent({ ...scope, pathname: '/a', sessionId: 'l-3' }),
+      ]);
+
+      const row = await comparison(scope, 4);
+
+      expect(row).toMatchObject({ consented_visits_percent: 25 });
+    });
+  });
 });

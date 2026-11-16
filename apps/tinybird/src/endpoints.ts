@@ -77,28 +77,48 @@ export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
 /**
- * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, read from the
- * daily visitor state. Bots are left out unless include_bots=1.
+ * Percentage change from the previous period to the current one. New traffic against an empty
+ * previous period reads as 100, and two empty periods as 0.
+ */
+const growthPercentSql = (current: string, previous: string): string =>
+  `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
+
+/**
+ * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, with the
+ * equal-length period before it, growth and the consented share. Read from the daily visitor state,
+ * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
  */
 export const visitorCounts = defineEndpoint("visitor_counts", {
   description:
-    "Known visitors, daily visitors (person-days), legacy visitors and visits over a UTC date range, bots excluded unless include_bots=1",
+    "Known visitors, daily visitors (person-days), legacy visitors and visits over a UTC date range, with the previous period, growth and consented share. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
+      name: "date_calculations",
+      description: "The range and the equal-length period before it",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            dateDiff('day', current_start, current_end) + 1 AS period_days,
+            current_start - period_days AS previous_start
+      `,
+    }),
+    node({
       name: "state_in_range",
       description:
-        "Per-day visitor states inside the range. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
+        "Per-day visitor states for both periods. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
       sql: `
         {% if defined(location) or defined(device) or defined(browser) %}
         SELECT
             toDate(timestamp) AS date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             ${visitorClassSql} AS visitor_class,
-            uniqCombined64State(visitor_key) AS visitors,
-            uniqCombined64State(session_id) AS visits
+            uniqCombined64State(visitor_key) AS visitors_state,
+            uniqCombined64State(session_id) AS visits_state
         FROM analytics_hits
-        WHERE toDate(timestamp) >= {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %}
-            AND toDate(timestamp) <= {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %}
+        WHERE toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -108,12 +128,17 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
-        GROUP BY date, visitor_class
+        GROUP BY date, period, visitor_class
         {% else %}
-        SELECT date, visitor_class, visitors, visits
+        SELECT
+            date,
+            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            visitor_class,
+            visitors AS visitors_state,
+            visits AS visits_state
         FROM visitor_state_daily_mv
-        WHERE date >= {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %}
-            AND date <= {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %}
+        WHERE date >= (SELECT previous_start FROM date_calculations)
+            AND date <= (SELECT current_end FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
             {% end %}
@@ -130,20 +155,42 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       name: "daily_visitors_per_day",
       description: "Daily ids cannot be linked across days, so count them per day",
       sql: `
-        SELECT date, uniqCombined64MergeIf(visitors, visitor_class = 'daily') AS n
+        SELECT date, period, uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS n
         FROM state_in_range
-        GROUP BY date
+        GROUP BY date, period
+      `,
+    }),
+    node({
+      name: "period_counts",
+      sql: `
+        SELECT
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'current') AS known_visitors,
+            (SELECT sumIf(n, period = 'current') FROM daily_visitors_per_day) AS daily_visitors,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'legacy' AND period = 'current') AS legacy_visitors,
+            uniqCombined64MergeIf(visits_state, period = 'current') AS visits,
+            uniqCombined64MergeIf(visits_state, visitor_class = 'known' AND period = 'current') AS known_visits,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'previous') AS previous_known_visitors,
+            (SELECT sumIf(n, period = 'previous') FROM daily_visitors_per_day) AS previous_daily_visitors,
+            uniqCombined64MergeIf(visits_state, period = 'previous') AS previous_visits
+        FROM state_in_range
       `,
     }),
     node({
       name: "endpoint",
       sql: `
         SELECT
-            uniqCombined64MergeIf(visitors, visitor_class = 'known') AS known_visitors,
-            (SELECT sum(n) FROM daily_visitors_per_day) AS daily_visitors,
-            uniqCombined64MergeIf(visitors, visitor_class = 'legacy') AS legacy_visitors,
-            uniqCombined64Merge(visits) AS visits
-        FROM state_in_range
+            known_visitors,
+            daily_visitors,
+            legacy_visitors,
+            visits,
+            round(if(visits = 0, 0, known_visits * 100.0 / visits), 2) AS consented_visits_percent,
+            previous_known_visitors,
+            previous_daily_visitors,
+            previous_visits,
+            ${growthPercentSql("known_visitors", "previous_known_visitors")} AS known_visitors_growth_percent,
+            ${growthPercentSql("daily_visitors", "previous_daily_visitors")} AS daily_visitors_growth_percent,
+            ${growthPercentSql("visits", "previous_visits")} AS visits_growth_percent
+        FROM period_counts
       `,
     }),
   ],
@@ -160,6 +207,13 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     daily_visitors: t.uint64(),
     legacy_visitors: t.uint64(),
     visits: t.uint64(),
+    consented_visits_percent: t.float64(),
+    previous_known_visitors: t.uint64(),
+    previous_daily_visitors: t.uint64(),
+    previous_visits: t.uint64(),
+    known_visitors_growth_percent: t.float64(),
+    daily_visitors_growth_percent: t.float64(),
+    visits_growth_percent: t.float64(),
   },
 });
 
