@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { proxyEndpoint, type ProxyDeps } from "./endpoint-proxy";
+import { type ProxyDeps,proxyEndpoint } from "./endpoint-proxy";
 
 type Call = { readonly url: string; readonly authorization: string | null };
 
@@ -57,12 +57,28 @@ describe("proxyEndpoint", () => {
   it("forwards only known params", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(
-      request("kpis", "date_from=2026-01-01&date_to=2026-01-31&token=evil&like_filter=%25x"),
+      request("visitor_counts", "date_from=2026-01-01&date_to=2026-01-31&token=evil&like_filter=%25x"),
       deps,
     );
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/kpis.json?date_from=2026-01-01&date_to=2026-01-31",
+      "http://tb.test/v0/pipes/visitor_counts.json?date_from=2026-01-01&date_to=2026-01-31",
     );
+  });
+
+  it("forwards the series metric and the include-bots switch", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(request("daily_series", "metric=known&include_bots=1"), deps);
+    expect(calls[0].url).toBe(
+      "http://tb.test/v0/pipes/daily_series.json?metric=known&include_bots=1",
+    );
+  });
+
+  it("serves the overview endpoints and no longer serves kpis", async () => {
+    const { deps } = createFakeDeps();
+    for (const name of ["visitor_counts", "engagement", "daily_series"]) {
+      expect((await proxyEndpoint(request(name), deps)).status).toBe(200);
+    }
+    expect((await proxyEndpoint(request("kpis"), deps)).status).toBe(404);
   });
 
   it("forwards the previous-period comparison flag", async () => {

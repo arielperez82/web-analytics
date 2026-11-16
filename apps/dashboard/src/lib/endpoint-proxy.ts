@@ -4,7 +4,9 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
   "domains",
   "tenants",
-  "kpis",
+  "visitor_counts",
+  "engagement",
+  "daily_series",
   "trend",
   "top_pages",
   "top_sources",
@@ -38,6 +40,8 @@ const FORWARDED_PARAMS: readonly string[] = [
   "location",
   "device",
   "browser",
+  "metric",
+  "include_bots",
   "goal_path",
 ];
 
