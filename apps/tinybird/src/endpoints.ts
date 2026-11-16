@@ -460,6 +460,106 @@ export type DailySeriesParams = InferParams<typeof dailySeries>;
 export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
 
 /**
+ * Hourly series - one value per UTC hour of a short range, for the same metrics as daily_series.
+ * Hours are rolled up from the hits at read time, so no hourly materialization exists; the range
+ * is capped at seven days to keep the scan small. Each hour counts its own distinct visits and
+ * visitors, so the hours can add up to more than the day. Bots are left out unless include_bots=1.
+ */
+export const hourlySeries = defineEndpoint("hourly_series", {
+  description:
+    "One value per UTC hour for metric = visits, known, daily or pageviews over at most 7 days, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range, refused when longer than seven days",
+      sql: `
+        WITH
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() {% end %} AS requested_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS requested_end
+        SELECT
+            requested_start + throwIf(dateDiff('day', requested_start, requested_end) > 6, 'An hourly series covers at most 7 days') AS current_start,
+            requested_end AS current_end
+      `,
+    }),
+    node({
+      name: "per_hour",
+      description: "Every metric per hour, from the hits",
+      sql: `
+        SELECT
+            toStartOfHour(timestamp) AS hour,
+            uniqCombined64(session_id) AS visits_count,
+            uniqCombined64If(visitor_key, ${visitorClassSql} = 'known') AS known_count,
+            uniqCombined64If(visitor_key, ${visitorClassSql} = 'daily') AS daily_count,
+            count() AS pageviews_count
+        FROM analytics_hits
+        WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
+            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY hour
+      `,
+    }),
+    node({
+      name: "hours",
+      description: "Every hour of the range, so quiet hours show zero",
+      sql: `
+        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32(toDateTime((SELECT current_start FROM date_calculations))), toUInt32(toDateTime((SELECT current_end FROM date_calculations))) + 86400, 3600))) AS hour
+      `,
+    }),
+    node({
+      name: "values",
+      sql: `
+        SELECT
+            h.hour AS hour,
+            multiIf(
+                {{ String(metric, 'visits', description="visits, known, daily or pageviews") }} = 'known', p.known_count,
+                {{ String(metric, 'visits') }} = 'daily', p.daily_count,
+                {{ String(metric, 'visits') }} = 'pageviews', p.pageviews_count,
+                p.visits_count
+            ) AS value
+        FROM hours h
+        LEFT JOIN per_hour p ON h.hour = p.hour
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            hour,
+            value,
+            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent
+        FROM values
+        ORDER BY hour
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive; at most 7 days after date_from"),
+    metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
+    ...crossFilterParams,
+  },
+  output: {
+    hour: t.dateTime(),
+    value: t.uint64(),
+    bar_percent: t.float64(),
+  },
+});
+
+export type HourlySeriesParams = InferParams<typeof hourlySeries>;
+export type HourlySeriesOutput = InferOutputRow<typeof hourlySeries>;
+
+/**
  * Tenants - every tenant with its domain count and total hits. Events that
  * carry no tenant appear with an empty tenant_id.
  */

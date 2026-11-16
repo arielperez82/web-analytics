@@ -7,6 +7,7 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "visitor_counts",
   "engagement",
   "daily_series",
+  "hourly_series",
   "trend",
   "top_pages",
   "top_sources",

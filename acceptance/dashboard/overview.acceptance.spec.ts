@@ -36,6 +36,10 @@ const routes = {
   visitor_counts: [counts],
   engagement: [engagement],
   daily_series: [{ date: '2026-11-10', value: 10, bar_percent: 100 }],
+  hourly_series: [
+    { hour: '2026-11-10 09:00:00', value: 7, bar_percent: 100 },
+    { hour: '2026-11-10 10:00:00', value: 2, bar_percent: 30 },
+  ],
   top_locations: locations,
   top_devices: [],
   top_browsers: [],
@@ -127,4 +131,22 @@ test('speed insights do not offer the bot toggle', async ({ page }) => {
   await expect(
     page.getByRole('checkbox', { name: 'Include bots' })
   ).toHaveCount(0);
+});
+
+test('clicking a day on the chart shows that day hour by hour', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  await expect(page.getByText('Visits per day')).toBeVisible();
+  expect(api.requestsTo('hourly_series')).toHaveLength(0);
+
+  await page.getByTitle('2026-11-10: 10').click();
+
+  await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
+  await expect(page.getByText('Visits per hour')).toBeVisible();
+  await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
+  const query = api.requestsTo('hourly_series').at(-1);
+  expect(query?.get('date_from')).toBe('2026-11-10');
+  expect(query?.get('date_to')).toBe('2026-11-10');
 });
