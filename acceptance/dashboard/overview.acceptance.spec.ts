@@ -196,3 +196,17 @@ test('changing a filter does not move the layout below the chart', async ({
 
   expect(heightWhileLoading).toBe(heightBefore);
 });
+
+test('the chart has labelled axes', async ({ page }) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  const yAxis = page.getByRole('group', { name: 'Chart y axis' });
+  await expect(yAxis.getByText('10', { exact: true })).toBeVisible();
+  await expect(yAxis.getByText('0', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('group', { name: 'Chart x axis' })
+      .getByText('Nov 10', { exact: true })
+  ).toBeVisible();
+});
