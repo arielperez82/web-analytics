@@ -96,7 +96,7 @@ export const Kpis = ({
           value={formatNumber(field(counts, "known_visitors"))}
           growth={formatSignedPercent(field(counts, "known_visitors_growth_percent"))}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
-          caption="Unique people who accepted tracking"
+          caption="Unique people, counted once across the range"
           approximate
         />
         <Card

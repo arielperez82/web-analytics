@@ -48,6 +48,17 @@ describe("xLabels", () => {
     expect(labels.filter((label) => label !== "")).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]);
   });
 
+  it("labels only the midnights, with the date, once the hours span several days", () => {
+    const hours = Array.from({ length: 72 }, (_, index) => {
+      const day = 10 + Math.floor(index / 24);
+      return `2026-11-${String(day)} ${String(index % 24).padStart(2, "0")}:00:00`;
+    });
+    const labels = xLabels(hours, "hour");
+    expect(labels.filter((label) => label !== "")).toEqual(["Nov 10", "Nov 11", "Nov 12"]);
+    expect(labels[0]).toBe("Nov 10");
+    expect(labels[24]).toBe("Nov 11");
+  });
+
   it("returns nothing for no bars", () => {
     expect(xLabels([], "day")).toEqual([]);
   });

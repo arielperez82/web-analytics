@@ -98,7 +98,7 @@ describe("Kpis", () => {
     renderKpis();
 
     const known = within(await card("Known visitors"));
-    await waitFor(() => expect(known.getByText("Unique people who accepted tracking")).toBeTruthy());
+    await waitFor(() => expect(known.getByText("Unique people, counted once across the range")).toBeTruthy());
     expect(
       within(await card("Anonymous visitors")).getByText(
         "Unique within a day only: a returning person counts again each day",
