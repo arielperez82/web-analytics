@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 import { xLabels, yTicks } from "@/lib/chart-axis";
-import { type DashboardState,drillDay } from "@/lib/dashboard-state";
+import { type DashboardState, drillDay, type Grain } from "@/lib/dashboard-state";
+import { effectiveGrain, hourAvailable } from "@/lib/grain";
 import {
   APPROXIMATE_COUNT_NOTE,
   formatNumber,
@@ -23,6 +24,11 @@ const METRICS: readonly { readonly key: Metric; readonly label: string }[] = [
   { key: "known", label: "Known visitors" },
   { key: "anonymous", label: "Anonymous visitors" },
   { key: "pageviews", label: "Pageviews" },
+];
+
+const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
+  { key: "day", label: "Day" },
+  { key: "hour", label: "Hour" },
 ];
 
 const field = (row: Row | undefined, key: string): number => Number(row?.[key] ?? 0);
@@ -75,8 +81,9 @@ export const Kpis = ({
   const [metric, setMetric] = useState<Metric>("sessions");
   const counts = useEndpoint<Row>("visitor_counts", params).data?.[0];
   const engagement = useEndpoint<Row>("engagement", params).data?.[0];
-  const singleDay = params.date_from === params.date_to;
-  const { endpoint, key, unit } = singleDay ? SERIES.hourly : SERIES.daily;
+  const grain = effectiveGrain({ grain: state.grain, params });
+  const hourly = grain === "hour";
+  const { endpoint, key, unit } = hourly ? SERIES.hourly : SERIES.daily;
   const { data, loading, error } = useEndpoint<Row>(endpoint, { ...params, metric });
   const rows = data ?? [];
   const selected = "from" in state.range ? state.range.from : undefined;
@@ -89,7 +96,7 @@ export const Kpis = ({
           value={formatNumber(field(counts, "known_visitors"))}
           growth={formatSignedPercent(field(counts, "known_visitors_growth_percent"))}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
-          caption="Unique people who accepted tracking"
+          caption="Unique people, counted once across the range"
           approximate
         />
         <Card
@@ -121,17 +128,31 @@ export const Kpis = ({
           growth={formatSignedPercent(field(engagement, "avg_session_sec_growth_percent"))}
         />
       </div>
-      <Panel title={singleDay ? `${label} per hour` : `${label} per day · click a bar to drill in`}>
-        <div className="chart-metric" role="group" aria-label="Chart series">
-          {METRICS.map((option) => (
-            <button
-              key={option.key}
-              aria-pressed={metric === option.key}
-              onClick={() => setMetric(option.key)}
-            >
-              {option.label}
-            </button>
-          ))}
+      <Panel title={hourly ? `${label} per hour` : `${label} per day · click a bar to drill in`}>
+        <div className="chart-controls">
+          <div className="chart-metric" role="group" aria-label="Chart series">
+            {METRICS.map((option) => (
+              <button
+                key={option.key}
+                aria-pressed={metric === option.key}
+                onClick={() => setMetric(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="chart-metric" role="group" aria-label="Chart granularity">
+            {GRAINS.map((option) => (
+              <button
+                key={option.key}
+                aria-pressed={grain === option.key}
+                disabled={option.key === "hour" && !hourAvailable(params)}
+                onClick={() => onChange({ ...state, grain: option.key })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
@@ -152,7 +173,7 @@ export const Kpis = ({
                   <button
                     key={day}
                     className="col"
-                    disabled={singleDay}
+                    disabled={hourly}
                     aria-pressed={selected === day}
                     title={`${day}: ${formatNumber(field(row, "value"))}`}
                     onClick={() => onChange(drillDay(state, day))}

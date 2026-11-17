@@ -10,8 +10,8 @@ export type Report = {
 };
 
 export const REPORTS: readonly Report[] = [
-  { slug: "pages", heading: "Top pages", endpoint: "top_pages", labelKey: "pathname" },
-  { slug: "sources", heading: "Top sources", endpoint: "top_sources", labelKey: "referrer" },
+  { slug: "pages", heading: "Pages", endpoint: "top_pages", labelKey: "pathname" },
+  { slug: "sources", heading: "Sources", endpoint: "top_sources", labelKey: "referrer" },
   { slug: "channels", heading: "Channels", endpoint: "channels", labelKey: "channel", previousPeriod: false },
   { slug: "locations", heading: "Locations", endpoint: "top_locations", labelKey: "location", filterKey: "location" },
   { slug: "devices", heading: "Devices", endpoint: "top_devices", labelKey: "device", filterKey: "device" },
@@ -20,7 +20,3 @@ export const REPORTS: readonly Report[] = [
 
 export const reportBySlug = (slug: string): Report | undefined =>
   REPORTS.find((report) => report.slug === slug);
-
-export const FILTER_REPORTS: readonly Report[] = REPORTS.filter((report) => report.filterKey);
-
-export const LIST_REPORTS: readonly Report[] = REPORTS.filter((report) => !report.filterKey);

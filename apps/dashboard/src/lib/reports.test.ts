@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FILTER_REPORTS, LIST_REPORTS, REPORTS, reportBySlug } from "./reports";
+import { REPORTS, reportBySlug } from "./reports";
 
 describe("reportBySlug", () => {
   it("finds a report by its slug", () => {
@@ -34,9 +34,8 @@ describe("reportBySlug", () => {
   });
 });
 
-describe("filter and list widgets", () => {
-  it("splits reports into filter widgets and plain lists", () => {
-    expect(FILTER_REPORTS.map((r) => r.slug)).toEqual(["locations", "devices", "browsers"]);
-    expect(LIST_REPORTS.map((r) => r.slug)).toEqual(["pages", "sources", "channels"]);
+describe("report headings", () => {
+  it("name the dimension without a Top prefix", () => {
+    expect(REPORTS.map((r) => r.heading)).toEqual(["Pages", "Sources", "Channels", "Locations", "Devices", "Browsers"]);
   });
 });

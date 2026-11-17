@@ -177,6 +177,18 @@ describe("RankedTable", () => {
     expect(await screen.findByRole("heading", { name: "Locations" })).toBeTruthy();
   });
 
+  it("tells the viewer a row filters, only on reports that can filter", async () => {
+    renderTable();
+    expect(await screen.findByText("Click a row to filter")).toBeTruthy();
+    cleanup();
+    removeFakeApi();
+
+    installFakeApi({ top_pages: [{ pathname: "/a", visits: 1, hits: 1, bar_percent: 100 }] });
+    render(<RankedTable report={report("pages")} state={state} params={params} onPick={() => undefined} />);
+    await screen.findByText("/a");
+    expect(screen.queryByText("Click a row to filter")).toBeNull();
+  });
+
   it("leaves See all off the detail view", async () => {
     renderTable({ detail: true });
 

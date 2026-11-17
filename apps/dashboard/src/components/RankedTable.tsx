@@ -38,6 +38,7 @@ export const RankedTable = ({
   const rows = data ?? [];
   return (
     <Panel title={report.heading}>
+      {filterKey && <p className="hint">Click a row to filter</p>}
       <Status loading={loading} error={error} empty={data?.length === 0} />
       <table>
         {detail && (

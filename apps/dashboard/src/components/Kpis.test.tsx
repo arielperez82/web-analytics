@@ -52,7 +52,12 @@ const hours: readonly ApiRow[] = [
 ];
 
 const renderKpis = (
-  overrides: { params?: Record<string, string>; onChange?: (next: DashboardState) => void; series?: readonly ApiRow[] } = {},
+  overrides: {
+    params?: Record<string, string>;
+    onChange?: (next: DashboardState) => void;
+    series?: readonly ApiRow[];
+    state?: DashboardState;
+  } = {},
 ) => {
   const api = installFakeApi({
     visitor_counts: [counts],
@@ -60,7 +65,7 @@ const renderKpis = (
     daily_series: overrides.series ?? series,
     hourly_series: hours,
   });
-  render(<Kpis state={state} params={overrides.params ?? params} onChange={overrides.onChange ?? (() => undefined)} />);
+  render(<Kpis state={overrides.state ?? state} params={overrides.params ?? params} onChange={overrides.onChange ?? (() => undefined)} />);
   return api;
 };
 
@@ -93,7 +98,7 @@ describe("Kpis", () => {
     renderKpis();
 
     const known = within(await card("Known visitors"));
-    await waitFor(() => expect(known.getByText("Unique people who accepted tracking")).toBeTruthy());
+    await waitFor(() => expect(known.getByText("Unique people, counted once across the range")).toBeTruthy());
     expect(
       within(await card("Anonymous visitors")).getByText(
         "Unique within a day only: a returning person counts again each day",
@@ -174,7 +179,7 @@ describe("Kpis", () => {
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await user.click(await within(chart).findByTitle("2026-11-11: 90"));
 
-    expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" } }]);
+    expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" }, grain: "hour" }]);
   });
 
   it("shows the hours of a single-day range from the hourly series", async () => {
@@ -207,6 +212,55 @@ describe("Kpis", () => {
     await user.click(await screen.findByRole("button", { name: "Pageviews" }));
 
     await waitFor(() => expect(api.requestsTo("hourly_series").map((query) => query.get("metric"))).toContain("pageviews"));
+  });
+
+  it("keeps the metric keys and the granularity as two separate controls", async () => {
+    renderKpis();
+
+    const keys = await screen.findByRole("group", { name: "Chart series" });
+    expect(within(keys).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Sessions",
+      "Known visitors",
+      "Anonymous visitors",
+      "Pageviews",
+    ]);
+    const grain = screen.getByRole("group", { name: "Chart granularity" });
+    expect(within(grain).getAllByRole("button").map((button) => button.textContent)).toEqual(["Day", "Hour"]);
+  });
+
+  it("shows hours for a week when the viewer chooses Hour", async () => {
+    const api = renderKpis({ state: { ...state, grain: "hour" } });
+
+    expect(await screen.findByText(/Sessions per hour/)).toBeTruthy();
+    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
+    expect(api.requestsTo("daily_series")).toHaveLength(0);
+    expect(within(screen.getByRole("group", { name: "Chart granularity" })).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("asks to switch the grain when Hour or Day is clicked", async () => {
+    const picked: DashboardState[] = [];
+    renderKpis({ onChange: (next) => picked.push(next) });
+    const user = userEvent.setup();
+
+    const grain = await screen.findByRole("group", { name: "Chart granularity" });
+    await user.click(within(grain).getByRole("button", { name: "Hour" }));
+
+    expect(picked).toEqual([{ ...state, grain: "hour" }]);
+  });
+
+  it("offers Day on a single day, where the choice is a single bar", async () => {
+    const api = renderKpis({ state: { ...state, grain: "day" }, params: { ...params, date_to: "2026-11-10" } });
+
+    expect(await screen.findByText(/Sessions per day/)).toBeTruthy();
+    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
+  });
+
+  it("does not offer Hour for a range longer than the API will roll up", async () => {
+    renderKpis({ params: { ...params, date_from: "2026-10-18" } });
+
+    const grain = await screen.findByRole("group", { name: "Chart granularity" });
+    expect((within(grain).getByRole("button", { name: "Hour" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(grain).getByRole("button", { name: "Day" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("keeps the daily series for ranges longer than a day", async () => {

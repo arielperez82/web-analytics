@@ -16,6 +16,9 @@ what it receives.
 
 - Allowed: formatting (locale, units, display precision through `Intl`), layout, sorting rows the API already ranked
   only when the API gives no order, and choosing which endpoint to call for which range.
+- Also allowed: display scaling. Chart axis ticks and label spacing are chosen in the UI (`src/lib/chart-axis.ts`) from
+  the range of the rows the API returned. Ticks are labels, not figures: bar heights still come from the API's
+  `bar_percent`, and no tick is ever shown as a measurement.
 - Not allowed: adding, averaging, dividing or comparing values from the API, including across rows. A range total comes
   from one call over the whole range, never from summing per-day rows.
 - If a screen needs a figure no endpoint returns, add or extend an endpoint (with an acceptance test) before writing
