@@ -51,11 +51,13 @@ const hours: readonly ApiRow[] = [
   { hour: "2026-11-10 10:00:00", value: 2, bar_percent: 30 },
 ];
 
-const renderKpis = (overrides: { params?: Record<string, string>; onChange?: (next: DashboardState) => void } = {}) => {
+const renderKpis = (
+  overrides: { params?: Record<string, string>; onChange?: (next: DashboardState) => void; series?: readonly ApiRow[] } = {},
+) => {
   const api = installFakeApi({
     visitor_counts: [counts],
     engagement: [engagement],
-    daily_series: series,
+    daily_series: overrides.series ?? series,
     hourly_series: hours,
   });
   render(<Kpis state={state} params={overrides.params ?? params} onChange={overrides.onChange ?? (() => undefined)} />);
@@ -97,6 +99,20 @@ describe("Kpis", () => {
         "Unique within a day only: a returning person counts again each day",
       ),
     ).toBeTruthy();
+  });
+
+  it("labels the y axis from the range of the rows and the x axis with the days", async () => {
+    renderKpis({
+      series: [
+        { date: "2026-11-10", value: 40, bar_percent: 100 },
+        { date: "2026-11-11", value: 12, bar_percent: 30 },
+      ],
+    });
+
+    const yAxis = await screen.findByLabelText("Chart y axis");
+    expect(Array.from(yAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["40", "20", "0"]);
+    const xAxis = screen.getByLabelText("Chart x axis");
+    expect(Array.from(xAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["Nov 10", "Nov 11"]);
   });
 
   it("does not derive the sessions card from the chart rows", async () => {

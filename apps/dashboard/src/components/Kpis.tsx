@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { xLabels, yTicks } from "@/lib/chart-axis";
 import { type DashboardState,drillDay } from "@/lib/dashboard-state";
 import {
   APPROXIMATE_COUNT_NOTE,
@@ -132,25 +133,41 @@ export const Kpis = ({
             </button>
           ))}
         </div>
-        <div className="chart" role="group" aria-label={`${label} chart`}>
-          <div className="chart-status">
-            <Status loading={loading} error={error} empty={rows.length === 0} />
+        <div className="chart-frame">
+          <div className="y-axis" role="group" aria-label="Chart y axis">
+            {yTicks(rows.map((row) => field(row, "value"))).map((tick) => (
+              <span key={tick.percent} style={{ bottom: `${tick.percent}%` }}>
+                {formatNumber(tick.value)}
+              </span>
+            ))}
           </div>
-          {rows.map((row) => {
-            const day = String(row[key]);
-            return (
-              <button
-                key={day}
-                className="col"
-                disabled={singleDay}
-                aria-pressed={selected === day}
-                title={`${day}: ${formatNumber(field(row, "value"))}`}
-                onClick={() => onChange(drillDay(state, day))}
-              >
-                <div style={{ height: `${field(row, "bar_percent")}%` }} />
-              </button>
-            );
-          })}
+          <div className="chart-body">
+            <div className="chart" role="group" aria-label={`${label} chart`}>
+              <div className="chart-status">
+                <Status loading={loading} error={error} empty={rows.length === 0} />
+              </div>
+              {rows.map((row) => {
+                const day = String(row[key]);
+                return (
+                  <button
+                    key={day}
+                    className="col"
+                    disabled={singleDay}
+                    aria-pressed={selected === day}
+                    title={`${day}: ${formatNumber(field(row, "value"))}`}
+                    onClick={() => onChange(drillDay(state, day))}
+                  >
+                    <div style={{ height: `${field(row, "bar_percent")}%` }} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="x-axis" role="group" aria-label="Chart x axis">
+              {xLabels(rows.map((row) => String(row[key])), unit).map((text, index) => (
+                <span key={index}>{text}</span>
+              ))}
+            </div>
+          </div>
         </div>
         <p className="muted">Bars are per-{unit} counts and can add up to more than the card.</p>
       </Panel>
