@@ -239,11 +239,7 @@ test('says whether the figures are filtered, and by what', async ({ page }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  await expect(
-    page.getByText(
-      'Showing all traffic. Click a row below to filter every figure.'
-    )
-  ).toBeVisible();
+  await expect(page.getByText('Showing all traffic.')).toBeVisible();
 
   await page.getByRole('cell', { name: 'FR', exact: true }).click();
 
@@ -278,4 +274,37 @@ test('hours are not offered for a month', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: 'Hour', exact: true })
   ).toBeDisabled();
+});
+
+test('the granularity toggle sits right of the metric keys', async ({
+  page,
+}) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  const keys = await page
+    .getByRole('group', { name: 'Chart series' })
+    .boundingBox();
+  const grain = await page
+    .getByRole('group', { name: 'Chart granularity' })
+    .boundingBox();
+  const panel = await page
+    .getByRole('group', { name: 'Sessions chart' })
+    .boundingBox();
+  expect(grain?.x).toBeGreaterThan((keys?.x ?? Infinity) + (keys?.width ?? 0));
+  expect((grain?.x ?? 0) + (grain?.width ?? 0)).toBeGreaterThan(
+    (panel?.x ?? 0) + (panel?.width ?? 0) - 40
+  );
+});
+
+test('only the breakdowns that filter say so, inside their panel', async ({
+  page,
+}) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  await expect(
+    page.getByText('click a row to filter every figure above')
+  ).toHaveCount(0);
+  await expect(page.getByText('Click a row to filter')).toHaveCount(3);
 });

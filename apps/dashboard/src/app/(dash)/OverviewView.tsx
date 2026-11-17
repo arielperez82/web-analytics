@@ -14,7 +14,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
   return (
     <>
       <Kpis state={state} params={params} onChange={update} />
-      <h2 className="section">Breakdowns <small>click a row to filter every figure above</small></h2>
+      <h2 className="section">Breakdowns</h2>
       <div className="grid">
         {REPORTS.map((report) => (
           <RankedTable key={report.slug} report={report} state={state} params={params} onPick={pick} />

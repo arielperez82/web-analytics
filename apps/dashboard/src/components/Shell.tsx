@@ -102,7 +102,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             </button>
           ))}
           {filters.length === 0 && onOverview && (
-            <span className="muted">Showing all traffic. Click a row below to filter every figure.</span>
+            <span className="muted">Showing all traffic.</span>
           )}
           {filters.length > 0 && <button onClick={() => update({ ...state, filters: {} })}>Clear filters</button>}
           {onSpeed && filters.length > 0 && <span className="muted">Location, device and browser filters don’t apply to Speed Insights.</span>}

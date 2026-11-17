@@ -33,3 +33,9 @@ describe("reportBySlug", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 });
+
+describe("report headings", () => {
+  it("name the dimension without a Top prefix", () => {
+    expect(REPORTS.map((r) => r.heading)).toEqual(["Pages", "Sources", "Channels", "Locations", "Devices", "Browsers"]);
+  });
+});
