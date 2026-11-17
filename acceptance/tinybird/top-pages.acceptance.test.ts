@@ -7,7 +7,7 @@ import {
 import { waitForPipeRows } from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
-type TopPageRow = { pathname: string; visits: number; hits: number };
+type TopPageRow = { pathname: string; sessions: number; hits: number };
 
 describe.concurrent('top_pages pipe', () => {
   const env = inject('tinybird');

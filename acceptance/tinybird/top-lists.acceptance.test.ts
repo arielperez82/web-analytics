@@ -13,10 +13,10 @@ import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type Row = {
-  visits: number | string;
+  sessions: number | string;
   hits: number | string;
-  previous_visits?: number | string;
-  visits_growth_percentage?: number | string;
+  previous_sessions?: number | string;
+  sessions_growth_percentage?: number | string;
   [column: string]: number | string | undefined;
 };
 
@@ -149,7 +149,7 @@ describe.concurrent.each(entries)('top $label', entry => {
     ]);
   const ranked = (rows: readonly Row[]) => rows.length >= 3;
 
-  it(`lists the ${entry.label} with the most visits first`, async () => {
+  it(`lists the ${entry.label} with the most sessions first`, async () => {
     const scope = createScope();
     await seedRanked(scope);
 
@@ -169,7 +169,7 @@ describe.concurrent.each(entries)('top $label', entry => {
     ]);
   });
 
-  it('shows the visits and page views of each row', async () => {
+  it('shows the sessions and page views of each row', async () => {
     const scope = createScope();
     const returning = crypto.randomUUID();
     await ingestEvents(env, [
@@ -187,7 +187,7 @@ describe.concurrent.each(entries)('top $label', entry => {
     expect(rows).toEqual([
       expect.objectContaining({
         [column]: first,
-        visits: expect.toSatisfy((n: number | string) => Number(n) === 2),
+        sessions: expect.toSatisfy((n: number | string) => Number(n) === 2),
         hits: expect.toSatisfy((n: number | string) => Number(n) === 3),
       }),
     ]);
@@ -198,7 +198,7 @@ describe.concurrent.each(entries)('top $label', entry => {
     ['fell', 1, 2, -50],
     ['started from nothing', 2, 0, 100],
   ])(
-    'shows the change as a percentage when visits %s against the period before',
+    'shows the change as a percentage when sessions %s against the period before',
     async (_label, current, previous, expected) => {
       const scope = createScope();
       const sessions = (count: number, now: Date) =>
@@ -216,11 +216,11 @@ describe.concurrent.each(entries)('top $label', entry => {
           include_previous_period: 'true',
         },
         r =>
-          Number(r[0]?.visits) === current &&
-          Number(r[0]?.previous_visits) === previous
+          Number(r[0]?.sessions) === current &&
+          Number(r[0]?.previous_sessions) === previous
       );
 
-      expect(Number(rows[0]?.visits_growth_percentage)).toBe(expected);
+      expect(Number(rows[0]?.sessions_growth_percentage)).toBe(expected);
     }
   );
 
@@ -240,7 +240,7 @@ describe.concurrent.each(entries)('top $label', entry => {
     expect(names(rows)).toEqual([second, first]);
   });
 
-  it('leaves out visits from the day just before the chosen period', async () => {
+  it('leaves out sessions from the day just before the chosen period', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       hit(scope, 0),
@@ -406,7 +406,7 @@ describe.concurrent('top lists: real-world corner cases', () => {
           tenant_id: scope.tenantId,
           domain: scope.domain,
         }),
-      r => Number(r[0]?.visits) === 2
+      r => Number(r[0]?.sessions) === 2
     );
 
     expect(rows.map(row => String(row.referrer))).toEqual([

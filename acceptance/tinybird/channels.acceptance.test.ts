@@ -15,7 +15,7 @@ import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 
 type ChannelRow = {
   channel: string;
-  visits: number | string;
+  sessions: number | string;
   hits: number | string;
 };
 
@@ -114,7 +114,7 @@ describe.concurrent('channels pipe', () => {
     );
   const visitsByChannel = (rows: readonly ChannelRow[]) =>
     Object.fromEntries(
-      rows.map(({ channel, visits }) => [channel, Number(visits)])
+      rows.map(({ channel, sessions }) => [channel, Number(sessions)])
     );
   const arrive = (scope: Scope, arrival: Arrival, extra = {}) =>
     createPageHitEvent({
@@ -127,7 +127,7 @@ describe.concurrent('channels pipe', () => {
       ...extra,
     });
 
-  it('groups visits by the channel that brought the visitor', async () => {
+  it('groups sessions by the channel that brought the visitor', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       arrive(scope, { utm: { utm_source: 'google', utm_medium: 'cpc' } }),
@@ -216,13 +216,13 @@ describe.concurrent('channels pipe', () => {
     expect(rows).toEqual([
       expect.objectContaining({
         channel: 'Direct',
-        visits: expect.toSatisfy((n: number | string) => Number(n) === 1),
+        sessions: expect.toSatisfy((n: number | string) => Number(n) === 1),
         hits: expect.toSatisfy((n: number | string) => Number(n) === 3),
       }),
     ]);
   });
 
-  it('lists the channel with the most visits first', async () => {
+  it('lists the channel with the most sessions first', async () => {
     const scope = createScope();
     const paid = { utm: { utm_medium: 'cpc' } };
     const email = { utm: { utm_medium: 'email' } };
@@ -240,7 +240,7 @@ describe.concurrent('channels pipe', () => {
     expect(rows.map(row => row.channel)).toEqual(['Paid', 'Email', 'Direct']);
   });
 
-  it('counts only visits inside the chosen days, edges included', async () => {
+  it('counts only sessions inside the chosen days, edges included', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       arrive(scope, {}),
@@ -287,7 +287,7 @@ describe.concurrent('channels pipe', () => {
     expect(visitsByChannel(rows)).toEqual({ Direct: 1 });
   });
 
-  it('shows nothing for a tenant that has no visits', async () => {
+  it('shows nothing for a tenant that has no sessions', async () => {
     const scope = createScope();
 
     const rows = await pipeRows<ChannelRow>(env, 'channels', {
@@ -319,7 +319,7 @@ describe.concurrent('channels pipe', () => {
         sessionId: crypto.randomUUID(),
       });
 
-    it('is credited to the campaign that first brought them, on their later visits too', async () => {
+    it('is credited to the campaign that first brought them, on their later sessions too', async () => {
       const scope = createScope();
       const who = visitor('v-1');
       await ingestEvents(env, [
@@ -332,7 +332,7 @@ describe.concurrent('channels pipe', () => {
       expect(visitsByChannel(rows)).toEqual({ Email: 2 });
     });
 
-    it('does not credit a campaign to visits that came before it', async () => {
+    it('does not credit a campaign to sessions that came before it', async () => {
       const scope = createScope();
       const who = visitor('v-1');
       await ingestEvents(env, [

@@ -52,7 +52,7 @@ const hit = (scope: Scope, userAgent: string) =>
   });
 
 const visitsIn = (rows: readonly Row[]): number =>
-  rows.reduce((total, row) => total + Number(row.visits), 0);
+  rows.reduce((total, row) => total + Number(row.sessions), 0);
 
 describe.concurrent.each(endpoints)('bot traffic in $pipe', endpoint => {
   const env = inject('tinybird');

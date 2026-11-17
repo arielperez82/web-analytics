@@ -72,10 +72,10 @@ describe.concurrent('engagement', () => {
 
     const row = await engagement(scope, 4);
 
-    expect(row).toMatchObject({ pageviews: 4, views_per_visit: 2 });
+    expect(row).toMatchObject({ pageviews: 4, views_per_session: 2 });
   });
 
-  it('gives the share of visits that viewed one page as the bounce rate', async () => {
+  it('gives the share of sessions that viewed one page as the bounce rate', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, [0]),
@@ -159,7 +159,7 @@ describe.concurrent('engagement', () => {
 
     const row = await engagement(scope, 2);
 
-    expect(row).toMatchObject({ pageviews: 2, views_per_visit: 2 });
+    expect(row).toMatchObject({ pageviews: 2, views_per_session: 2 });
   });
 
   it('compares with the equal-length period before the range', async () => {

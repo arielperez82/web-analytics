@@ -17,18 +17,18 @@ export const ConversionsPanel = ({ goal, params }: { goal: Goal; params: QueryPa
       {data && data.length > 0 && (
         <>
           <p>
-            <strong>{fmt(Number(summary?.conversions ?? 0))}</strong> of {fmt(Number(summary?.visits ?? 0))} visits
+            <strong>{fmt(Number(summary?.conversions ?? 0))}</strong> of {fmt(Number(summary?.sessions ?? 0))} sessions
             converted ({formatPercent(Number(summary?.conversion_rate_percent ?? 0))})
           </p>
           <table>
             <thead>
-              <tr><th>Channel</th><th className="num">Visits</th><th className="num">Conversions</th><th className="num">Rate</th></tr>
+              <tr><th>Channel</th><th className="num">Sessions</th><th className="num">Conversions</th><th className="num">Rate</th></tr>
             </thead>
             <tbody>
               {data.map((row) => (
                 <tr key={String(row.channel)}>
                   <td className="label"><span className="text">{row.channel}</span></td>
-                  <td className="num">{fmt(Number(row.visits))}</td>
+                  <td className="num">{fmt(Number(row.sessions))}</td>
                   <td className="num">{fmt(Number(row.conversions))}</td>
                   <td className="num muted">{formatPercent(Number(row.conversion_rate_percent ?? 0))}</td>
                 </tr>

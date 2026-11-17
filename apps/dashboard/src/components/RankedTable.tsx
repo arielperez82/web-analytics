@@ -43,7 +43,7 @@ export const RankedTable = ({
       <table>
         {detail && (
           <thead>
-            <tr><th>{report.heading}</th><th className="num">Visits</th><th className="num">Hits</th>{comparePrevious && <th className="num">vs previous</th>}</tr>
+            <tr><th>{report.heading}</th><th className="num">Sessions</th><th className="num">Hits</th>{comparePrevious && <th className="num">vs previous</th>}</tr>
           </thead>
         )}
         <tbody>
@@ -60,9 +60,9 @@ export const RankedTable = ({
                   <span className="bar" style={{ width: `${Number(row.bar_percent ?? 0)}%` }} />
                   <span className="text">{label || "(direct)"}</span>
                 </td>
-                <td className="num">{fmt(row.visits)}</td>
+                <td className="num">{fmt(row.sessions)}</td>
                 <td className="num muted">{fmt(row.hits)}</td>
-                {comparePrevious && <td className="num muted">{formatSignedPercent(Number(row.visits_growth_percentage ?? 0))}</td>}
+                {comparePrevious && <td className="num muted">{formatSignedPercent(Number(row.sessions_growth_percentage ?? 0))}</td>}
               </tr>
             );
           })}

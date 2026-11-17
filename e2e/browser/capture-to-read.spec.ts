@@ -32,7 +32,7 @@ test('a paid visit to the goal page shows up as a channel and a conversion', asy
     await expect(
       page.getByRole('cell', { name: 'Paid', exact: true }).first()
     ).toBeVisible({ timeout: 3_000 });
-    await expect(page.getByText(/1 of 1 visits converted/)).toBeVisible({
+    await expect(page.getByText(/1 of 1 sessions converted/)).toBeVisible({
       timeout: 3_000,
     });
   }).toPass({ timeout: 45_000 });

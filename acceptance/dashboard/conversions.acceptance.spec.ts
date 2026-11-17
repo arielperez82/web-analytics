@@ -20,18 +20,18 @@ test('a goal shows the summary headline and each channel as the API returned the
   const api = await stubApi(page, {
     ...emptyOverview,
     conversion_summary: [
-      { conversions: 70, visits: 900, conversion_rate_percent: 7.5 },
+      { conversions: 70, sessions: 900, conversion_rate_percent: 7.5 },
     ],
     conversions: [
       {
         channel: 'Paid',
-        visits: 100,
+        sessions: 100,
         conversions: 9,
         conversion_rate_percent: 8.5,
       },
       {
         channel: 'Organic',
-        visits: 300,
+        sessions: 300,
         conversions: 40,
         conversion_rate_percent: 12.7,
       },
@@ -44,7 +44,7 @@ test('a goal shows the summary headline and each channel as the API returned the
     'Signed up · /welcome/done'
   );
   await expect(
-    panel.getByText('70 of 900 visits converted (7.5%)')
+    panel.getByText('70 of 900 sessions converted (7.5%)')
   ).toBeVisible();
   const rows = panel.locator('tbody tr');
   await expect(rows).toHaveCount(2);
@@ -68,5 +68,5 @@ test('a goal nobody reached says there is no data', async ({ page }) => {
 
   const panel = page.locator('section.panel', { hasText: 'Signed up' });
   await expect(panel.getByText('No data')).toBeVisible();
-  await expect(panel.getByText(/visits converted/)).toHaveCount(0);
+  await expect(panel.getByText(/sessions converted/)).toHaveCount(0);
 });

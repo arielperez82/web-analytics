@@ -15,12 +15,12 @@ import { useEndpoint } from "@/lib/use-endpoint";
 
 import { Panel, type Row,Status } from "./ui";
 
-type Metric = "visits" | "known" | "daily" | "pageviews";
+type Metric = "sessions" | "known" | "anonymous" | "pageviews";
 
 const METRICS: readonly { readonly key: Metric; readonly label: string }[] = [
-  { key: "visits", label: "Visits" },
+  { key: "sessions", label: "Sessions" },
   { key: "known", label: "Known visitors" },
-  { key: "daily", label: "Daily visitors" },
+  { key: "anonymous", label: "Anonymous visitors" },
   { key: "pageviews", label: "Pageviews" },
 ];
 
@@ -31,12 +31,14 @@ const Card = ({
   value,
   growth,
   approximate = false,
+  caption,
   note,
 }: {
   label: string;
   value: string;
   growth?: string;
   approximate?: boolean;
+  caption?: string;
   note?: string;
 }) => (
   <div className="card">
@@ -50,6 +52,7 @@ const Card = ({
       ) : null}
     </strong>
     {growth === undefined ? null : <small>{growth} vs previous period</small>}
+    {caption === undefined ? null : <small>{caption}</small>}
     {note === undefined ? null : <small>{note}</small>}
   </div>
 );
@@ -68,7 +71,7 @@ export const Kpis = ({
   params: QueryParams;
   onChange: (next: DashboardState) => void;
 }) => {
-  const [metric, setMetric] = useState<Metric>("visits");
+  const [metric, setMetric] = useState<Metric>("sessions");
   const counts = useEndpoint<Row>("visitor_counts", params).data?.[0];
   const engagement = useEndpoint<Row>("engagement", params).data?.[0];
   const singleDay = params.date_from === params.date_to;
@@ -76,7 +79,7 @@ export const Kpis = ({
   const { data, loading, error } = useEndpoint<Row>(endpoint, { ...params, metric });
   const rows = data ?? [];
   const selected = "from" in state.range ? state.range.from : undefined;
-  const label = METRICS.find((option) => option.key === metric)?.label ?? "Visits";
+  const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (
     <>
       <div className="cards">
@@ -84,20 +87,21 @@ export const Kpis = ({
           label="Known visitors"
           value={formatNumber(field(counts, "known_visitors"))}
           growth={formatSignedPercent(field(counts, "known_visitors_growth_percent"))}
-          note={`${formatPercent(field(counts, "consented_visits_percent"))} of visits from people who accepted tracking`}
+          note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
+          caption="Unique people who accepted tracking"
           approximate
         />
         <Card
-          label="Daily visitors"
-          value={formatNumber(field(counts, "daily_visitors"))}
-          growth={formatSignedPercent(field(counts, "daily_visitors_growth_percent"))}
-          note="Counted per day, so a returning person counts again each day"
+          label="Anonymous visitors"
+          value={formatNumber(field(counts, "anonymous_visitors"))}
+          growth={formatSignedPercent(field(counts, "anonymous_visitors_growth_percent"))}
+          caption="Unique within a day only: a returning person counts again each day"
           approximate
         />
         <Card
-          label="Visits"
-          value={formatNumber(field(counts, "visits"))}
-          growth={formatSignedPercent(field(counts, "visits_growth_percent"))}
+          label="Sessions"
+          value={formatNumber(field(counts, "sessions"))}
+          growth={formatSignedPercent(field(counts, "sessions_growth_percent"))}
           approximate
         />
         <Card

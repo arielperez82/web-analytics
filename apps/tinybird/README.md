@@ -113,9 +113,9 @@ writes and backfilled history agree.
 ## Daily visitor state
 
 `visitor_state_daily_mv` holds one `uniqCombined64State` for visitors (keyed by
-`visitor_key`) and one for visits (keyed by `session_id`) per UTC day, tenant,
+`visitor_key`) and one for sessions (keyed by `session_id`) per UTC day, tenant,
 domain, `is_bot` and `visitor_class` (`known`, `daily`, `legacy`, `unknown`).
-Read ranges with `uniqCombined64Merge` so known visitors and visits are true
-distinct counts across days; sum the per-day counts only for daily visitors.
+Read ranges with `uniqCombined64Merge` so known visitors and sessions are true
+distinct counts across days; sum the per-day counts only for anonymous visitors.
 Filter `is_bot = 0` for the default view. It answers only these dimensions;
 cross-filtered counts read `analytics_hits`.

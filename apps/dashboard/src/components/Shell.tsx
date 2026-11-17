@@ -33,7 +33,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
     <div className="app">
       <header>
         <h1>Web Analytics</h1>
-        <span className="live">● {fmt(online.data?.[0]?.visits ?? 0)} online</span>
+        <span className="live">● {fmt(online.data?.[0]?.sessions ?? 0)} online</span>
         <span className="spacer" />
         {showTenants && (
           <select

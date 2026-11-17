@@ -8,7 +8,7 @@ import { describe, expect, inject, it } from 'vitest';
 import { createScope, type Scope } from '../testing/tinybird/helpers/factories';
 import { waitForPipeRows } from '../testing/tinybird/helpers/pipe-rows';
 
-type ChannelRow = { channel: string; visits: number | string };
+type ChannelRow = { channel: string; sessions: number | string };
 type HitRow = {
   pathname: string;
   visitor_id: string;
@@ -112,7 +112,7 @@ describe('identity proxy into Tinybird', () => {
     expect(new Set(rows.map(row => row.session_id)).size).toBe(2);
   });
 
-  it('credits a returning proxied visitor’s later visits to their first campaign', async () => {
+  it('credits a returning proxied visitor’s later sessions to their first campaign', async () => {
     const scope = createScope();
     const hit = createProxy(scope);
 
@@ -127,7 +127,7 @@ describe('identity proxy into Tinybird', () => {
     );
 
     expect(
-      Object.fromEntries(rows.map(row => [row.channel, Number(row.visits)]))
+      Object.fromEntries(rows.map(row => [row.channel, Number(row.sessions)]))
     ).toEqual({ Email: 2 });
   });
 
@@ -146,7 +146,7 @@ describe('identity proxy into Tinybird', () => {
     );
 
     expect(
-      Object.fromEntries(rows.map(row => [row.channel, Number(row.visits)]))
+      Object.fromEntries(rows.map(row => [row.channel, Number(row.sessions)]))
     ).toEqual({ Direct: 1, Email: 1 });
   });
 
