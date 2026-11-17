@@ -1608,6 +1608,39 @@ export const channels = defineEndpoint("channels", {
 export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
 
+const goalConvertedColumn = `,
+            {% if (defined(goal_path) and defined(goal_event)) or (not defined(goal_path) and not defined(goal_event)) %}
+            {{ custom_error({'error': 'Give exactly one of goal_path or goal_event'}) }}
+            {% end %}
+            {% if defined(goal_event) %}
+            max(session_id IN (
+                SELECT session_id
+                FROM analytics_events
+                WHERE action = {{ String(goal_event, description="Name of the goal event, e.g. signup_completed") }}
+                    AND toDate(timestamp) >= (SELECT current_start FROM date_calculations)
+                    AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+                    {% if defined(tenant_id) %}
+                    AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+                    {% end %}
+                    {% if defined(domain) %}
+                    AND domain = {{ String(domain, description="Filter by domain") }}
+                    {% end %}
+            )) as converted
+            {% else %}
+            max(${pathKey("pathname")} = ${pathKey('{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed") }}')}) as converted
+            {% end %}`;
+
+const goalParams = {
+  goal_path: p
+    .string()
+    .optional()
+    .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported. Give this or goal_event."),
+  goal_event: p
+    .string()
+    .optional()
+    .describe("Name of a goal event, e.g. signup_completed. Give this or goal_path."),
+};
+
 /**
  * Conversions - the sessions that reached a goal page, grouped like channels
  */
@@ -1617,10 +1650,7 @@ export const conversions = defineEndpoint("conversions", {
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
-    channelVisitsNode(`,
-            max(${pathKey("pathname")} = ${pathKey(
-              '{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed", required=True) }}',
-            )}) as converted`),
+    channelVisitsNode(goalConvertedColumn),
     channelVisitorCampaignsNode(),
     channelFirstTouchNode(`,
             v.converted as converted`),
@@ -1640,9 +1670,7 @@ export const conversions = defineEndpoint("conversions", {
   ],
   params: {
     ...channelParams,
-    goal_path: p
-      .string()
-      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
+    ...goalParams,
   },
   output: {
     channel: t.string(),
@@ -1665,10 +1693,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
-    channelVisitsNode(`,
-            max(${pathKey("pathname")} = ${pathKey(
-              '{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed", required=True) }}',
-            )}) as converted`),
+    channelVisitsNode(goalConvertedColumn),
     channelVisitorCampaignsNode(),
     channelFirstTouchNode(`,
             v.converted as converted`),
@@ -1685,9 +1710,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
   ],
   params: {
     ...channelParams,
-    goal_path: p
-      .string()
-      .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
+    ...goalParams,
   },
   output: {
     sessions: t.uint64(),
