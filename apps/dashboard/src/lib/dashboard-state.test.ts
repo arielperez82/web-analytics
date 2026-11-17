@@ -85,14 +85,33 @@ describe("drillDay", () => {
       drillDay({ range: { days: 30 }, domain: "a.com", filters: { device: "bot" } }, "2026-11-05"),
     ).toEqual({
       range: { from: "2026-11-05", to: "2026-11-05" },
+      grain: "hour",
       domain: "a.com",
       filters: { device: "bot" },
     });
   });
 
-  it("clicking the selected day again returns to the default range", () => {
-    const state = { range: { from: "2026-11-05", to: "2026-11-05" }, filters: {} };
-    expect(drillDay(state, "2026-11-05").range).toEqual({ days: 7 });
+  it("clicking the selected day again returns to the default range and grain", () => {
+    const state = { range: { from: "2026-11-05", to: "2026-11-05" }, grain: "day" as const, filters: {} };
+    const back = drillDay(state, "2026-11-05");
+    expect(back.range).toEqual({ days: 7 });
+    expect(back.grain).toBeUndefined();
+  });
+});
+
+describe("chart grain in the URL", () => {
+  it("reads hour and day, ignoring anything else", () => {
+    expect(parseState(new URLSearchParams("grain=hour")).grain).toBe("hour");
+    expect(parseState(new URLSearchParams("grain=day")).grain).toBe("day");
+    expect(parseState(new URLSearchParams("grain=week")).grain).toBeUndefined();
+    expect(parseState(new URLSearchParams("")).grain).toBeUndefined();
+  });
+
+  it("writes the grain only when chosen, and round-trips it", () => {
+    expect(toSearch({ range: { days: 7 }, filters: {} })).toBe("");
+    const state = { range: { days: 7 }, grain: "hour" as const, filters: {} };
+    expect(toSearch(state)).toBe("grain=hour");
+    expect(parseState(new URLSearchParams(toSearch(state)))).toEqual(state);
   });
 });
 

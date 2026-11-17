@@ -19,6 +19,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
   const { state, update } = useDashboardState();
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
+  const onOverview = pathname === "/";
   const tenants = useEndpoint<Row>("tenants", {});
   const domains = useEndpoint<Row>("domains", { tenant_id: state.tenant });
   const online = useEndpoint<Row>("current_visitors", { tenant_id: state.tenant, domain: state.domain });
@@ -83,7 +84,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
           <Link key={label} href={href} aria-current={active ? "page" : undefined}>{label}</Link>
         ))}
       </nav>
-      {(filters.length > 0 || custom) && (
+      {(filters.length > 0 || custom || onOverview) && (
         <div className="chips">
           {custom && (
             <button onClick={() => update({ ...state, range: { days: DEFAULT_DAYS } })}>
@@ -100,6 +101,9 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
               {key}: {value} ×
             </button>
           ))}
+          {filters.length === 0 && onOverview && (
+            <span className="muted">Showing all traffic. Click a row below to filter every figure.</span>
+          )}
           {filters.length > 0 && <button onClick={() => update({ ...state, filters: {} })}>Clear filters</button>}
           {onSpeed && filters.length > 0 && <span className="muted">Location, device and browser filters don’t apply to Speed Insights.</span>}
         </div>

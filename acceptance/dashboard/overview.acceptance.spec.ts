@@ -210,3 +210,72 @@ test('the chart has labelled axes', async ({ page }) => {
       .getByText('Nov 10', { exact: true })
   ).toBeVisible();
 });
+
+test('every breakdown sits below the chart, with no separate filters section', async ({
+  page,
+}) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  await expect(page.getByRole('heading', { name: 'Breakdowns' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Filters', exact: true })
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Lists', exact: true })
+  ).toHaveCount(0);
+  const chart = await page
+    .getByRole('group', { name: 'Sessions chart' })
+    .boundingBox();
+  const locations = await page
+    .getByRole('heading', { name: 'Locations' })
+    .boundingBox();
+  expect(locations?.y).toBeGreaterThan(
+    (chart?.y ?? Infinity) + (chart?.height ?? 0)
+  );
+});
+
+test('says whether the figures are filtered, and by what', async ({ page }) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  await expect(
+    page.getByText(
+      'Showing all traffic. Click a row below to filter every figure.'
+    )
+  ).toBeVisible();
+
+  await page.getByRole('cell', { name: 'FR', exact: true }).click();
+
+  await expect(page.getByText('Showing all traffic.')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'location: FR ×' })
+  ).toBeVisible();
+});
+
+test('the chart granularity is chosen apart from what it counts', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  expect(api.requestsTo('hourly_series')).toHaveLength(0);
+
+  await page.getByRole('button', { name: 'Hour', exact: true }).click();
+
+  await expect(page).toHaveURL(/grain=hour/);
+  await expect(page.getByText('Sessions per hour')).toBeVisible();
+  await page.getByRole('button', { name: 'Pageviews' }).click();
+  await expect
+    .poll(() => api.requestsTo('hourly_series').at(-1)?.get('metric'))
+    .toBe('pageviews');
+});
+
+test('hours are not offered for a month', async ({ page }) => {
+  await stubApi(page, routes);
+  await signIn(page);
+  await page.goto('/?days=30');
+
+  await expect(
+    page.getByRole('button', { name: 'Hour', exact: true })
+  ).toBeDisabled();
+});

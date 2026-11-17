@@ -7,8 +7,11 @@ export type Range =
   | { readonly days: number }
   | { readonly from: string; readonly to: string };
 
+export type Grain = "day" | "hour";
+
 export type DashboardState = {
   readonly range: Range;
+  readonly grain?: Grain;
   readonly tenant?: string;
   readonly domain?: string;
   readonly filters: Filters;
@@ -21,6 +24,8 @@ export const isRealDay = (value: string | null): value is string =>
   value !== null &&
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+
+const isGrain = (value: string | null): boolean => value === "day" || value === "hour";
 
 const parseRange = (search: URLSearchParams): Range => {
   const from = search.get("from");
@@ -38,6 +43,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
     ...(tenant !== null ? { tenant } : {}),
     ...(domain ? { domain } : {}),
     ...(search.get("bots") === "1" ? { includeBots: true } : {}),
+    ...(isGrain(search.get("grain")) ? { grain: search.get("grain") as Grain } : {}),
     filters: Object.fromEntries(
       FILTER_KEYS.flatMap((key) => {
         const value = search.get(key);
@@ -47,7 +53,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
   };
 };
 
-export const toSearch = ({ range, tenant, domain, filters, includeBots }: DashboardState): string =>
+export const toSearch = ({ range, grain, tenant, domain, filters, includeBots }: DashboardState): string =>
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
@@ -57,19 +63,19 @@ export const toSearch = ({ range, tenant, domain, filters, includeBots }: Dashbo
     ...(tenant !== undefined ? [["tenant", tenant]] : []),
     ...(domain ? [["domain", domain]] : []),
     ...(includeBots ? [["bots", "1"]] : []),
+    ...(grain ? [["grain", grain]] : []),
     ...FILTER_KEYS.flatMap((key) => {
       const value = filters[key];
       return value ? [[key, value]] : [];
     }),
   ]).toString();
 
-export const drillDay = (state: DashboardState, day: string): DashboardState => ({
-  ...state,
-  range:
-    "from" in state.range && state.range.from === day && state.range.to === day
-      ? { days: DEFAULT_DAYS }
-      : { from: day, to: day },
-});
+export const drillDay = (state: DashboardState, day: string): DashboardState => {
+  const { grain: _grain, ...rest } = state;
+  return "from" in state.range && state.range.from === day && state.range.to === day
+    ? { ...rest, range: { days: DEFAULT_DAYS } }
+    : { ...rest, range: { from: day, to: day }, grain: "hour" };
+};
 
 export const hrefFor = (pathname: string, state: DashboardState): string => {
   const search = toSearch(state);
