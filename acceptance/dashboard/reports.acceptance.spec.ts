@@ -5,24 +5,24 @@ import { type ApiRow, signIn, stubApi } from './support';
 const locations: readonly ApiRow[] = [
   {
     location: 'ES',
-    visits: 10,
+    sessions: 10,
     hits: 30,
     bar_percent: 100,
-    visits_growth_percentage: 12.5,
+    sessions_growth_percentage: 12.5,
   },
   {
     location: '',
-    visits: 9,
+    sessions: 9,
     hits: 12,
     bar_percent: 37,
-    visits_growth_percentage: -4.2,
+    sessions_growth_percentage: -4.2,
   },
 ];
 
 const manyRows = (query: URLSearchParams): readonly ApiRow[] =>
   Array.from({ length: Number(query.get('limit')) }, (_, index) => ({
     location: `L${index}`,
-    visits: 1,
+    sessions: 1,
     hits: 1,
     bar_percent: 1,
   }));
@@ -58,7 +58,7 @@ test('a report without a previous period shows no comparison column', async ({
   page,
 }) => {
   const api = await stubApi(page, {
-    channels: [{ channel: 'Organic', visits: 5, hits: 6, bar_percent: 100 }],
+    channels: [{ channel: 'Organic', sessions: 5, hits: 6, bar_percent: 100 }],
   });
   await openReport(page, '/reports/channels');
 

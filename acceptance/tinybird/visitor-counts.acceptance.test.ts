@@ -20,16 +20,16 @@ const dayOf = (days: number): string =>
 
 type CountsRow = {
   known_visitors: number | string;
-  daily_visitors: number | string;
+  anonymous_visitors: number | string;
   legacy_visitors: number | string;
-  visits: number | string;
+  sessions: number | string;
 };
 
 type Counts = {
   readonly known: number;
   readonly daily: number;
   readonly legacy: number;
-  readonly visits: number;
+  readonly sessions: number;
 };
 
 describe.concurrent('visitor counts', () => {
@@ -49,12 +49,12 @@ describe.concurrent('visitor counts', () => {
           date_to: dayOf(0),
           ...params,
         }),
-      rows => Number(rows[0]?.visits) === expectedVisits
+      rows => Number(rows[0]?.sessions) === expectedVisits
     ).then(rows => ({
       known: Number(rows[0]?.known_visitors),
-      daily: Number(rows[0]?.daily_visitors),
+      daily: Number(rows[0]?.anonymous_visitors),
       legacy: Number(rows[0]?.legacy_visitors),
-      visits: Number(rows[0]?.visits),
+      sessions: Number(rows[0]?.sessions),
     }));
 
   const persistent = (scope: Scope, visitorId: string, days: number) =>
@@ -76,10 +76,10 @@ describe.concurrent('visitor counts', () => {
 
     const result = await counts(scope, 3);
 
-    expect(result).toEqual({ known: 1, daily: 0, legacy: 0, visits: 3 });
+    expect(result).toEqual({ known: 1, daily: 0, legacy: 0, sessions: 3 });
   });
 
-  it('adds up daily visitors day by day', async () => {
+  it('adds up anonymous visitors day by day', async () => {
     const scope = createScope();
     const daily = (visitorId: string, days: number) =>
       createPageHitEvent({
@@ -115,7 +115,7 @@ describe.concurrent('visitor counts', () => {
 
     const result = await counts(scope, 1);
 
-    expect(result).toMatchObject({ known: 1, visits: 1 });
+    expect(result).toMatchObject({ known: 1, sessions: 1 });
   });
 
   it('reports legacy visitors apart from known ones', async () => {
@@ -148,8 +148,8 @@ describe.concurrent('visitor counts', () => {
     const humans = await counts(scope, 1);
     const everyone = await counts(scope, 2, { include_bots: 1 });
 
-    expect(humans).toMatchObject({ known: 1, visits: 1 });
-    expect(everyone).toMatchObject({ known: 2, visits: 2 });
+    expect(humans).toMatchObject({ known: 1, sessions: 1 });
+    expect(everyone).toMatchObject({ known: 2, sessions: 2 });
   });
 
   it('counts only the days inside the range, both ends included', async () => {
@@ -166,7 +166,7 @@ describe.concurrent('visitor counts', () => {
       date_to: dayOf(2),
     });
 
-    expect(result).toMatchObject({ known: 2, visits: 2 });
+    expect(result).toMatchObject({ known: 2, sessions: 2 });
   });
 
   it('never shows the visitors of another tenant on the same domain', async () => {
@@ -180,7 +180,7 @@ describe.concurrent('visitor counts', () => {
 
     const result = await counts(mine, 1);
 
-    expect(result).toMatchObject({ known: 1, visits: 1 });
+    expect(result).toMatchObject({ known: 1, sessions: 1 });
   });
   describe('with cross filters', () => {
     const visitor = (
@@ -212,7 +212,7 @@ describe.concurrent('visitor counts', () => {
 
       const result = await counts(scope, 2, { location: 'ES' });
 
-      expect(result).toEqual({ known: 1, daily: 0, legacy: 0, visits: 2 });
+      expect(result).toEqual({ known: 1, daily: 0, legacy: 0, sessions: 2 });
     });
 
     it('counts only the chosen device and the chosen browser', async () => {
@@ -226,8 +226,8 @@ describe.concurrent('visitor counts', () => {
       const phones = await counts(scope, 1, { device: 'mobile-ios' });
       const chrome = await counts(scope, 2, { browser: 'chrome' });
 
-      expect(phones).toMatchObject({ known: 1, visits: 1 });
-      expect(chrome).toMatchObject({ known: 2, visits: 2 });
+      expect(phones).toMatchObject({ known: 1, sessions: 1 });
+      expect(chrome).toMatchObject({ known: 2, sessions: 2 });
     });
 
     it('agrees with the unfiltered counts when the filter matches everything', async () => {
@@ -272,7 +272,7 @@ describe.concurrent('visitor counts', () => {
 
       const result = await counts(scope, 2, { device: 'bot' });
 
-      expect(result).toMatchObject({ known: 2, visits: 2 });
+      expect(result).toMatchObject({ known: 2, sessions: 2 });
     });
   });
   describe('against the previous period', () => {
@@ -288,7 +288,7 @@ describe.concurrent('visitor counts', () => {
             date_to: dayOf(0),
           }),
         rows =>
-          Number(rows[0]?.visits) + Number(rows[0]?.previous_visits) ===
+          Number(rows[0]?.sessions) + Number(rows[0]?.previous_sessions) ===
           expectedVisits
       ).then(rows => rows[0] ?? {});
 
@@ -305,9 +305,9 @@ describe.concurrent('visitor counts', () => {
 
       expect(row).toMatchObject({
         known_visitors: 1,
-        visits: 1,
+        sessions: 1,
         previous_known_visitors: 2,
-        previous_visits: 3,
+        previous_sessions: 3,
       });
     });
 
@@ -324,7 +324,7 @@ describe.concurrent('visitor counts', () => {
       const row = await comparison(scope, 5);
 
       expect(row).toMatchObject({
-        visits_growth_percent: 50,
+        sessions_growth_percent: 50,
         known_visitors_growth_percent: 50,
       });
     });
@@ -342,14 +342,14 @@ describe.concurrent('visitor counts', () => {
         date_to: dayOf(0),
       });
 
-      expect(grown).toMatchObject({ visits_growth_percent: 100 });
+      expect(grown).toMatchObject({ sessions_growth_percent: 100 });
       expect(none[0]).toMatchObject({
-        visits_growth_percent: 0,
+        sessions_growth_percent: 0,
         known_visitors_growth_percent: 0,
       });
     });
 
-    it('gives the share of visits that came from consenting visitors', async () => {
+    it('gives the share of sessions that came from consenting visitors', async () => {
       const scope = createScope();
       await ingestEvents(env, [
         persistent(scope, 'v-1', 1),
@@ -360,7 +360,7 @@ describe.concurrent('visitor counts', () => {
 
       const row = await comparison(scope, 4);
 
-      expect(row).toMatchObject({ consented_visits_percent: 25 });
+      expect(row).toMatchObject({ consented_sessions_percent: 25 });
     });
   });
 });

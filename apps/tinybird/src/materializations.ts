@@ -136,7 +136,7 @@ export const visitorStateDaily = defineMaterializedView("visitor_state_daily", {
   nodes: [
     node({
       name: "visitor_state_daily_1",
-      description: "Mergeable visitor and visit states per UTC day",
+      description: "Mergeable visitor and session states per UTC day",
       sql: `
         SELECT
             toDate(timestamp) AS date,

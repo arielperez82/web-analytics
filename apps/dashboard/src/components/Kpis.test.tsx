@@ -18,20 +18,20 @@ const params = { date_from: "2026-11-10", date_to: "2026-11-16", domain: "a.exam
 
 const counts: ApiRow = {
   known_visitors: 120,
-  daily_visitors: 340,
+  anonymous_visitors: 340,
   legacy_visitors: 5,
-  visits: 410,
-  consented_visits_percent: 41.5,
+  sessions: 410,
+  consented_sessions_percent: 41.5,
   previous_known_visitors: 100,
-  previous_daily_visitors: 350,
-  previous_visits: 380,
+  previous_anonymous_visitors: 350,
+  previous_sessions: 380,
   known_visitors_growth_percent: 20,
-  daily_visitors_growth_percent: -2.86,
-  visits_growth_percent: 7.89,
+  anonymous_visitors_growth_percent: -2.86,
+  sessions_growth_percent: 7.89,
 };
 const engagement: ApiRow = {
   pageviews: 1234,
-  views_per_visit: 3.01,
+  views_per_session: 3.01,
   bounce_rate_percent: 37.5,
   avg_session_sec: 95,
   previous_pageviews: 1000,
@@ -76,10 +76,10 @@ describe("Kpis", () => {
     const known = within(await card("Known visitors"));
     await waitFor(() => expect(known.getByText("120")).toBeTruthy());
     expect(known.getByText("+20% vs previous period")).toBeTruthy();
-    expect(known.getByText("41.5% of visits from people who accepted tracking")).toBeTruthy();
-    expect(within(await card("Daily visitors")).getByText("340")).toBeTruthy();
-    expect(within(await card("Visits")).getByText("410")).toBeTruthy();
-    expect(within(await card("Visits")).getByText("+7.89% vs previous period")).toBeTruthy();
+    expect(known.getByText("41.5% of sessions from people who accepted tracking")).toBeTruthy();
+    expect(within(await card("Anonymous visitors")).getByText("340")).toBeTruthy();
+    expect(within(await card("Sessions")).getByText("410")).toBeTruthy();
+    expect(within(await card("Sessions")).getByText("+7.89% vs previous period")).toBeTruthy();
     expect(within(await card("Pageviews")).getByText("1,234")).toBeTruthy();
     expect(within(await card("Bounce rate")).getByText("37.5%")).toBeTruthy();
     expect(within(await card("Bounce rate")).getByText("-3.85% vs previous period")).toBeTruthy();
@@ -87,10 +87,22 @@ describe("Kpis", () => {
     expect(within(await card("Avg session")).getByText("0% vs previous period")).toBeTruthy();
   });
 
-  it("does not derive the visits card from the chart rows", async () => {
+  it("says known visitors are unique and anonymous visitors are not unique across days", async () => {
     renderKpis();
 
-    await waitFor(async () => expect(within(await card("Visits")).getByText("410")).toBeTruthy());
+    const known = within(await card("Known visitors"));
+    await waitFor(() => expect(known.getByText("Unique people who accepted tracking")).toBeTruthy());
+    expect(
+      within(await card("Anonymous visitors")).getByText(
+        "Unique within a day only: a returning person counts again each day",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("does not derive the sessions card from the chart rows", async () => {
+    renderKpis();
+
+    await waitFor(async () => expect(within(await card("Sessions")).getByText("410")).toBeTruthy());
     expect(screen.queryByText("100")).toBeNull();
   });
 
@@ -98,9 +110,9 @@ describe("Kpis", () => {
     renderKpis();
 
     const note = "Exact for small counts, within 1% for large ones.";
-    await waitFor(async () => expect(within(await card("Visits")).getByTitle(note)).toBeTruthy());
+    await waitFor(async () => expect(within(await card("Sessions")).getByTitle(note)).toBeTruthy());
     expect(within(await card("Known visitors")).getByTitle(note)).toBeTruthy();
-    expect(within(await card("Daily visitors")).getByTitle(note)).toBeTruthy();
+    expect(within(await card("Anonymous visitors")).getByTitle(note)).toBeTruthy();
     expect(within(await card("Pageviews")).queryByTitle(note)).toBeNull();
     expect(within(await card("Bounce rate")).queryByTitle(note)).toBeNull();
   });
@@ -108,7 +120,7 @@ describe("Kpis", () => {
   it("sizes each bar from the percentage the API gives, not from the values", async () => {
     renderKpis();
 
-    const chart = await screen.findByRole("group", { name: "Visits chart" });
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
     const heights = within(chart)
       .getAllByRole("button")
@@ -123,13 +135,13 @@ describe("Kpis", () => {
     await user.click(await screen.findByRole("button", { name: "Known visitors" }));
 
     await waitFor(() => expect(api.requestsTo("daily_series").map((query) => query.get("metric"))).toContain("known"));
-    expect(api.requestsTo("daily_series")[0]?.get("metric")).toBe("visits");
+    expect(api.requestsTo("daily_series")[0]?.get("metric")).toBe("sessions");
   });
 
   it("sends the range and filters to every endpoint it reads", async () => {
     const api = renderKpis({ params: { ...params, location: "ES" } });
 
-    await screen.findByRole("group", { name: "Visits chart" });
+    await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
     for (const endpoint of ["visitor_counts", "engagement", "daily_series"]) {
       const query = api.requestsTo(endpoint)[0];
@@ -143,7 +155,7 @@ describe("Kpis", () => {
     renderKpis({ onChange: (next) => picked.push(next) });
     const user = userEvent.setup();
 
-    const chart = await screen.findByRole("group", { name: "Visits chart" });
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await user.click(await within(chart).findByTitle("2026-11-11: 90"));
 
     expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" } }]);
@@ -152,14 +164,14 @@ describe("Kpis", () => {
   it("shows the hours of a single-day range from the hourly series", async () => {
     const api = renderKpis({ params: { ...params, date_to: "2026-11-10" } });
 
-    const chart = await screen.findByRole("group", { name: "Visits chart" });
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
     const heights = within(chart)
       .getAllByRole("button")
       .map((bar) => (bar.firstElementChild as HTMLElement).style.height);
     expect(heights).toEqual(["100%", "30%"]);
     expect(within(chart).getByTitle("2026-11-10 09:00:00: 7")).toBeTruthy();
-    expect(api.requestsTo("hourly_series")[0]?.get("metric")).toBe("visits");
+    expect(api.requestsTo("hourly_series")[0]?.get("metric")).toBe("sessions");
     expect(api.requestsTo("daily_series")).toHaveLength(0);
     expect(await screen.findByText(/per hour/)).toBeTruthy();
   });
@@ -167,7 +179,7 @@ describe("Kpis", () => {
   it("does not offer a drill-down on the hours of a single day", async () => {
     renderKpis({ params: { ...params, date_to: "2026-11-10" } });
 
-    const chart = await screen.findByRole("group", { name: "Visits chart" });
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
     expect(within(chart).getAllByRole("button").every((bar) => (bar as HTMLButtonElement).disabled)).toBe(true);
   });
@@ -184,7 +196,7 @@ describe("Kpis", () => {
   it("keeps the daily series for ranges longer than a day", async () => {
     const api = renderKpis();
 
-    await screen.findByRole("group", { name: "Visits chart" });
+    await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
     expect(api.requestsTo("hourly_series")).toHaveLength(0);
   });

@@ -11,7 +11,7 @@ import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
-type VisitorsRow = { visits: number | string };
+type VisitorsRow = { sessions: number | string };
 
 const minutesAgo = (minutes: number): Date =>
   new Date(Date.now() - minutes * 60_000);
@@ -31,9 +31,9 @@ describe.concurrent('current visitors', () => {
           domain: scope.domain,
           ...params,
         }),
-      data => Number(data[0]?.visits) === expected
+      data => Number(data[0]?.sessions) === expected
     );
-    return Number(rows[0]?.visits);
+    return Number(rows[0]?.sessions);
   };
   const hitAt = (scope: Scope, minutes: number) =>
     createPageHitEvent({ ...scope, pathname: '/', now: minutesAgo(minutes) });
@@ -96,7 +96,7 @@ describe.concurrent('current visitors', () => {
       domain: scope.domain,
     });
 
-    expect(rows.map(row => Number(row.visits))).toEqual([0]);
+    expect(rows.map(row => Number(row.sessions))).toEqual([0]);
   });
 
   it('leaves bots out unless asked to include them', async () => {

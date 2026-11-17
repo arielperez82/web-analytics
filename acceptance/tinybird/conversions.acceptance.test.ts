@@ -15,7 +15,7 @@ import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type ConversionRow = {
   channel: string;
-  visits: number | string;
+  sessions: number | string;
   conversions: number | string;
   conversion_rate_percent: number | string;
 };
@@ -46,7 +46,10 @@ describe.concurrent('conversions pipe', () => {
     Object.fromEntries(
       rows.map(row => [
         row.channel,
-        { visits: Number(row.visits), conversions: Number(row.conversions) },
+        {
+          sessions: Number(row.sessions),
+          conversions: Number(row.conversions),
+        },
       ])
     );
   const rateByChannel = (rows: readonly ConversionRow[]) =>
@@ -63,7 +66,7 @@ describe.concurrent('conversions pipe', () => {
   const paid = { utm: { utm_medium: 'cpc' } };
   const email = { utm: { utm_medium: 'email' } };
 
-  it('counts the visits that reached the goal page, per channel, with their rate', async () => {
+  it('counts the sessions that reached the goal page, per channel, with their rate', async () => {
     const scope = createScope();
     const [won, lost, mail, direct] = [
       session('won'),
@@ -82,9 +85,9 @@ describe.concurrent('conversions pipe', () => {
     const rows = await conversions(scope, 3);
 
     expect(byChannel(rows)).toEqual({
-      Paid: { visits: 2, conversions: 1 },
-      Email: { visits: 1, conversions: 0 },
-      Direct: { visits: 1, conversions: 0 },
+      Paid: { sessions: 2, conversions: 1 },
+      Email: { sessions: 1, conversions: 0 },
+      Direct: { sessions: 1, conversions: 0 },
     });
     expect(rateByChannel(rows)).toEqual({ Paid: 50, Email: 0, Direct: 0 });
   });
@@ -100,7 +103,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1);
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 1, conversions: 1 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 1, conversions: 1 } });
   });
 
   it('matches the goal page with or without a trailing slash, and only exactly', async () => {
@@ -118,7 +121,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1);
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 3, conversions: 1 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 3, conversions: 1 } });
   });
 
   it('credits a later visit that converts to the first campaign, not a later or the last one', async () => {
@@ -144,8 +147,8 @@ describe.concurrent('conversions pipe', () => {
     const rows = await conversions(scope, 2);
 
     expect(byChannel(rows)).toEqual({
-      Email: { visits: 2, conversions: 1 },
-      Paid: { visits: 1, conversions: 0 },
+      Email: { sessions: 2, conversions: 1 },
+      Paid: { sessions: 1, conversions: 0 },
     });
   });
 
@@ -162,7 +165,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1, goalPath);
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 2, conversions: 1 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 2, conversions: 1 } });
   });
 
   it('matches a browser-encoded page when the goal is written readable', async () => {
@@ -174,7 +177,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1, '/café/done');
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 2, conversions: 1 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 2, conversions: 1 } });
   });
 
   it('does not mistake a malformed stored path for the home page', async () => {
@@ -183,7 +186,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1, '/');
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 1, conversions: 0 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 1, conversions: 0 } });
   });
 
   it('treats an injection attempt in the goal page as plain text', async () => {
@@ -192,7 +195,7 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(scope, 1, "/x' OR '1'='1");
 
-    expect(byChannel(rows)).toEqual({ Paid: { visits: 1, conversions: 0 } });
+    expect(byChannel(rows)).toEqual({ Paid: { sessions: 1, conversions: 0 } });
   });
 
   it('keeps one tenant’s conversions out of another’s, even on the same domain', async () => {
@@ -205,10 +208,12 @@ describe.concurrent('conversions pipe', () => {
 
     const rows = await conversions(mine, 1);
 
-    expect(byChannel(rows)).toEqual({ Direct: { visits: 1, conversions: 0 } });
+    expect(byChannel(rows)).toEqual({
+      Direct: { sessions: 1, conversions: 0 },
+    });
   });
 
-  it('shows nothing for a tenant that has no visits', async () => {
+  it('shows nothing for a tenant that has no sessions', async () => {
     const scope = createScope();
 
     const rows = await pipeRows<ConversionRow>(env, 'conversions', {
@@ -252,7 +257,7 @@ describe.concurrent('conversions pipe', () => {
 
   describe('summary', () => {
     type SummaryRow = {
-      visits: number | string;
+      sessions: number | string;
       conversions: number | string;
       conversion_rate_percent: number | string;
     };
@@ -264,10 +269,10 @@ describe.concurrent('conversions pipe', () => {
             domain: scope.domain,
             goal_path: GOAL,
           }),
-        rows => Number(rows[0]?.visits) === expectedVisits
+        rows => Number(rows[0]?.sessions) === expectedVisits
       ).then(rows => rows[0]);
 
-    it('totals the visits and conversions of every channel with the overall rate', async () => {
+    it('totals the sessions and conversions of every channel with the overall rate', async () => {
       const scope = createScope();
       const won = session('won');
       await ingestEvents(env, [
@@ -281,13 +286,13 @@ describe.concurrent('conversions pipe', () => {
       const row = await summary(scope, 4);
 
       expect(row).toMatchObject({
-        visits: 4,
+        sessions: 4,
         conversions: 1,
         conversion_rate_percent: 25,
       });
     });
 
-    it('shows zeros for a tenant with no visits', async () => {
+    it('shows zeros for a tenant with no sessions', async () => {
       const scope = createScope();
 
       const rows = await pipeRows<SummaryRow>(env, 'conversion_summary', {
@@ -297,7 +302,7 @@ describe.concurrent('conversions pipe', () => {
       });
 
       expect(rows).toEqual([
-        { visits: 0, conversions: 0, conversion_rate_percent: 0 },
+        { sessions: 0, conversions: 0, conversion_rate_percent: 0 },
       ]);
     });
   });

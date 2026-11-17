@@ -87,7 +87,7 @@ describe.concurrent('daily series', () => {
     expect(values(rows)).toEqual([0, 0, 1, 0]);
   });
 
-  it('counts visits per day by default', async () => {
+  it('counts sessions per day by default', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       hit(scope, 'v-1', 2),
@@ -111,7 +111,7 @@ describe.concurrent('daily series', () => {
     expect(values(rows)).toEqual([0, 1, 1, 1]);
   });
 
-  it('counts daily visitors and page views per day', async () => {
+  it('counts anonymous visitors and page views per day', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       hit(scope, 'd-1', 2, { idMode: 'daily_direct' }),
@@ -119,7 +119,7 @@ describe.concurrent('daily series', () => {
       hit(scope, 'd-1', 2, { idMode: 'daily_direct' }),
     ]);
 
-    const daily = await series(scope, 2, { metric: 'daily' });
+    const daily = await series(scope, 2, { metric: 'anonymous' });
     const views = await series(scope, 3, { metric: 'pageviews' });
 
     expect(values(daily)).toEqual([0, 2, 0, 0]);

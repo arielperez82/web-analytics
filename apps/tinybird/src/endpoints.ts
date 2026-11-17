@@ -52,7 +52,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
     node({
       name: "get_current_visitors",
       sql: `
-        SELECT uniqCombined64(session_id) AS visits
+        SELECT uniqCombined64(session_id) AS sessions
         FROM analytics_hits
         WHERE timestamp >= (now() - interval 5 minute)
             {% if Int32(include_bots, 0) != 1 %}
@@ -73,7 +73,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
     include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
   output: {
-    visits: t.uint64(),
+    sessions: t.uint64(),
   },
 });
 
@@ -99,7 +99,7 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors_state,
-            uniqCombined64State(session_id) AS visits_state,
+            uniqCombined64State(session_id) AS sessions_state,
             countState() AS hits_state
         FROM analytics_hits
         WHERE toDate(timestamp) >= (SELECT ${startColumn} FROM date_calculations)
@@ -120,7 +120,7 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             visitor_class,
             visitors AS visitors_state,
-            visits AS visits_state,
+            visits AS sessions_state,
             hits AS hits_state
         FROM visitor_state_daily_mv
         WHERE date >= (SELECT ${startColumn} FROM date_calculations)
@@ -138,13 +138,13 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
       `;
 
 /**
- * Visitor counts - known, daily and legacy visitors and visits over a UTC date range, with the
+ * Visitor counts - known, anonymous and legacy visitors and sessions over a UTC date range, with the
  * equal-length period before it, growth and the consented share. Read from the daily visitor state,
  * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
  */
 export const visitorCounts = defineEndpoint("visitor_counts", {
   description:
-    "Known visitors, daily visitors (person-days), legacy visitors and visits over a UTC date range, with the previous period, growth and consented share. Bots excluded unless include_bots=1",
+    "Known visitors, anonymous visitors (person-days), legacy visitors and sessions over a UTC date range, with the previous period, growth and consented share. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -165,7 +165,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       sql: dailyVisitorStateSql("previous_start"),
     }),
     node({
-      name: "daily_visitors_per_day",
+      name: "anonymous_visitors_per_day",
       description: "Daily ids cannot be linked across days, so count them per day",
       sql: `
         SELECT date, period, uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS n
@@ -178,13 +178,13 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       sql: `
         SELECT
             uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'current') AS known_visitors,
-            (SELECT sumIf(n, period = 'current') FROM daily_visitors_per_day) AS daily_visitors,
+            (SELECT sumIf(n, period = 'current') FROM anonymous_visitors_per_day) AS anonymous_visitors,
             uniqCombined64MergeIf(visitors_state, visitor_class = 'legacy' AND period = 'current') AS legacy_visitors,
-            uniqCombined64MergeIf(visits_state, period = 'current') AS visits,
-            uniqCombined64MergeIf(visits_state, visitor_class = 'known' AND period = 'current') AS known_visits,
+            uniqCombined64MergeIf(sessions_state, period = 'current') AS sessions,
+            uniqCombined64MergeIf(sessions_state, visitor_class = 'known' AND period = 'current') AS known_sessions,
             uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'previous') AS previous_known_visitors,
-            (SELECT sumIf(n, period = 'previous') FROM daily_visitors_per_day) AS previous_daily_visitors,
-            uniqCombined64MergeIf(visits_state, period = 'previous') AS previous_visits
+            (SELECT sumIf(n, period = 'previous') FROM anonymous_visitors_per_day) AS previous_anonymous_visitors,
+            uniqCombined64MergeIf(sessions_state, period = 'previous') AS previous_sessions
         FROM state_in_range
       `,
     }),
@@ -193,16 +193,16 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       sql: `
         SELECT
             known_visitors,
-            daily_visitors,
+            anonymous_visitors,
             legacy_visitors,
-            visits,
-            round(if(visits = 0, 0, known_visits * 100.0 / visits), 2) AS consented_visits_percent,
+            sessions,
+            round(if(sessions = 0, 0, known_sessions * 100.0 / sessions), 2) AS consented_sessions_percent,
             previous_known_visitors,
-            previous_daily_visitors,
-            previous_visits,
+            previous_anonymous_visitors,
+            previous_sessions,
             ${growthPercentSql("known_visitors", "previous_known_visitors")} AS known_visitors_growth_percent,
-            ${growthPercentSql("daily_visitors", "previous_daily_visitors")} AS daily_visitors_growth_percent,
-            ${growthPercentSql("visits", "previous_visits")} AS visits_growth_percent
+            ${growthPercentSql("anonymous_visitors", "previous_anonymous_visitors")} AS anonymous_visitors_growth_percent,
+            ${growthPercentSql("sessions", "previous_sessions")} AS sessions_growth_percent
         FROM period_counts
       `,
     }),
@@ -216,16 +216,16 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
   },
   output: {
     known_visitors: t.uint64(),
-    daily_visitors: t.uint64(),
+    anonymous_visitors: t.uint64(),
     legacy_visitors: t.uint64(),
-    visits: t.uint64(),
-    consented_visits_percent: t.float64(),
+    sessions: t.uint64(),
+    consented_sessions_percent: t.float64(),
     previous_known_visitors: t.uint64(),
-    previous_daily_visitors: t.uint64(),
-    previous_visits: t.uint64(),
+    previous_anonymous_visitors: t.uint64(),
+    previous_sessions: t.uint64(),
     known_visitors_growth_percent: t.float64(),
-    daily_visitors_growth_percent: t.float64(),
-    visits_growth_percent: t.float64(),
+    anonymous_visitors_growth_percent: t.float64(),
+    sessions_growth_percent: t.float64(),
   },
 });
 
@@ -233,13 +233,13 @@ export type VisitorCountsParams = InferParams<typeof visitorCounts>;
 export type VisitorCountsOutput = InferOutputRow<typeof visitorCounts>;
 
 /**
- * Engagement - page views, pages per visit, bounce rate and average session length over a UTC date
- * range, weighted by visit, with the equal-length period before it and growth. Visits that cross a
+ * Engagement - page views, pages per session, bounce rate and average session length over a UTC date
+ * range, weighted by session, with the equal-length period before it and growth. Sessions that cross a
  * UTC midnight count once. Bots are left out unless include_bots=1.
  */
 export const engagement = defineEndpoint("engagement", {
   description:
-    "Page views, pages per visit, bounce rate (percent) and average session seconds over a UTC date range, weighted by visit, with the previous period and growth. Bots excluded unless include_bots=1",
+    "Page views, pages per session, bounce rate (percent) and average session seconds over a UTC date range, weighted by session, with the previous period and growth. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -255,7 +255,7 @@ export const engagement = defineEndpoint("engagement", {
     }),
     node({
       name: "engaged_sessions",
-      description: "Visits where the visitor did something besides view pages. Automatic web vitals do not count.",
+      description: "Sessions where the visitor did something besides view pages. Automatic web vitals do not count.",
       sql: `
         SELECT DISTINCT session_id
         FROM analytics_events
@@ -271,13 +271,13 @@ export const engagement = defineEndpoint("engagement", {
       `,
     }),
     node({
-      name: "visits",
-      description: "One row per visit over both periods, placed in the period of its first page view",
+      name: "sessions",
+      description: "One row per session over both periods, placed in the period of its first page view",
       sql: `
         SELECT
             session_id,
             if(toDate(min(timestamp)) >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
-            count() AS visit_pageviews,
+            count() AS session_pageviews,
             toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
@@ -299,15 +299,15 @@ export const engagement = defineEndpoint("engagement", {
       name: "period_totals",
       sql: `
         SELECT
-            countIf(period = 'current') AS visit_count,
-            sumIf(visit_pageviews, period = 'current') AS pageviews,
+            countIf(period = 'current') AS session_count,
+            sumIf(session_pageviews, period = 'current') AS pageviews,
             sumIf(is_bounce, period = 'current') AS bounces,
             sumIf(duration_sec, period = 'current') AS duration_total,
-            countIf(period = 'previous') AS previous_visit_count,
-            sumIf(visit_pageviews, period = 'previous') AS previous_pageviews,
+            countIf(period = 'previous') AS previous_session_count,
+            sumIf(session_pageviews, period = 'previous') AS previous_pageviews,
             sumIf(is_bounce, period = 'previous') AS previous_bounces,
             sumIf(duration_sec, period = 'previous') AS previous_duration_total
-        FROM visits
+        FROM sessions
       `,
     }),
     node({
@@ -315,12 +315,12 @@ export const engagement = defineEndpoint("engagement", {
       sql: `
         SELECT
             pageviews,
-            round(if(visit_count = 0, 0, pageviews * 1.0 / visit_count), 2) AS views_per_visit,
-            round(if(visit_count = 0, 0, bounces * 100.0 / visit_count), 2) AS bounce_rate_percent,
-            round(if(visit_count = 0, 0, duration_total * 1.0 / visit_count), 2) AS avg_session_sec,
+            round(if(session_count = 0, 0, pageviews * 1.0 / session_count), 2) AS views_per_session,
+            round(if(session_count = 0, 0, bounces * 100.0 / session_count), 2) AS bounce_rate_percent,
+            round(if(session_count = 0, 0, duration_total * 1.0 / session_count), 2) AS avg_session_sec,
             previous_pageviews,
-            round(if(previous_visit_count = 0, 0, previous_bounces * 100.0 / previous_visit_count), 2) AS previous_bounce_rate_percent,
-            round(if(previous_visit_count = 0, 0, previous_duration_total * 1.0 / previous_visit_count), 2) AS previous_avg_session_sec
+            round(if(previous_session_count = 0, 0, previous_bounces * 100.0 / previous_session_count), 2) AS previous_bounce_rate_percent,
+            round(if(previous_session_count = 0, 0, previous_duration_total * 1.0 / previous_session_count), 2) AS previous_avg_session_sec
         FROM period_totals
       `,
     }),
@@ -329,7 +329,7 @@ export const engagement = defineEndpoint("engagement", {
       sql: `
         SELECT
             pageviews,
-            views_per_visit,
+            views_per_session,
             bounce_rate_percent,
             avg_session_sec,
             previous_pageviews,
@@ -351,7 +351,7 @@ export const engagement = defineEndpoint("engagement", {
   },
   output: {
     pageviews: t.uint64(),
-    views_per_visit: t.float64(),
+    views_per_session: t.float64(),
     bounce_rate_percent: t.float64(),
     avg_session_sec: t.float64(),
     previous_pageviews: t.uint64(),
@@ -367,13 +367,13 @@ export type EngagementParams = InferParams<typeof engagement>;
 export type EngagementOutput = InferOutputRow<typeof engagement>;
 
 /**
- * Daily series - one value per UTC day of the range for the chosen metric (visits, known visitors,
- * daily visitors or pageviews), with each day's bar as a percentage of the busiest day. Days
+ * Daily series - one value per UTC day of the range for the chosen metric (sessions, known visitors,
+ * anonymous visitors or pageviews), with each day's bar as a percentage of the busiest day. Days
  * without traffic are zero. Bots are left out unless include_bots=1.
  */
 export const dailySeries = defineEndpoint("daily_series", {
   description:
-    "One value per UTC day for metric = visits, known, daily or pageviews, with bar_percent against the busiest day. Bots excluded unless include_bots=1",
+    "One value per UTC day for metric = sessions, known, anonymous or pageviews, with bar_percent against the busiest day. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -396,9 +396,9 @@ export const dailySeries = defineEndpoint("daily_series", {
       sql: `
         SELECT
             date,
-            uniqCombined64Merge(visits_state) AS visits_count,
+            uniqCombined64Merge(sessions_state) AS sessions_count,
             uniqCombined64MergeIf(visitors_state, visitor_class = 'known') AS known_count,
-            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS daily_count,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS anonymous_count,
             countMerge(hits_state) AS pageviews_count
         FROM state_in_range
         GROUP BY date
@@ -417,10 +417,10 @@ export const dailySeries = defineEndpoint("daily_series", {
         SELECT
             d.date AS date,
             multiIf(
-                {{ String(metric, 'visits', description="visits, known, daily or pageviews") }} = 'known', p.known_count,
-                {{ String(metric, 'visits') }} = 'daily', p.daily_count,
-                {{ String(metric, 'visits') }} = 'pageviews', p.pageviews_count,
-                p.visits_count
+                {{ String(metric, 'sessions', description="sessions, known, anonymous or pageviews") }} = 'known', p.known_count,
+                {{ String(metric, 'sessions') }} = 'anonymous', p.anonymous_count,
+                {{ String(metric, 'sessions') }} = 'pageviews', p.pageviews_count,
+                p.sessions_count
             ) AS value
         FROM days d
         LEFT JOIN per_day p ON d.date = p.date
@@ -443,7 +443,7 @@ export const dailySeries = defineEndpoint("daily_series", {
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
-    metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
+    metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
   },
   output: {
@@ -459,12 +459,12 @@ export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
 /**
  * Hourly series - one value per UTC hour of a short range, for the same metrics as daily_series.
  * Hours are rolled up from the hits at read time, so no hourly materialization exists; the range
- * is capped at seven days to keep the scan small. Each hour counts its own distinct visits and
+ * is capped at seven days to keep the scan small. Each hour counts its own distinct sessions and
  * visitors, so the hours can add up to more than the day. Bots are left out unless include_bots=1.
  */
 export const hourlySeries = defineEndpoint("hourly_series", {
   description:
-    "One value per UTC hour for metric = visits, known, daily or pageviews over at most 7 days, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
+    "One value per UTC hour for metric = sessions, known, anonymous or pageviews over at most 7 days, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -485,9 +485,9 @@ export const hourlySeries = defineEndpoint("hourly_series", {
       sql: `
         SELECT
             toStartOfHour(timestamp) AS hour,
-            uniqCombined64(session_id) AS visits_count,
+            uniqCombined64(session_id) AS sessions_count,
             uniqCombined64If(visitor_key, ${visitorClassSql} = 'known') AS known_count,
-            uniqCombined64If(visitor_key, ${visitorClassSql} = 'daily') AS daily_count,
+            uniqCombined64If(visitor_key, ${visitorClassSql} = 'daily') AS anonymous_count,
             count() AS pageviews_count
         FROM analytics_hits
         WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
@@ -517,10 +517,10 @@ export const hourlySeries = defineEndpoint("hourly_series", {
         SELECT
             h.hour AS hour,
             multiIf(
-                {{ String(metric, 'visits', description="visits, known, daily or pageviews") }} = 'known', p.known_count,
-                {{ String(metric, 'visits') }} = 'daily', p.daily_count,
-                {{ String(metric, 'visits') }} = 'pageviews', p.pageviews_count,
-                p.visits_count
+                {{ String(metric, 'sessions', description="sessions, known, anonymous or pageviews") }} = 'known', p.known_count,
+                {{ String(metric, 'sessions') }} = 'anonymous', p.anonymous_count,
+                {{ String(metric, 'sessions') }} = 'pageviews', p.pageviews_count,
+                p.sessions_count
             ) AS value
         FROM hours h
         LEFT JOIN per_hour p ON h.hour = p.hour
@@ -543,7 +543,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive; at most 7 days after date_from"),
-    metric: p.string().optional("visits").describe("visits, known, daily or pageviews"),
+    metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
   },
   output: {
@@ -721,11 +721,11 @@ export type ActionsParams = InferParams<typeof actions>;
 export type ActionsOutput = InferOutputRow<typeof actions>;
 
 /**
- * Trend - realtime visits trend for last 30 minutes
+ * Trend - realtime sessions trend for last 30 minutes
  */
 export const trend = defineEndpoint("trend", {
   description:
-    "Visits trend over time for the last 30 minutes - great for realtime chart",
+    "Sessions trend over time for the last 30 minutes - great for realtime chart",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -741,7 +741,7 @@ export const trend = defineEndpoint("trend", {
       name: "hits",
       description: "Get last 30 minutes metrics grouped by minute",
       sql: `
-        select toStartOfMinute(timestamp) as t, uniqCombined64(session_id) as visits
+        select toStartOfMinute(timestamp) as t, uniqCombined64(session_id) as sessions
         from analytics_hits
         where timestamp >= (now() - interval 30 minute)
             {% if Int32(include_bots, 0) != 1 %}
@@ -761,7 +761,7 @@ export const trend = defineEndpoint("trend", {
       name: "endpoint",
       description: "Join and generate timeseries with metrics",
       sql: `
-        select a.t, b.visits from timeseries a left join hits b on a.t = b.t order by a.t
+        select a.t, b.sessions from timeseries a left join hits b on a.t = b.t order by a.t
       `,
     }),
   ],
@@ -772,7 +772,7 @@ export const trend = defineEndpoint("trend", {
   },
   output: {
     t: t.dateTime(),
-    visits: t.uint64().nullable(),
+    sessions: t.uint64().nullable(),
   },
 });
 
@@ -794,18 +794,18 @@ const barPercentNode = () =>
     sql: `
         SELECT
             *,
-            round(if(max(visits) OVER () = 0, 0, visits * 100.0 / max(visits) OVER ()), 2) AS bar_percent
+            round(if(max(sessions) OVER () = 0, 0, sessions * 100.0 / max(sessions) OVER ()), 2) AS bar_percent
         FROM ranked
-        ORDER BY visits DESC
+        ORDER BY sessions DESC
       `,
   });
 
 /**
- * Top browsers - ordered by most visits
+ * Top browsers - ordered by most sessions
  */
 export const topBrowsers = defineEndpoint("top_browsers", {
   description:
-    "Top browsers ordered by most visits with optional previous period comparison",
+    "Top browsers ordered by most sessions with optional previous period comparison",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -832,7 +832,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
       sql: `
         SELECT
             browser,
-            uniq(session_id) as current_visits,
+            uniq(session_id) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sessions_mv
         WHERE date >= (SELECT current_start FROM date_calculations)
@@ -853,7 +853,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             browser,
-            uniq(session_id) as previous_visits,
+            uniq(session_id) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sessions_mv
         WHERE date >= (SELECT previous_start FROM date_calculations)
@@ -866,7 +866,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             {% end %}${crossFilters}
         GROUP BY browser
         {% else %}
-        SELECT '' as browser, 0 as previous_visits, 0 as previous_hits WHERE 1=0
+        SELECT '' as browser, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
     }),
@@ -877,15 +877,15 @@ export const topBrowsers = defineEndpoint("top_browsers", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             c.browser,
-            c.current_visits as visits,
+            c.current_sessions as sessions,
             c.current_hits as hits,
-            coalesce(p.previous_visits, 0) as previous_visits,
+            coalesce(p.previous_sessions, 0) as previous_sessions,
             coalesce(p.previous_hits, 0) as previous_hits,
             CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND c.current_visits > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_visits - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
+                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
+                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
+                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+            END as sessions_growth_percentage,
             CASE
                 WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
                 WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
@@ -893,15 +893,15 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             END as hits_growth_percentage
         FROM current_period_data c
         LEFT JOIN previous_period_data p ON c.browser = p.browser
-        ORDER BY c.current_visits DESC
+        ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
             browser,
-            current_visits as visits,
+            current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
-        ORDER BY current_visits DESC
+        ORDER BY current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
@@ -923,7 +923,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
   },
   output: {
     browser: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -933,11 +933,11 @@ export type TopBrowsersParams = InferParams<typeof topBrowsers>;
 export type TopBrowsersOutput = InferOutputRow<typeof topBrowsers>;
 
 /**
- * Top devices - ordered by most visits
+ * Top devices - ordered by most sessions
  */
 export const topDevices = defineEndpoint("top_devices", {
   description:
-    "Top device types ordered by most visits with optional previous period comparison",
+    "Top device types ordered by most sessions with optional previous period comparison",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -962,7 +962,7 @@ export const topDevices = defineEndpoint("top_devices", {
       sql: `
         SELECT
             device,
-            uniq(session_id) as current_visits,
+            uniq(session_id) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sessions_mv
         WHERE date >= (SELECT current_start FROM date_calculations)
@@ -982,7 +982,7 @@ export const topDevices = defineEndpoint("top_devices", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             device,
-            uniq(session_id) as previous_visits,
+            uniq(session_id) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sessions_mv
         WHERE date >= (SELECT previous_start FROM date_calculations)
@@ -995,7 +995,7 @@ export const topDevices = defineEndpoint("top_devices", {
             {% end %}${crossFilters}
         GROUP BY device
         {% else %}
-        SELECT '' as device, 0 as previous_visits, 0 as previous_hits WHERE 1=0
+        SELECT '' as device, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
     }),
@@ -1005,15 +1005,15 @@ export const topDevices = defineEndpoint("top_devices", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             c.device,
-            c.current_visits as visits,
+            c.current_sessions as sessions,
             c.current_hits as hits,
-            coalesce(p.previous_visits, 0) as previous_visits,
+            coalesce(p.previous_sessions, 0) as previous_sessions,
             coalesce(p.previous_hits, 0) as previous_hits,
             CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND c.current_visits > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_visits - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
+                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
+                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
+                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+            END as sessions_growth_percentage,
             CASE
                 WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
                 WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
@@ -1021,15 +1021,15 @@ export const topDevices = defineEndpoint("top_devices", {
             END as hits_growth_percentage
         FROM current_period_data c
         LEFT JOIN previous_period_data p ON c.device = p.device
-        ORDER BY c.current_visits DESC
+        ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
             device,
-            current_visits as visits,
+            current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
-        ORDER BY current_visits DESC
+        ORDER BY current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
@@ -1051,7 +1051,7 @@ export const topDevices = defineEndpoint("top_devices", {
   },
   output: {
     device: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -1061,11 +1061,11 @@ export type TopDevicesParams = InferParams<typeof topDevices>;
 export type TopDevicesOutput = InferOutputRow<typeof topDevices>;
 
 /**
- * Top locations - countries ordered by most visits
+ * Top locations - countries ordered by most sessions
  */
 export const topLocations = defineEndpoint("top_locations", {
   description:
-    "Top visiting countries ordered by most visits with optional previous period comparison",
+    "Top visiting countries ordered by most sessions with optional previous period comparison",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -1090,7 +1090,7 @@ export const topLocations = defineEndpoint("top_locations", {
       sql: `
         SELECT
             location,
-            uniqMerge(visits) as current_visits,
+            uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_pages_mv
         WHERE date >= (SELECT current_start FROM date_calculations)
@@ -1110,7 +1110,7 @@ export const topLocations = defineEndpoint("top_locations", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             location,
-            uniqMerge(visits) as previous_visits,
+            uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_pages_mv
         WHERE date >= (SELECT previous_start FROM date_calculations)
@@ -1123,7 +1123,7 @@ export const topLocations = defineEndpoint("top_locations", {
             {% end %}${crossFilters}
         GROUP BY location
         {% else %}
-        SELECT '' as location, 0 as previous_visits, 0 as previous_hits WHERE 1=0
+        SELECT '' as location, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
     }),
@@ -1133,15 +1133,15 @@ export const topLocations = defineEndpoint("top_locations", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             c.location,
-            c.current_visits as visits,
+            c.current_sessions as sessions,
             c.current_hits as hits,
-            coalesce(p.previous_visits, 0) as previous_visits,
+            coalesce(p.previous_sessions, 0) as previous_sessions,
             coalesce(p.previous_hits, 0) as previous_hits,
             CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND c.current_visits > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_visits - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
+                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
+                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
+                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+            END as sessions_growth_percentage,
             CASE
                 WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
                 WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
@@ -1149,15 +1149,15 @@ export const topLocations = defineEndpoint("top_locations", {
             END as hits_growth_percentage
         FROM current_period_data c
         LEFT JOIN previous_period_data p ON c.location = p.location
-        ORDER BY c.current_visits DESC
+        ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
             location,
-            current_visits as visits,
+            current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
-        ORDER BY current_visits DESC
+        ORDER BY current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
@@ -1179,7 +1179,7 @@ export const topLocations = defineEndpoint("top_locations", {
   },
   output: {
     location: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -1220,7 +1220,7 @@ export const topPages = defineEndpoint("top_pages", {
                 WHEN pathname = '/' THEN pathname
                 ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
             END as pathname,
-            uniqMerge(visits) as current_visits,
+            uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_pages_mv
         WHERE date >= (SELECT current_start FROM date_calculations)
@@ -1243,7 +1243,7 @@ export const topPages = defineEndpoint("top_pages", {
                 WHEN pathname = '/' THEN pathname
                 ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
             END as pathname,
-            uniqMerge(visits) as previous_visits,
+            uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_pages_mv
         WHERE date >= (SELECT previous_start FROM date_calculations)
@@ -1256,7 +1256,7 @@ export const topPages = defineEndpoint("top_pages", {
             {% end %}${crossFilters}
         GROUP BY pathname
         {% else %}
-        SELECT '' as pathname, 0 as previous_visits, 0 as previous_hits WHERE 1=0
+        SELECT '' as pathname, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
     }),
@@ -1266,15 +1266,15 @@ export const topPages = defineEndpoint("top_pages", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             c.pathname,
-            c.current_visits as visits,
+            c.current_sessions as sessions,
             c.current_hits as hits,
-            coalesce(p.previous_visits, 0) as previous_visits,
+            coalesce(p.previous_sessions, 0) as previous_sessions,
             coalesce(p.previous_hits, 0) as previous_hits,
             CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND c.current_visits > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_visits - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
+                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
+                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
+                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+            END as sessions_growth_percentage,
             CASE
                 WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
                 WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
@@ -1282,15 +1282,15 @@ export const topPages = defineEndpoint("top_pages", {
             END as hits_growth_percentage
         FROM current_period_data c
         LEFT JOIN previous_period_data p ON c.pathname = p.pathname
-        ORDER BY c.current_visits DESC
+        ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
             pathname,
-            current_visits as visits,
+            current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
-        ORDER BY current_visits DESC
+        ORDER BY current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
@@ -1312,7 +1312,7 @@ export const topPages = defineEndpoint("top_pages", {
   },
   output: {
     pathname: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -1322,11 +1322,11 @@ export type TopPagesParams = InferParams<typeof topPages>;
 export type TopPagesOutput = InferOutputRow<typeof topPages>;
 
 /**
- * Top sources - traffic sources ordered by most visits
+ * Top sources - traffic sources ordered by most sessions
  */
 export const topSources = defineEndpoint("top_sources", {
   description:
-    "Top traffic sources ordered by most visits with optional previous period comparison",
+    "Top traffic sources ordered by most sessions with optional previous period comparison",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -1351,7 +1351,7 @@ export const topSources = defineEndpoint("top_sources", {
       sql: `
         SELECT
             domainWithoutWWW(referrer) as referrer,
-            uniqMerge(visits) as current_visits,
+            uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sources_mv
         WHERE date >= (SELECT current_start FROM date_calculations)
@@ -1371,7 +1371,7 @@ export const topSources = defineEndpoint("top_sources", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             domainWithoutWWW(referrer) as referrer,
-            uniqMerge(visits) as previous_visits,
+            uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sources_mv
         WHERE date >= (SELECT previous_start FROM date_calculations)
@@ -1384,7 +1384,7 @@ export const topSources = defineEndpoint("top_sources", {
             {% end %}${crossFilters}
         GROUP BY referrer
         {% else %}
-        SELECT '' as referrer, 0 as previous_visits, 0 as previous_hits WHERE 1=0
+        SELECT '' as referrer, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
     }),
@@ -1394,15 +1394,15 @@ export const topSources = defineEndpoint("top_sources", {
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
             c.referrer,
-            c.current_visits as visits,
+            c.current_sessions as sessions,
             c.current_hits as hits,
-            coalesce(p.previous_visits, 0) as previous_visits,
+            coalesce(p.previous_sessions, 0) as previous_sessions,
             coalesce(p.previous_hits, 0) as previous_hits,
             CASE
-                WHEN coalesce(p.previous_visits, 0) = 0 AND c.current_visits > 0 THEN 100.0
-                WHEN coalesce(p.previous_visits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_visits - coalesce(p.previous_visits, 0)) * 100.0) / p.previous_visits, 2)
-            END as visits_growth_percentage,
+                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
+                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
+                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+            END as sessions_growth_percentage,
             CASE
                 WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
                 WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
@@ -1410,15 +1410,15 @@ export const topSources = defineEndpoint("top_sources", {
             END as hits_growth_percentage
         FROM current_period_data c
         LEFT JOIN previous_period_data p ON c.referrer = p.referrer
-        ORDER BY c.current_visits DESC
+        ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
             referrer,
-            current_visits as visits,
+            current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
-        ORDER BY current_visits DESC
+        ORDER BY current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
@@ -1440,7 +1440,7 @@ export const topSources = defineEndpoint("top_sources", {
   },
   output: {
     referrer: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -1472,8 +1472,8 @@ const pathKey = (expression: string): string => {
 
 const channelVisitsNode = (extraColumns = "") =>
   node({
-    name: "visits",
-    description: "First page view of each visit, with its UTMs and referrer",
+    name: "sessions",
+    description: "First page view of each session, with its UTMs and referrer",
     sql: `
         SELECT
             tenant_id,
@@ -1535,7 +1535,7 @@ const channelVisitorCampaignsNode = () =>
 const channelFirstTouchNode = (extraColumns = "") =>
   node({
     name: "first_touch",
-    description: "Each visit with its campaign: its own, or the one its anonymous visitor arrived with earlier",
+    description: "Each session with its campaign: its own, or the one its anonymous visitor arrived with earlier",
     sql: `
         SELECT
             v.session_id as session_id,
@@ -1546,7 +1546,7 @@ const channelFirstTouchNode = (extraColumns = "") =>
             v.referrer_domain as referrer_domain,
             v.site_domain as site_domain,
             v.hits as hits${extraColumns}
-        FROM visits v
+        FROM sessions v
         LEFT JOIN visitor_campaigns c
             ON v.tenant_id = c.tenant_id AND v.domain = c.domain AND v.visitor_id = c.visitor_id
       `,
@@ -1571,11 +1571,11 @@ const channelParams = {
 };
 
 /**
- * Channels - visits grouped by the channel of each visit's first page view
+ * Channels - sessions grouped by the channel of each session's first page view
  */
 export const channels = defineEndpoint("channels", {
   description:
-    "Visits and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
+    "Sessions and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
@@ -1587,11 +1587,11 @@ export const channels = defineEndpoint("channels", {
       sql: `
         SELECT
             ${channelSql} as channel,
-            count() as visits,
+            count() as sessions,
             sum(hits) as hits
         FROM first_touch
         GROUP BY channel
-        ORDER BY visits DESC
+        ORDER BY sessions DESC
       `,
     }),
     barPercentNode(),
@@ -1599,7 +1599,7 @@ export const channels = defineEndpoint("channels", {
   params: channelParams,
   output: {
     channel: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     hits: t.uint64(),
     bar_percent: t.float64(),
   },
@@ -1609,11 +1609,11 @@ export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
 
 /**
- * Conversions - the visits that reached a goal page, grouped like channels
+ * Conversions - the sessions that reached a goal page, grouped like channels
  */
 export const conversions = defineEndpoint("conversions", {
   description:
-    "For one goal page: visits, visits that reached it, and the conversion rate, grouped by the acquisition channel of each visit. The goal page is a query parameter, so each site chooses its own.",
+    "For one goal page: sessions, sessions that reached it, and the conversion rate, grouped by the acquisition channel of each session. The goal page is a query parameter, so each site chooses its own.",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
@@ -1629,12 +1629,12 @@ export const conversions = defineEndpoint("conversions", {
       sql: `
         SELECT
             ${channelSql} as channel,
-            count() as visits,
+            count() as sessions,
             sum(converted) as conversions,
             round(sum(converted) * 100.0 / count(), 2) as conversion_rate_percent
         FROM first_touch
         GROUP BY channel
-        ORDER BY conversions DESC, visits DESC
+        ORDER BY conversions DESC, sessions DESC
       `,
     }),
   ],
@@ -1646,7 +1646,7 @@ export const conversions = defineEndpoint("conversions", {
   },
   output: {
     channel: t.string(),
-    visits: t.uint64(),
+    sessions: t.uint64(),
     conversions: t.uint64(),
     conversion_rate_percent: t.float64(),
   },
@@ -1656,12 +1656,12 @@ export type ConversionsParams = InferParams<typeof conversions>;
 export type ConversionsOutput = InferOutputRow<typeof conversions>;
 
 /**
- * Conversion summary - visits and conversions across every channel for one goal page, with the
+ * Conversion summary - sessions and conversions across every channel for one goal page, with the
  * overall rate, so the UI shows the headline without adding rows up.
  */
 export const conversionSummary = defineEndpoint("conversion_summary", {
   description:
-    "For one goal page: total visits, visits that reached it and the overall conversion rate (percent) across every channel",
+    "For one goal page: total sessions, sessions that reached it and the overall conversion rate (percent) across every channel",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
@@ -1676,7 +1676,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
       name: "endpoint",
       sql: `
         SELECT
-            count() as visits,
+            count() as sessions,
             sum(converted) as conversions,
             round(if(count() = 0, 0, sum(converted) * 100.0 / count()), 2) as conversion_rate_percent
         FROM first_touch
@@ -1690,7 +1690,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
       .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported."),
   },
   output: {
-    visits: t.uint64(),
+    sessions: t.uint64(),
     conversions: t.uint64(),
     conversion_rate_percent: t.float64(),
   },
@@ -1711,8 +1711,8 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
     tokens: [{ token: dashboardToken, scope: "READ" }],
     nodes: [
       node({
-        name: "edge_of_visits",
-        description: "One page per visit: the first or last one viewed",
+        name: "edge_of_sessions",
+        description: "One page per session: the first or last one viewed",
         sql: `
           WITH
               {% if defined(date_from) and defined(date_to) %}
@@ -1740,10 +1740,10 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
       node({
         name: "endpoint",
         sql: `
-          SELECT pathname, count() as visits
-          FROM edge_of_visits
+          SELECT pathname, count() as sessions
+          FROM edge_of_sessions
           GROUP BY pathname
-          ORDER BY visits DESC, pathname ASC
+          ORDER BY sessions DESC, pathname ASC
           LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         `,
       }),
@@ -1759,26 +1759,26 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
     },
     output: {
       pathname: t.string(),
-      visits: t.uint64(),
+      sessions: t.uint64(),
     },
   });
 
 /**
- * Entry pages - the page each visit started on, most visits first
+ * Entry pages - the page each session started on, most sessions first
  */
 export const entryPages = edgePages(
   "entry_pages",
   "argMin",
-  "Pages where visits start, ordered by most visits"
+  "Pages where sessions start, ordered by most sessions"
 );
 
 /**
- * Exit pages - the page each visit ended on, most visits first
+ * Exit pages - the page each session ended on, most sessions first
  */
 export const exitPages = edgePages(
   "exit_pages",
   "argMax",
-  "Pages where visits end, ordered by most visits"
+  "Pages where sessions end, ordered by most sessions"
 );
 
 export type EntryPagesParams = InferParams<typeof entryPages>;

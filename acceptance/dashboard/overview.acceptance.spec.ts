@@ -4,20 +4,20 @@ import { type ApiRow, signIn, stubApi } from './support';
 
 const counts: ApiRow = {
   known_visitors: 120,
-  daily_visitors: 340,
+  anonymous_visitors: 340,
   legacy_visitors: 5,
-  visits: 410,
-  consented_visits_percent: 41.5,
+  sessions: 410,
+  consented_sessions_percent: 41.5,
   previous_known_visitors: 100,
-  previous_daily_visitors: 350,
-  previous_visits: 380,
+  previous_anonymous_visitors: 350,
+  previous_sessions: 380,
   known_visitors_growth_percent: 20,
-  daily_visitors_growth_percent: -2.86,
-  visits_growth_percent: 7.89,
+  anonymous_visitors_growth_percent: -2.86,
+  sessions_growth_percent: 7.89,
 };
 const engagement: ApiRow = {
   pageviews: 1234,
-  views_per_visit: 3.01,
+  views_per_session: 3.01,
   bounce_rate_percent: 37.5,
   avg_session_sec: 95,
   previous_pageviews: 1000,
@@ -28,8 +28,8 @@ const engagement: ApiRow = {
   avg_session_sec_growth_percent: 0,
 };
 const locations: readonly ApiRow[] = [
-  { location: 'ES', visits: 10, hits: 30, bar_percent: 100 },
-  { location: 'FR', visits: 8, hits: 11, bar_percent: 41 },
+  { location: 'ES', sessions: 10, hits: 30, bar_percent: 100 },
+  { location: 'FR', sessions: 8, hits: 11, bar_percent: 41 },
 ];
 
 const routes = {
@@ -138,13 +138,13 @@ test('clicking a day on the chart shows that day hour by hour', async ({
 }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  await expect(page.getByText('Visits per day')).toBeVisible();
+  await expect(page.getByText('Sessions per day')).toBeVisible();
   expect(api.requestsTo('hourly_series')).toHaveLength(0);
 
   await page.getByTitle('2026-11-10: 10').click();
 
   await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
-  await expect(page.getByText('Visits per hour')).toBeVisible();
+  await expect(page.getByText('Sessions per hour')).toBeVisible();
   await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
   const query = api.requestsTo('hourly_series').at(-1);
   expect(query?.get('date_from')).toBe('2026-11-10');

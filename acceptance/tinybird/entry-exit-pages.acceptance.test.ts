@@ -11,7 +11,7 @@ import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
-type PageRow = { pathname: string; visits: number | string };
+type PageRow = { pathname: string; sessions: number | string };
 
 const DAY_MS = 86_400_000;
 const daysFromNow = (days: number): Date =>
@@ -85,13 +85,13 @@ describe.concurrent.each(edges)('$label', ({ pipe, verb, journey }) => {
       ...visit(scope, '/c'),
     ]);
 
-  it(`lists the pages where visits ${verb}, most visits first`, async () => {
+  it(`lists the pages where sessions ${verb}, most sessions first`, async () => {
     const scope = createScope();
     await seedRanked(scope);
 
     const rows = await pagesOf(scope, {}, r => r.length >= 3);
 
-    expect(rows.map(row => [row.pathname, Number(row.visits)])).toEqual([
+    expect(rows.map(row => [row.pathname, Number(row.sessions)])).toEqual([
       ['/a', 3],
       ['/b', 2],
       ['/c', 1],
@@ -104,7 +104,7 @@ describe.concurrent.each(edges)('$label', ({ pipe, verb, journey }) => {
 
     const rows = await pagesOf(scope, {}, r => r.length >= 1);
 
-    expect(rows.map(row => [row.pathname, Number(row.visits)])).toEqual([
+    expect(rows.map(row => [row.pathname, Number(row.sessions)])).toEqual([
       ['/landing', 1],
     ]);
   });
@@ -118,12 +118,12 @@ describe.concurrent.each(edges)('$label', ({ pipe, verb, journey }) => {
 
     const rows = await pagesOf(scope, {}, r => r.length >= 1);
 
-    expect(rows.map(row => [row.pathname, Number(row.visits)])).toEqual([
+    expect(rows.map(row => [row.pathname, Number(row.sessions)])).toEqual([
       ['/pricing', 2],
     ]);
   });
 
-  it('leaves out visits from the day just before the chosen period', async () => {
+  it('leaves out sessions from the day just before the chosen period', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, '/today'),
@@ -139,7 +139,7 @@ describe.concurrent.each(edges)('$label', ({ pipe, verb, journey }) => {
     expect(names(rows)).toEqual(['/today']);
   });
 
-  it('keeps only visits from the given location', async () => {
+  it('keeps only sessions from the given location', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, '/from-us', { location: 'US' }),

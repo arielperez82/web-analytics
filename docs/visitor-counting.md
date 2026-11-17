@@ -13,7 +13,7 @@ Analytics, accessed 2026-11-12) and are summarised in section 10.
 A B2B landing page owner asks three things:
 
 1. How many **people** reached the site in this period? (reach)
-2. How many **visits** did they make? (activity)
+2. How many **sessions** did they make? (activity)
 3. Did the people we want (a channel, a country, a campaign) come, and did they convert? (quality)
 
 "Unique visitors" answers 1. It is the most misread number in analytics, so we say exactly what ours means and where
@@ -21,13 +21,13 @@ it is only approximate. Our answer: we never publish one blended "unique visitor
 
 ## 2. Decisions
 
-1. **Headline:** Visits is the headline and the consent-invariant trend metric. Visitors are two separate cards.
-2. **Split:** Show Known visitors (consented) and Daily visitors as separate numbers. Never blend or add them.
+1. **Headline:** Sessions is the headline and the consent-invariant trend metric. Visitors are two separate cards.
+2. **Split:** Show Known visitors (consented) and Anonymous visitors as separate numbers. Never blend or add them.
 3. **Bots:** Excluded from every count by default. A toggle includes them so the owner can see the scale of the
    impact.
 4. **Legacy events:** Events with no `visitor_id` fall back to `session_id`, namespaced `legacy:` and reported
    separately.
-5. **`current_visitors`:** Renamed to **active visits** (it counts sessions).
+5. **`current_visitors`:** Renamed to **active sessions** (it counts sessions).
 6. **Time zone:** UTC for day and range boundaries everywhere. Local time is a display aid only (section 6).
 7. **Consent marker:** None. Nothing is live, so there is no history to mark.
 8. **Distinct counting:** `uniqCombined64`; `uniqExact` is never used (section 9).
@@ -35,13 +35,13 @@ it is only approximate. Our answer: we never publish one blended "unique visitor
 
 ## 3. Vocabulary
 
-| Term               | Meaning here                                                                                             |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| **Pageview**       | One `page_hit` event.                                                                                    |
-| **Visit**          | A run of activity from one browser with no gap over 30 minutes. Counted by distinct `session_id`.        |
-| **Known visitor**  | A `persistent` visitor id: consented, stable across days.                                                |
-| **Daily visitor**  | A `daily_direct` or `daily_proxy` id: exists for one UTC day only. Counted per day, so repeats re-count. |
-| **Legacy visitor** | An older event with no `visitor_id`, keyed by `legacy:` plus `session_id`. Reported on its own.          |
+| Term                  | Meaning here                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Pageview**          | One `page_hit` event.                                                                                    |
+| **Session**           | A run of activity from one browser with no gap over 30 minutes. Counted by distinct `session_id`.        |
+| **Known visitor**     | A `persistent` visitor id: consented, stable across days.                                                |
+| **Anonymous visitor** | A `daily_direct` or `daily_proxy` id: exists for one UTC day only. Counted per day, so repeats re-count. |
+| **Legacy visitor**    | An older event with no `visitor_id`, keyed by `legacy:` plus `session_id`. Reported on its own.          |
 
 A visitor is a browser, not a person.
 
@@ -60,11 +60,11 @@ Where they come from: `packages/client/src/identity.ts` (`resolveIdMode`, `daily
 What follows from this:
 
 - **Across several days, only `persistent` ids deduplicate.** For daily modes the system cannot know that Monday's
-  visitor and Tuesday's visitor are the same browser, and we have chosen not to make that possible. So a daily-visitor
+  visitor and Tuesday's visitor are the same browser, and we have chosen not to make that possible. So an anonymous-visitor
   total over several days is a count of **person-days**, not people, and the UI says so.
-- **Daily visitors is not a pure upper bound on people.** B2B offices run standard machine images with the same user
+- **Anonymous visitors is not a pure upper bound on people.** B2B offices run standard machine images with the same user
   agent, screen, language and time zone. Those merge under `daily_direct`, and under `daily_proxy` they also share an
-  IP. So daily visitors can undercount as well as overcount. State both.
+  IP. So anonymous visitors can undercount as well as overcount. State both.
 - **The consent mix biases visitor totals.** A site with a high consent rate has more known visitors and fewer daily
   visitors for the same traffic. This is why the two are never added and why a consented share is shown beside them.
 - **Daily ids rotate at 00:00 UTC.** Keeping day boundaries on UTC means a daily id never straddles two dashboard days
@@ -83,14 +83,14 @@ What follows from this:
 **D1. Known visitors.** Distinct `visitor_id` with `id_mode = persistent` and at least one qualifying event in the
 range. A true distinct count across the range, never a sum of daily counts.
 
-**D2. Daily visitors.** For each UTC day, distinct `visitor_id` with `id_mode` in (`daily_direct`, `daily_proxy`); the
+**D2. Anonymous visitors.** For each UTC day, distinct `visitor_id` with `id_mode` in (`daily_direct`, `daily_proxy`); the
 headline is the **sum of those per-day counts** (person-days), labelled as such. It is the one place where summing days
 is correct, because ids cannot be linked across days.
 
-**D3. Visits.** Distinct `session_id` in the range, computed over the range. Visits exist in every identity mode, so
+**D3. Sessions.** Distinct `session_id` in the range, computed over the range. Sessions exist in every identity mode, so
 they are the consent-invariant measure, the weekly headline, and the denominator for conversion rate.
 
-**D4. Active visits now.** Distinct `session_id` with an event in the last 5 minutes. This is the renamed
+**D4. Active sessions now.** Distinct `session_id` with an event in the last 5 minutes. This is the renamed
 `current_visitors` (`endpoints.ts`, `currentVisitors`). Unfiltered, like Plausible's equivalent.
 
 **D5. Returning known visitors** (optional, behind a drill-down). Known visitors in the range who were also seen before
@@ -100,8 +100,8 @@ the range started. Defined for `persistent` only; undefined until history accumu
 merged with real visitor ids. Each return visit counts as a new legacy visitor.
 
 **D7. Range totals are computed over the range, never summed from buckets, except D2.** A persistent visitor active on
-three days appears in three daily bars and counts once in D1. Today the "Visits" card sums per-day distinct sessions
-(`Kpis.tsx`, `sum("visits")`; the `kpis` pipe grouped by `date, session_id`), so a session that crossed UTC midnight
+three days appears in three daily bars and counts once in D1. Today the "Sessions" card sums per-day distinct sessions
+(`Kpis.tsx`, `sum("sessions")`; the `kpis` pipe grouped by `date, session_id`), so a session that crossed UTC midnight
 counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `visitor_counts` and `engagement`.
 **The chart bars can add up to more than the headline, and the UI says so.**
 
@@ -111,11 +111,11 @@ counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `v
   chart to hourly buckets; the headline is still one distinct count for the whole day, not the sum of hours.
 - **Time zone: UTC for day and range boundaries everywhere.** Reasons, from the data-science review:
   - A local day always spans two UTC ids, so a person can count twice. Under assumed 5-10% same-day repeat rates and
-    B2B working-hours traffic the overcount on a single local day is roughly 1-4% of daily visitors. These are derived
+    B2B working-hours traffic the overcount on a single local day is roughly 1-4% of anonymous visitors. These are derived
     figures from stated assumptions, not measurements.
   - It is worst on single-day and hourly views. On an N-day range only the two edge days differ, so it fades beyond
     about two weeks.
-  - UTC buckets keep an exact invariant: the daily-visitor headline equals the sum of the daily bars. Keep this as a
+  - UTC buckets keep an exact invariant: the anonymous-visitor headline equals the sum of the daily bars. Keep this as a
     regression test.
 - **Local time is a display aid only.** A permanent `UTC` badge sits beside the date picker; its popover shows the
   viewer's local equivalent (for example "days run midnight to midnight UTC, 4pm PT"). The hourly axis is relabelled in
@@ -155,21 +155,21 @@ the top lists.
   percentages that look like they sum to 100.
 - **Location, device and browser are properties of a hit, not of a visitor** (travel, VPNs, browser changes).
 - Conversions keep ignoring device, location and browser filters, as today, and the UI says so.
-- **Conversion rate by channel uses visits as the denominator**, with the consented share beside each channel row.
-  Channels under about 30 visits are greyed out and not ranked.
+- **Conversion rate by channel uses sessions as the denominator**, with the consented share beside each channel row.
+  Channels under about 30 sessions are greyed out and not ranked.
 
 ## 8. Bots
 
-- **Default: excluded** from Visits, Known visitors and Daily visitors, as in all four tools surveyed.
+- **Default: excluded** from Sessions, Known visitors and Anonymous visitors, as in all four tools surveyed.
 - **Opt-in toggle** ("Include bot traffic", a switch, default off, in the URL so shared links reproduce the view).
-  - Impact shown as a quiet line: "412 bot visits hidden. Show". Hidden when zero.
+  - Impact shown as a quiet line: "412 bot sessions hidden. Show". Hidden when zero.
   - When on, an amber "Including bots" chip and an "incl. bots" suffix on affected cards.
-  - Show counts and share, by channel and by landing page, in visits. Bots almost never consent, so the effect lands on
-    daily visitors, not known visitors.
+  - Show counts and share, by channel and by landing page, in sessions. Bots almost never consent, so the effect lands on
+    anonymous visitors, not known visitors.
 - **Classifier limits** (the current rule is a user-agent regex, `pipes.ts`):
   - False positives: the substring "bot" also matches some Android devices.
   - False negatives, the larger B2B risk: email security scanners (link prefetchers) use ordinary browser user agents
-    and show up as visits right after a campaign send. Headless browsers, spoofed agents and datacenter IPs are also
+    and show up as sessions right after a campaign send. Headless browsers, spoofed agents and datacenter IPs are also
     missed.
   - Store `is_bot` and a `classifier_version` at ingest instead of recomputing at query time, so history never shifts
     silently. Hand-audit 100 flagged and 100 unflagged events before trusting it.
@@ -221,9 +221,9 @@ Sourced from official docs and source, accessed 2026-11-12. Items marked unverif
 What this means for us:
 
 - Our daily-id behaviour matches Plausible's. Plausible's maintainers acknowledge the "visitors" label can mislead, so
-  we label daily visitors as person-days.
+  we label anonymous visitors as person-days.
 - No surveyed tool shows a consented-versus-cookieless split; Matomo blends them. Keeping the split is ours to design.
-- No surveyed tool lets you toggle bots back in the way we plan; only Simple Analytics offers the hidden visits, via
+- No surveyed tool lets you toggle bots back in the way we plan; only Simple Analytics offers the hidden sessions, via
   export.
 - No surveyed tool documents how to compare periods across a tracking-method change. Unverified for all four.
 - Plausible's salt rotates on UTC while its reports use the site zone, and no doc reconciles the two. We avoid the
@@ -235,17 +235,17 @@ Layout (separate cards grouped by what they measure; one chart series at a time,
 
 ```text
  PEOPLE (browsers)                         ACTIVITY
- [Known visitors] [Daily visitors]         [Visits]
- Not additive: known and daily are different people; visits are a different unit.
- Chart: [Visits | Known | Daily] selector, one series at a time   (Times in UTC)
+ [Known visitors] [Anonymous visitors]         [Sessions]
+ Not additive: known and anonymous are different people; sessions are a different unit.
+ Chart: [Sessions | Known | Anonymous] selector, one series at a time   (Times in UTC)
 ```
 
 - Labels and one-line caveats:
   - Known visitors: "Counted once per browser across the whole range. Only people who accepted tracking."
-  - Daily visitors: "Counted per day, so a returning person counts again each day. Anonymous."
-  - Visits: "Browsing sessions; one person can make several."
-  - Active visits now: "Sessions with activity in the last 5 minutes."
-- Show the consented share (known visits over all visits) beside the visitor cards and channel rows.
+  - Anonymous visitors: "Unique within a day only: a returning person counts again each day."
+  - Sessions: "Browsing sessions; one person can make several."
+  - Active sessions now: "Sessions with activity in the last 5 minutes."
+- Show the consented share (known sessions over all sessions) beside the visitor cards and channel rows.
 - The UI never calculates. Totals, rates, growth, shares and bar ratios all come from the API (see
   `apps/dashboard/AGENTS.md`), which is also how the card totals and the exports stay identical.
 - Every explanation has three layers: a one-line caption, a keyboard-focusable popover, and a "How we count" link.
@@ -255,7 +255,7 @@ Layout (separate cards grouped by what they measure; one chart series at a time,
 - No consented visitors yet: show "0 (no consent yet)" muted, keep the card in place.
 - Exports include the dashboard's settings (time zone, bot toggle, date range, consented share), so they survive being
   pasted into a slide, and totals match the dashboard.
-- Year-over-year is acceptable for visits and conversions. Refuse it for visitor metrics from before identity rollout.
+- Year-over-year is acceptable for sessions and conversions. Refuse it for visitor metrics from before identity rollout.
 
 ## 12. What the definitions imply technically (not decided)
 
@@ -279,11 +279,11 @@ Constraints that come straight from the definitions:
   (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
   set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows, and the
-  `visitor_counts` endpoint that reads it (known, daily as person-days, legacy, visits; bots out unless
+  `visitor_counts` endpoint that reads it (known, anonymous as person-days, legacy, sessions; bots out unless
   `include_bots=1`; with a location, device or browser filter the same per-day states are built from `analytics_hits`,
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
-  `include_bots=1`. **Built:** `engagement` (page views, pages per visit, bounce rate and average session length,
-  weighted by visit over the whole range, with the previous period and growth) and `daily_series` (one metric per day
+  `include_bots=1`. **Built:** `engagement` (page views, pages per session, bounce rate and average session length,
+  weighted by session over the whole range, with the previous period and growth) and `daily_series` (one metric per day
   with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. **Built:**
   `hourly_series`, the same metrics per UTC hour for ranges of at most seven days, shown for single-day ranges. It rolls
   the hours up from `analytics_hits` at read time and has no materialization: a day for one tenant and domain is a range

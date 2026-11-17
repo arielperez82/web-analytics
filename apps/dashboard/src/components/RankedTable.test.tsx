@@ -24,9 +24,9 @@ const report = (slug: string): Report => {
 };
 
 const rows: readonly ApiRow[] = [
-  { location: "ES", visits: 10, hits: 30, bar_percent: 100, visits_growth_percentage: 12.5 },
-  { location: "", visits: 9, hits: 12, bar_percent: 37, visits_growth_percentage: -4.2 },
-  { location: "FR", visits: 8, hits: 11, bar_percent: 11, visits_growth_percentage: 0 },
+  { location: "ES", sessions: 10, hits: 30, bar_percent: 100, sessions_growth_percentage: 12.5 },
+  { location: "", sessions: 9, hits: 12, bar_percent: 37, sessions_growth_percentage: -4.2 },
+  { location: "FR", sessions: 8, hits: 11, bar_percent: 11, sessions_growth_percentage: 0 },
 ];
 
 type Overrides = Partial<Parameters<typeof RankedTable>[0]>;
@@ -53,7 +53,7 @@ const rowOf = async (label: string): Promise<HTMLElement> => {
 };
 
 describe("RankedTable", () => {
-  it("sizes each bar from the percentage the API gives, not from the visits", async () => {
+  it("sizes each bar from the percentage the API gives, not from the sessions", async () => {
     renderTable();
 
     await rowOf("ES");
@@ -69,7 +69,7 @@ describe("RankedTable", () => {
     expect(labels).toEqual(["ES", "(direct)", "FR"]);
   });
 
-  it("shows visits and hits as the API returned them", async () => {
+  it("shows sessions and hits as the API returned them", async () => {
     renderTable();
 
     const es = within(await rowOf("ES"));
@@ -104,7 +104,7 @@ describe("RankedTable", () => {
   });
 
   it("shows no growth column for a report that has no previous period", async () => {
-    const api = installFakeApi({ channels: [{ channel: "Organic", visits: 5, hits: 6, bar_percent: 100 }] });
+    const api = installFakeApi({ channels: [{ channel: "Organic", sessions: 5, hits: 6, bar_percent: 100 }] });
     render(<RankedTable report={report("channels")} state={state} params={params} onPick={() => undefined} detail />);
 
     await screen.findByText("Organic");
@@ -140,7 +140,7 @@ describe("RankedTable", () => {
 
   it("does not offer a filter on a report that cannot filter", async () => {
     const picked: string[] = [];
-    installFakeApi({ top_pages: [{ pathname: "/a", visits: 1, hits: 1, bar_percent: 100 }] });
+    installFakeApi({ top_pages: [{ pathname: "/a", sessions: 1, hits: 1, bar_percent: 100 }] });
     render(<RankedTable report={report("pages")} state={state} params={params} onPick={(_, v) => picked.push(v)} />);
     const user = userEvent.setup();
 

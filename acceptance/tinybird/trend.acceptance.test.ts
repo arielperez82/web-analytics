@@ -11,7 +11,7 @@ import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
 import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
-type TrendRow = { t: string; visits: number | string | null };
+type TrendRow = { t: string; sessions: number | string | null };
 
 const MINUTE_MS = 60_000;
 const minutesAgo = (minutes: number): Date =>
@@ -20,7 +20,7 @@ const startOfMinute = (ms: number): number =>
   Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 const toTime = (t: string): number => Date.parse(`${t.replace(' ', 'T')}Z`);
 const totalVisits = (rows: readonly TrendRow[]) =>
-  rows.reduce((sum, row) => sum + Number(row.visits ?? 0), 0);
+  rows.reduce((sum, row) => sum + Number(row.sessions ?? 0), 0);
 
 describe.concurrent('live trend', () => {
   const env = inject('tinybird');
@@ -47,7 +47,7 @@ describe.concurrent('live trend', () => {
       ...(sessionId === undefined ? {} : { sessionId }),
     });
 
-  it('shows recent traffic as visits in the live series', async () => {
+  it('shows recent traffic as sessions in the live series', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       createPageHitEvent({ ...scope, pathname: '/' }),
@@ -83,7 +83,7 @@ describe.concurrent('live trend', () => {
 
     const rows = await series(scope, 1);
 
-    const busy = rows.find(row => Number(row.visits ?? 0) > 0);
+    const busy = rows.find(row => Number(row.sessions ?? 0) > 0);
     expect(toTime(busy?.t ?? '1970-01-01 00:00:00')).toBe(
       startOfMinute(toTime(event.timestamp))
     );

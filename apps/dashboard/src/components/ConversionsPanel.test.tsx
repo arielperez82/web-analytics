@@ -15,11 +15,11 @@ afterEach(() => {
 const goal: Goal = { name: "Signup", path: "/thanks" };
 const params = { date_from: "2026-11-10", date_to: "2026-11-16", domain: "a.example" };
 
-const summary: ApiRow = { conversions: 70, visits: 900, conversion_rate_percent: 7.5 };
+const summary: ApiRow = { conversions: 70, sessions: 900, conversion_rate_percent: 7.5 };
 const channelRows: readonly ApiRow[] = [
-  { channel: "Paid", visits: 100, conversions: 9, conversion_rate_percent: 8.5 },
-  { channel: "Organic", visits: 300, conversions: 40, conversion_rate_percent: 12.7 },
-  { channel: "Direct", visits: 50, conversions: 1, conversion_rate_percent: 1.9 },
+  { channel: "Paid", sessions: 100, conversions: 9, conversion_rate_percent: 8.5 },
+  { channel: "Organic", sessions: 300, conversions: 40, conversion_rate_percent: 12.7 },
+  { channel: "Direct", sessions: 50, conversions: 1, conversion_rate_percent: 1.9 },
 ];
 
 const renderPanel = (routes: Parameters<typeof installFakeApi>[0] = {}) => {
@@ -32,8 +32,8 @@ describe("ConversionsPanel", () => {
   it("takes the headline from the summary, not from the channel rows", async () => {
     renderPanel();
 
-    const headline = await screen.findByText(/visits\s+converted/);
-    expect(headline.textContent).toBe("70 of 900 visits converted (7.5%)");
+    const headline = await screen.findByText(/sessions\s+converted/);
+    expect(headline.textContent).toBe("70 of 900 sessions converted (7.5%)");
   });
 
   it("shows each channel row exactly as the API computed it", async () => {
@@ -81,7 +81,7 @@ describe("ConversionsPanel", () => {
     renderPanel({ conversions: [] });
 
     expect(await screen.findByText("No data")).toBeTruthy();
-    expect(screen.queryByText(/visits\s+converted/)).toBeNull();
+    expect(screen.queryByText(/sessions\s+converted/)).toBeNull();
   });
 
   it("shows the API error instead of a table", async () => {
