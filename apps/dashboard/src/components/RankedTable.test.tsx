@@ -162,6 +162,28 @@ describe("RankedTable", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Show more" })).toBeNull());
   });
 
+  it("offers See all at the bottom of an overview widget, keeping the filters", async () => {
+    renderTable({ state: { ...state, filters: { device: "mobile-ios" } } });
+
+    await rowOf("ES");
+    const link = screen.getByRole("link", { name: "See all" });
+    expect(link.getAttribute("href")).toContain("/reports/locations");
+    expect(link.getAttribute("href")).toContain("device=mobile-ios");
+  });
+
+  it("titles the widget with its plain name", async () => {
+    renderTable();
+
+    expect(await screen.findByRole("heading", { name: "Locations" })).toBeTruthy();
+  });
+
+  it("leaves See all off the detail view", async () => {
+    renderTable({ detail: true });
+
+    await rowOf("ES");
+    expect(screen.queryByRole("link", { name: "See all" })).toBeNull();
+  });
+
   it("asks for more when Show more is clicked", async () => {
     let asked = 0;
     renderTable({ limit: 3, onMore: () => (asked += 1) });

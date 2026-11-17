@@ -132,8 +132,10 @@ export const Kpis = ({
             </button>
           ))}
         </div>
-        <Status loading={loading} error={error} empty={rows.length === 0} />
         <div className="chart" role="group" aria-label={`${label} chart`}>
+          <div className="chart-status">
+            <Status loading={loading} error={error} empty={rows.length === 0} />
+          </div>
           {rows.map((row) => {
             const day = String(row[key]);
             return (
