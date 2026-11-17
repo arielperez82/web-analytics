@@ -36,9 +36,8 @@ export const RankedTable = ({
     include_previous_period: comparePrevious ? "true" : undefined,
   });
   const rows = data ?? [];
-  const title = detail ? report.heading : <Link href={hrefFor(`/reports/${report.slug}`, state)}>{report.heading} →</Link>;
   return (
-    <Panel title={title}>
+    <Panel title={report.heading}>
       <Status loading={loading} error={error} empty={data?.length === 0} />
       <table>
         {detail && (
@@ -69,6 +68,7 @@ export const RankedTable = ({
         </tbody>
       </table>
       {onMore && rows.length >= limit && <button onClick={onMore}>Show more</button>}
+      {!detail && <Link className="see-all" href={hrefFor(`/reports/${report.slug}`, state)}>See all</Link>}
     </Panel>
   );
 };

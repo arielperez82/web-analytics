@@ -150,3 +150,49 @@ test('clicking a day on the chart shows that day hour by hour', async ({
   expect(query?.get('date_from')).toBe('2026-11-10');
   expect(query?.get('date_to')).toBe('2026-11-10');
 });
+
+test('See all opens the full report for that widget', async ({ page }) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  await page.getByRole('link', { name: 'See all' }).first().click();
+
+  await expect(page).toHaveURL(/\/reports\//);
+});
+
+test('dropdowns leave room to the right of their caret', async ({ page }) => {
+  await stubApi(page, { ...routes, domains: [{ domain: 'a.example' }] });
+  await signIn(page);
+
+  await expect(page.getByRole('combobox').first()).toHaveCSS(
+    'padding-right',
+    '30px'
+  );
+});
+
+test('changing a filter does not move the layout below the chart', async ({
+  page,
+}) => {
+  await stubApi(page, routes);
+  await signIn(page);
+  const panel = page.getByRole('heading', { name: /Sessions per day/ });
+  await expect(panel).toBeVisible();
+  const main = page.locator('main');
+  const heightBefore = (await main.boundingBox())?.height;
+  expect(heightBefore).toBeGreaterThan(0);
+
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/endpoints/daily_series*', async route => {
+    await gate;
+    await route.fallback();
+  });
+  await page.getByText('ES', { exact: true }).click();
+  await expect(page.getByText('Loading…').first()).toBeVisible();
+  const heightWhileLoading = (await main.boundingBox())?.height;
+  release();
+
+  expect(heightWhileLoading).toBe(heightBefore);
+});
