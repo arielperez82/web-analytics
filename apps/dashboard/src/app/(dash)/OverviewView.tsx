@@ -3,8 +3,8 @@
 import { ConversionsPanel } from "@/components/ConversionsPanel";
 import { Kpis } from "@/components/Kpis";
 import { RankedTable } from "@/components/RankedTable";
-import type { Goal } from "@/lib/goals";
-import { toggleFilter, type FilterKey } from "@/lib/filters";
+import { type FilterKey,toggleFilter } from "@/lib/filters";
+import { type Goal, isEventGoal } from "@/lib/goals";
 import { REPORTS } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
@@ -22,7 +22,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
           ))}
           <div className="grid">
             {goals.map((goal) => (
-              <ConversionsPanel key={goal.path} goal={goal} params={params} />
+              <ConversionsPanel key={isEventGoal(goal) ? `event:${goal.event}` : `path:${goal.path}`} goal={goal} params={params} />
             ))}
           </div>
         </>

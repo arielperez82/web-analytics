@@ -91,4 +91,17 @@ describe("ConversionsPanel", () => {
     await waitFor(() => expect(document.querySelector("p.error")).not.toBeNull());
     expect(screen.queryByRole("table")).toBeNull();
   });
+
+  it("asks for the goal event, and shows its name, when the goal is an event", async () => {
+    const api = installFakeApi({ conversions: channelRows, conversion_summary: [summary] });
+    render(<ConversionsPanel goal={{ name: "Signed up", event: "signup_completed" }} params={params} />);
+
+    await screen.findByText(/sessions\s+converted/);
+
+    expect(screen.getByText("Signed up · signup_completed")).toBeTruthy();
+    const queries = [...api.requestsTo("conversions"), ...api.requestsTo("conversion_summary")];
+    expect(queries).toHaveLength(2);
+    expect(queries.map((query) => query.get("goal_event"))).toEqual(["signup_completed", "signup_completed"]);
+    expect(queries.some((query) => query.has("goal_path"))).toBe(false);
+  });
 });
