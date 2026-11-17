@@ -172,6 +172,22 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards a valid goal_event to conversions", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("conversions", "goal_event=signup_completed"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?goal_event=signup_completed");
+  });
+
+  it("rejects an invalid goal_event with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["a b", "x'; --", "a".repeat(101)]) {
+      const query = new URLSearchParams({ goal_event: bad }).toString();
+      expect((await proxyEndpoint(request("conversions", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("ignores a caller tenant_id for conversions when pinned", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
     await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);

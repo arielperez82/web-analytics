@@ -1,6 +1,7 @@
 import { describe, expect, inject, it } from 'vitest';
 
 import {
+  createCustomEvent,
   createPageHitEvent,
   createRivalTenant,
   createScope,
@@ -304,6 +305,96 @@ describe.concurrent('conversions pipe', () => {
       expect(rows).toEqual([
         { sessions: 0, conversions: 0, conversion_rate_percent: 0 },
       ]);
+    });
+  });
+  describe('a goal that is an event instead of a page', () => {
+    const GOAL_EVENT = 'signup_completed';
+    const happened = (scope: Scope, sessionId: string, action = GOAL_EVENT) =>
+      createCustomEvent({ ...scope, action, sessionId });
+    const forEvent = (scope: Scope, minRows: number) =>
+      waitForPipeRows<ConversionRow>(
+        env,
+        'conversions',
+        {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event: GOAL_EVENT,
+        },
+        minRows
+      );
+
+    it('counts the sessions that sent the event, per channel, once each', async () => {
+      const scope = createScope();
+      const [won, lost] = [session('won'), session('lost')] as const;
+      await ingestEvents(env, [
+        hit(scope, '/', won, paid),
+        happened(scope, won),
+        happened(scope, won),
+        hit(scope, '/', lost, paid),
+        happened(scope, lost, 'something_else'),
+      ]);
+
+      const rows = await forEvent(scope, 1);
+
+      expect(byChannel(rows)).toEqual({
+        Paid: { sessions: 2, conversions: 1 },
+      });
+      expect(rateByChannel(rows)).toEqual({ Paid: 50 });
+    });
+
+    it('totals the event conversions in the summary', async () => {
+      const scope = createScope();
+      const won = session('won');
+      await ingestEvents(env, [
+        hit(scope, '/', won, paid),
+        happened(scope, won),
+        hit(scope, '/', session('lost'), paid),
+      ]);
+
+      const [row] = await waitForRow(
+        () =>
+          pipeRows<ConversionRow>(env, 'conversion_summary', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            goal_event: GOAL_EVENT,
+          }),
+        rows => Number(rows[0]?.sessions) === 2
+      );
+
+      expect(row).toMatchObject({
+        sessions: 2,
+        conversions: 1,
+        conversion_rate_percent: 50,
+      });
+    });
+
+    it('does not count an event another tenant sent', async () => {
+      const scope = createScope();
+      const rival = createRivalTenant(scope);
+      const who = session('mine');
+      await ingestEvents(env, [
+        hit(scope, '/', who, paid),
+        happened(rival, who),
+      ]);
+
+      const rows = await forEvent(scope, 1);
+
+      expect(byChannel(rows)).toEqual({
+        Paid: { sessions: 1, conversions: 0 },
+      });
+    });
+
+    it('refuses a request that names both a goal page and a goal event', async () => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversions', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_path: GOAL,
+          goal_event: GOAL_EVENT,
+        })
+      ).rejects.toThrow(/goal_path/);
     });
   });
 });

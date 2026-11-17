@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidGoalPath, parseGoals } from "./goals";
+import { isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
 
 describe("isValidGoalPath", () => {
   it.each(["/", "/book/confirmed", "/it's/done", "/café/done", "/a b"])(
@@ -74,5 +74,41 @@ describe("parseGoals", () => {
     const result = parseGoals(raw);
     expect(result.goals).toHaveLength(10);
     expect(result.errors).toEqual(["DASHBOARD_GOALS allows at most 10 goals; the rest were ignored"]);
+  });
+});
+
+describe("isValidGoalEvent", () => {
+  it.each(["signup_completed", "checkout.done", "cta:clicked", "a-b"])("accepts %s", (event) =>
+    expect(isValidGoalEvent(event)).toBe(true),
+  );
+
+  it.each([
+    ["empty", ""],
+    ["a space", "sign up"],
+    ["a slash", "/thanks"],
+    ["a quote", "it's"],
+    ["too long", "a".repeat(101)],
+  ])("rejects an event with %s", (_label, event) => expect(isValidGoalEvent(event)).toBe(false));
+});
+
+describe("parseGoals with event goals", () => {
+  it("reads a goal that names an event instead of a path", () => {
+    const raw = JSON.stringify([{ name: "Signed up", event: "signup_completed" }]);
+    expect(parseGoals(raw)).toEqual({
+      goals: [{ name: "Signed up", event: "signup_completed" }],
+      errors: [],
+    });
+  });
+
+  it("rejects a goal that names both a path and an event, or neither", () => {
+    const raw = JSON.stringify([
+      { name: "Both", path: "/a", event: "b" },
+      { name: "Neither" },
+      { name: "Bad event", event: "no spaces allowed" },
+    ]);
+    const result = parseGoals(raw);
+    expect(result.goals).toEqual([]);
+    expect(result.errors).toHaveLength(3);
+    expect(result.errors[0]).toContain("Both");
   });
 });

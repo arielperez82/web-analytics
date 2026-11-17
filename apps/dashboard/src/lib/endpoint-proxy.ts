@@ -1,4 +1,4 @@
-import { isValidGoalPath } from "./goals";
+import { isValidGoalEvent, isValidGoalPath } from "./goals";
 
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
@@ -45,6 +45,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "metric",
   "include_bots",
   "goal_path",
+  "goal_event",
 ];
 
 export type ProxyDeps = {
@@ -88,6 +89,9 @@ export const proxyEndpoint = async (
   const goalPath = query.get("goal_path");
   if (goalPath !== null && !isValidGoalPath(goalPath))
     return { status: 400, body: { error: "Invalid goal_path" } };
+  const goalEvent = query.get("goal_event");
+  if (goalEvent !== null && !isValidGoalEvent(goalEvent))
+    return { status: 400, body: { error: "Invalid goal_event" } };
 
   const qs = forwardedQuery(query, tenantId);
   const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;
