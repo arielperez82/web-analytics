@@ -28,3 +28,13 @@ is committed. Teardown kills the dashboard's process group, also when setup fail
 pnpm test:e2e:local   # starts Tinybird Local if needed
 pnpm test:e2e         # with Tinybird Local already running
 ```
+
+## Demo data
+
+`pnpm seed:demo` writes two weeks of deterministic traffic (tenant `demo`, domain `demo.example.com`) into a running
+Tinybird Local and prints the host and a read token. Page goal: `/thanks`. Event goal: `signup`. Start Tinybird Local
+first (`pnpm test:e2e:local` starts and stops one; for a long-lived one use the `tinybird local start` command).
+
+```bash
+DASHBOARD_GOALS='[{"name":"Signed up","path":"/thanks"},{"name":"Signup event","event":"signup"}]'
+```

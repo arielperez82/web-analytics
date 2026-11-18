@@ -37,6 +37,7 @@
     "test:acceptance:dashboard": "playwright test -c playwright.dashboard.config.ts",
     "test:e2e:browser": "playwright test -c playwright.e2e.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "seed:demo": "tsx e2e/seed-demo.ts",
     "test:e2e:local": "MANAGE_TB_LOCAL=1 vitest run --config vitest.e2e.config.ts",
     "test": "pnpm run test:client && pnpm run test:dashboard && pnpm run test:event-schema && pnpm run typecheck:event-schema && pnpm run test:tracking-event-schema && pnpm run typecheck:tracking-event-schema && pnpm run test:ingest && pnpm run typecheck:ingest && pnpm run typecheck:dashboard && pnpm run typecheck:tinybird && pnpm run test:scripts && pnpm run check:workspace",
     "build:tinybird": "cd apps/tinybird && pnpm exec tinybird build",
