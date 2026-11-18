@@ -354,16 +354,24 @@ const tinybirdAnalytics = (
     return parsed as TinybirdEvent;
   };
 
+  const identityAttributesFor = (
+    mode: IdMode,
+    visitorId: string | undefined
+  ): Record<string, string> => ({
+    id_mode: mode,
+    ...(visitorId && { visitor_id: visitorId }),
+    ...(mode === 'anonymous' && {
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
+  });
+
   const sendEvent = (eventName: string, event: TinybirdEvent): void => {
     const config = configWithDefaults;
 
     const mode = idMode();
     if (mode !== 'persistent') clearStoredIdentity();
     const identity = resolveIdentity(mode, eventName);
-    const identityAttributes = {
-      id_mode: mode,
-      ...(identity.visitorId && { visitor_id: identity.visitorId }),
-    };
+    const identityAttributes = identityAttributesFor(mode, identity.visitorId);
 
     // Validate user agent
     if (!_isValidUserAgent(window.navigator.userAgent)) {

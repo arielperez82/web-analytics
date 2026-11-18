@@ -118,6 +118,27 @@ describe('identity modes', () => {
       expect(storedKeys()).toEqual([]);
     });
 
+    it('tells the proxy the visitor time zone so it can end their day on their clock', async () => {
+      const analytics = tracker({
+        consent: consentOf('denied'),
+        anonymousIdentity: 'proxy',
+      });
+
+      const sent = await sendAndCapture(() => analytics.page({}));
+
+      expect(payloadOf(sent)).toMatchObject({
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+    });
+
+    it('does not send the time zone when the browser mints the id', async () => {
+      const analytics = tracker({ consent: consentOf('denied') });
+
+      const sent = await sendAndCapture(() => analytics.page({}));
+
+      expect(payloadOf(sent)).not.toHaveProperty('time_zone');
+    });
+
     it('sends the landing page UTMs on that page without storing them', async () => {
       visitFrom('?utm_source=google&utm_medium=cpc');
       const analytics = tracker({ consent: consentOf('denied') });
