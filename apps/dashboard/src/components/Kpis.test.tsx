@@ -204,8 +204,8 @@ describe("Kpis", () => {
 
     await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
     const query = api.requestsTo("hourly_series")[0];
-    expect(query?.get("from_utc")).toBe("2026-11-10 05:00:00");
-    expect(query?.get("to_utc")).toBe("2026-11-11 05:00:00");
+    expect(query?.get("from_at")).toBe("2026-11-10T05:00:00Z");
+    expect(query?.get("to_at")).toBe("2026-11-11T05:00:00Z");
     expect(query?.has("tz")).toBe(false);
     expect(query?.has("date_from")).toBe(false);
     expect(query?.has("date_to")).toBe(false);

@@ -4,7 +4,7 @@ type DayRange = { readonly date_from?: string; readonly date_to?: string };
 
 const asInstant = (utc: string): Date => new Date(`${utc.replace(" ", "T")}Z`);
 
-const asUtc = (instant: Date): string => instant.toISOString().slice(0, 19).replace("T", " ");
+const asIso = (instant: Date): string => `${instant.toISOString().slice(0, 19)}Z`;
 
 const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> =>
   Object.fromEntries(
@@ -39,12 +39,12 @@ const nextDay = (day: string): string => new Date(new Date(`${day}T00:00:00Z`).g
 export const hourWindow = (
   { date_from, date_to }: DayRange,
   zone: string,
-): { readonly from_utc: string; readonly to_utc: string } | undefined =>
+): { readonly from_at: string; readonly to_at: string } | undefined =>
   date_from === undefined || date_to === undefined
     ? undefined
     : {
-        from_utc: asUtc(midnightUtc(date_from, zone)),
-        to_utc: asUtc(midnightUtc(nextDay(date_to), zone)),
+        from_at: asIso(midnightUtc(date_from, zone)),
+        to_at: asIso(midnightUtc(nextDay(date_to), zone)),
       };
 
 export const zonedHour = (utcHour: string, zone: string): string => {

@@ -7,10 +7,11 @@ const day = { date_from: "2026-11-10", date_to: "2026-11-10" };
 const month = { date_from: "2026-10-18", date_to: "2026-11-16" };
 
 describe("hourAvailable", () => {
-  it("is true up to seven days, because the API will not roll up more hours", () => {
+  it("is true while the hours fit a chart of at most 200 bars, which is eight days", () => {
     expect(hourAvailable(day)).toBe(true);
     expect(hourAvailable(week)).toBe(true);
-    expect(hourAvailable({ date_from: "2026-11-09", date_to: "2026-11-16" })).toBe(false);
+    expect(hourAvailable({ date_from: "2026-11-09", date_to: "2026-11-16" })).toBe(true);
+    expect(hourAvailable({ date_from: "2026-11-08", date_to: "2026-11-16" })).toBe(false);
     expect(hourAvailable(month)).toBe(false);
   });
 });

@@ -5,29 +5,29 @@ import { hourWindow, zonedHour } from "./hour-window";
 describe("hourWindow", () => {
   it("is the UTC span of the local days", () => {
     expect(hourWindow({ date_from: "2026-11-10", date_to: "2026-11-10" }, "America/New_York")).toEqual({
-      from_utc: "2026-11-10 05:00:00",
-      to_utc: "2026-11-11 05:00:00",
+      from_at: "2026-11-10T05:00:00Z",
+      to_at: "2026-11-11T05:00:00Z",
     });
   });
 
   it("starts the day before UTC for a zone ahead of it", () => {
     expect(hourWindow({ date_from: "2026-11-10", date_to: "2026-11-11" }, "Asia/Tokyo")).toEqual({
-      from_utc: "2026-11-09 15:00:00",
-      to_utc: "2026-11-11 15:00:00",
+      from_at: "2026-11-09T15:00:00Z",
+      to_at: "2026-11-11T15:00:00Z",
     });
   });
 
   it("follows the clock change inside the range", () => {
     expect(hourWindow({ date_from: "2026-11-01", date_to: "2026-11-02" }, "America/New_York")).toEqual({
-      from_utc: "2026-11-01 04:00:00",
-      to_utc: "2026-11-03 05:00:00",
+      from_at: "2026-11-01T04:00:00Z",
+      to_at: "2026-11-03T05:00:00Z",
     });
   });
 
   it("is the plain UTC days in UTC", () => {
     expect(hourWindow({ date_from: "2026-11-10", date_to: "2026-11-10" }, "UTC")).toEqual({
-      from_utc: "2026-11-10 00:00:00",
-      to_utc: "2026-11-11 00:00:00",
+      from_at: "2026-11-10T00:00:00Z",
+      to_at: "2026-11-11T00:00:00Z",
     });
   });
 });

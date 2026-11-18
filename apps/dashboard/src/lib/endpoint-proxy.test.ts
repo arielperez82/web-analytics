@@ -204,20 +204,26 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("forwards a UTC window to the hourly series", async () => {
+  it("forwards an ISO 8601 window to the hourly series", async () => {
     const { deps, calls } = createFakeDeps();
-    const query = new URLSearchParams({ from_utc: "2026-11-10 05:00:00", to_utc: "2026-11-11 05:00:00" }).toString();
+    const query = new URLSearchParams({ from_at: "2026-11-10T05:00:00Z", to_at: "2026-11-11T05:00:00Z" }).toString();
     const result = await proxyEndpoint(request("hourly_series", query), deps);
     expect(result.status).toBe(200);
     expect(calls[0]?.url).toBe(
-      "http://tb.test/v0/pipes/hourly_series.json?from_utc=2026-11-10+05%3A00%3A00&to_utc=2026-11-11+05%3A00%3A00",
+      "http://tb.test/v0/pipes/hourly_series.json?from_at=2026-11-10T05%3A00%3A00Z&to_at=2026-11-11T05%3A00%3A00Z",
     );
   });
 
-  it("rejects a malformed UTC window with 400 and never calls Tinybird", async () => {
+  it("accepts an ISO 8601 instant with an offset", async () => {
+    const { deps } = createFakeDeps();
+    const query = new URLSearchParams({ from_at: "2026-11-10T00:00:00-05:00" }).toString();
+    expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(200);
+  });
+
+  it("rejects a malformed ISO 8601 window with 400 and never calls Tinybird", async () => {
     const { deps, calls } = createFakeDeps();
-    for (const bad of ["tomorrow", "2026-11-10", "2026-11-10 05:00:00'; --"]) {
-      const query = new URLSearchParams({ from_utc: bad }).toString();
+    for (const bad of ["tomorrow", "2026-11-10", "2026-11-10 05:00:00", "2026-11-10T05:00:00Z'; --"]) {
+      const query = new URLSearchParams({ from_at: bad }).toString();
       expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(400);
     }
     expect(calls).toHaveLength(0);
