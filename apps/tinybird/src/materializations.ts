@@ -13,7 +13,7 @@ import {
   analyticsSourcesMv,
   tenantActionsMv,
   tenantDomainsMv,
-  visitorStateDailyMv,
+  visitorStateHourlyMv,
 } from "./datasources";
 
 /**
@@ -128,18 +128,18 @@ export const analyticsPages = defineMaterializedView("analytics_pages", {
 });
 
 /**
- * Daily visitor state materialization pipe. Bots stay in as their own rows so
+ * Hourly visitor state materialization pipe. Bots stay in as their own rows so
  * the include-bots toggle can show them; the default read filters is_bot = 0.
  */
-export const visitorStateDaily = defineMaterializedView("visitor_state_daily", {
-  datasource: visitorStateDailyMv,
+export const visitorStateHourly = defineMaterializedView("visitor_state_hourly", {
+  datasource: visitorStateHourlyMv,
   nodes: [
     node({
-      name: "visitor_state_daily_1",
-      description: "Mergeable visitor and session states per UTC day",
+      name: "visitor_state_hourly_1",
+      description: "Mergeable visitor and session states per UTC hour",
       sql: `
         SELECT
-            toDate(timestamp) AS date,
+            toStartOfHour(timestamp) AS bucket,
             tenant_id,
             domain,
             is_bot,
@@ -148,7 +148,7 @@ export const visitorStateDaily = defineMaterializedView("visitor_state_daily", {
             uniqCombined64State(session_id) AS visits,
             countState() AS hits
         FROM analytics_hits
-        GROUP BY date, tenant_id, domain, is_bot, visitor_class
+        GROUP BY bucket, tenant_id, domain, is_bot, visitor_class
       `,
     }),
   ],

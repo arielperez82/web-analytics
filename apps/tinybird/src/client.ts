@@ -19,7 +19,7 @@ import {
   analyticsSourcesMv,
   tenantActionsMv,
   tenantDomainsMv,
-  visitorStateDailyMv,
+  visitorStateHourlyMv,
 } from "./datasources";
 
 // Internal Pipes
@@ -34,7 +34,7 @@ import {
   analyticsSources,
   tenantActions,
   tenantDomains,
-  visitorStateDaily,
+  visitorStateHourly,
 } from "./materializations";
 
 // Endpoints
@@ -82,7 +82,7 @@ export const datasources = {
   analyticsSourcesMv,
   tenantActionsMv,
   tenantDomainsMv,
-  visitorStateDailyMv,
+  visitorStateHourlyMv,
 };
 
 /**
@@ -99,7 +99,7 @@ export const pipes = {
   analyticsSources,
   tenantActions,
   tenantDomains,
-  visitorStateDaily,
+  visitorStateHourly,
   // Endpoints
   channels,
   conversions,

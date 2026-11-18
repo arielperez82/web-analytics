@@ -110,12 +110,16 @@ columns, not the JSON. The expressions live in `src/payload-columns.ts` and feed
 accepted view, the column defaults and the `forwardQuery`, so new rows, direct
 writes and backfilled history agree.
 
-## Daily visitor state
+## Hourly visitor state
 
-`visitor_state_daily_mv` holds one `uniqCombined64State` for visitors (keyed by
-`visitor_key`) and one for sessions (keyed by `session_id`) per UTC day, tenant,
+`visitor_state_hourly_mv` holds one `uniqCombined64State` for visitors (keyed by
+`visitor_key`) and one for sessions (keyed by `session_id`) per UTC hour, tenant,
 domain, `is_bot` and `visitor_class` (`known`, `daily`, `legacy`, `unknown`).
-Read ranges with `uniqCombined64Merge` so known visitors and sessions are true
-distinct counts across days; sum the per-day counts only for anonymous visitors.
+Hours, not days, so a range can be cut at the local midnight of any time zone with a
+whole-hour offset. Read ranges with `uniqCombined64Merge`: known and anonymous visitors
+and sessions are all true distinct counts across the range. An anonymous id that spans two
+UTC days counts once; the same person on two local days has two ids, so the total counts
+person-days. Never sum per-day counts. Half-hour zones (India, Nepal) can fill their edge
+hours from `analytics_hits`, build a state there and merge it with the hourly ones.
 Filter `is_bot = 0` for the default view. It answers only these dimensions;
 cross-filtered counts read `analytics_hits`.

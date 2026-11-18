@@ -79,7 +79,7 @@ describe.concurrent('visitor counts', () => {
     expect(result).toEqual({ known: 1, daily: 0, legacy: 0, sessions: 3 });
   });
 
-  it('adds up anonymous visitors day by day', async () => {
+  it('counts an anonymous id once however many days it appears on', async () => {
     const scope = createScope();
     const daily = (visitorId: string, days: number) =>
       createPageHitEvent({
@@ -97,7 +97,7 @@ describe.concurrent('visitor counts', () => {
 
     const result = await counts(scope, 3);
 
-    expect(result).toMatchObject({ known: 0, daily: 3 });
+    expect(result).toMatchObject({ known: 0, daily: 2 });
   });
 
   it('counts a session that crosses a UTC midnight as one visit', async () => {
@@ -259,7 +259,7 @@ describe.concurrent('visitor counts', () => {
       const filtered = await counts(scope, 6, { location: 'ES' });
 
       expect(filtered).toEqual(unfiltered);
-      expect(unfiltered).toMatchObject({ known: 2, daily: 2, legacy: 1 });
+      expect(unfiltered).toMatchObject({ known: 2, daily: 1, legacy: 1 });
     });
 
     it('shows bot traffic when the device filter asks for bots', async () => {

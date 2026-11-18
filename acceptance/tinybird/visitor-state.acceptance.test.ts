@@ -17,7 +17,7 @@ const daysAgo = (days: number): Date => new Date(Date.now() - days * DAY_MS);
 type CountRow = { n: number | string };
 type DayRow = { date: string; n: number | string };
 
-describe.concurrent('daily visitor state', () => {
+describe.concurrent('hourly visitor state', () => {
   const env = inject('tinybird');
 
   const merged = (
@@ -30,7 +30,7 @@ describe.concurrent('daily visitor state', () => {
       () =>
         querySql<CountRow>(
           env,
-          `SELECT uniqCombined64Merge(${column}) AS n FROM visitor_state_daily_mv WHERE tenant_id = '${tenantId}' AND ${where}`
+          `SELECT uniqCombined64Merge(${column}) AS n FROM visitor_state_hourly_mv WHERE tenant_id = '${tenantId}' AND ${where}`
         ),
       rows => Number(rows[0]?.n) === expected
     ).then(rows => Number(rows[0]?.n));
@@ -40,7 +40,7 @@ describe.concurrent('daily visitor state', () => {
       () =>
         querySql<DayRow>(
           env,
-          `SELECT toString(date) AS date, uniqCombined64Merge(visitors) AS n FROM visitor_state_daily_mv WHERE tenant_id = '${tenantId}' AND ${where} GROUP BY date ORDER BY date`
+          `SELECT toString(toDate(bucket)) AS date, uniqCombined64Merge(visitors) AS n FROM visitor_state_hourly_mv WHERE tenant_id = '${tenantId}' AND ${where} GROUP BY date ORDER BY date`
         ),
       rows => rows.length === expectedDays
     ).then(rows => rows.map(row => Number(row.n)));
@@ -63,7 +63,7 @@ describe.concurrent('daily visitor state', () => {
     expect(await perDay(scope.tenantId, where, 3)).toEqual([1, 1, 1]);
   });
 
-  it('counts daily ids per day, so their per-day counts add up', async () => {
+  it('keeps a daily id in the hour it appeared, so days can be cut from the buckets', async () => {
     const scope = createScope();
     const hit = (visitorId: string, days: number) =>
       createPageHitEvent({
