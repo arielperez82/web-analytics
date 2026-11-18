@@ -103,7 +103,7 @@ export const Kpis = ({
           label="Anonymous visitors"
           value={formatNumber(field(counts, "anonymous_visitors"))}
           growth={formatSignedPercent(field(counts, "anonymous_visitors_growth_percent"))}
-          caption="Unique within a day only: a returning person counts again each day"
+          caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
         <Card

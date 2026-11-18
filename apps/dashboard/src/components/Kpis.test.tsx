@@ -101,7 +101,7 @@ describe("Kpis", () => {
     await waitFor(() => expect(known.getByText("Unique people, counted once across the range")).toBeTruthy());
     expect(
       within(await card("Anonymous visitors")).getByText(
-        "Unique within a day only: a returning person counts again each day",
+        "Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day",
       ),
     ).toBeTruthy();
   });
