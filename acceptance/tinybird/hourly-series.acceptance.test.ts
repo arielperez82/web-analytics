@@ -23,6 +23,10 @@ const midnight = (daysAgo: number): Date => {
 };
 const dayOf = (daysAgo: number): string =>
   midnight(daysAgo).toISOString().slice(0, 10);
+const utcWindow = (fromDaysAgo: number, toDaysAgo: number) => ({
+  from_utc: `${dayOf(fromDaysAgo)} 00:00:00`,
+  to_utc: `${dayOf(toDaysAgo - 1)} 00:00:00`,
+});
 
 type Row = {
   hour: string;
@@ -72,8 +76,7 @@ describe.concurrent('hourly series', () => {
         pipeRows<Row>(env, 'hourly_series', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
-          date_from: dayOf(3),
-          date_to: dayOf(3),
+          ...utcWindow(3, 3),
           ...params,
         }),
       rows =>
@@ -162,11 +165,25 @@ describe.concurrent('hourly series', () => {
       hitAt(scope, 'v-2', 3, 0),
     ]);
 
-    const rows = await series(scope, 2, { date_from: dayOf(4) });
+    const rows = await series(scope, 2, utcWindow(4, 3));
 
     expect(rows).toHaveLength(48);
     expect(values(rows)[23]).toBe(1);
     expect(values(rows)[24]).toBe(1);
+  });
+
+  it('starts at the instant given, so a local day reads as its own 24 hours', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [hitAt(scope, 'v-1', 3, 9)]);
+
+    const rows = await series(scope, 1, {
+      from_utc: `${dayOf(3)} 05:00:00`,
+      to_utc: `${dayOf(2)} 05:00:00`,
+    });
+
+    expect(rows).toHaveLength(24);
+    expect(rows[0]?.hour).toBe(`${dayOf(3)} 05:00:00`);
+    expect(values(rows)[4]).toBe(1);
   });
 
   it('refuses a range longer than seven days', async () => {
@@ -176,8 +193,7 @@ describe.concurrent('hourly series', () => {
       pipeRows<Row>(env, 'hourly_series', {
         tenant_id: scope.tenantId,
         domain: scope.domain,
-        date_from: dayOf(7),
-        date_to: dayOf(0),
+        ...utcWindow(7, 0),
       })
     ).rejects.toThrow(/7 days/);
   });
@@ -188,8 +204,7 @@ describe.concurrent('hourly series', () => {
     const rows = await pipeRows<Row>(env, 'hourly_series', {
       tenant_id: scope.tenantId,
       domain: scope.domain,
-      date_from: dayOf(6),
-      date_to: dayOf(0),
+      ...utcWindow(6, 0),
     });
 
     expect(rows).toHaveLength(168);

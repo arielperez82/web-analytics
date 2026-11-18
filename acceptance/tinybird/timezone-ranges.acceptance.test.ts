@@ -183,7 +183,7 @@ describe.concurrent('ranges in a time zone', () => {
       expect(numberAt(local, 'pageviews')).toBe(3);
     });
 
-    it('hourly_series covers the local day, hour by hour', async () => {
+    it('hourly_series covers the instants it is given, hour by hour', async () => {
       const scope = await seeded();
 
       const total = (rows: readonly Record<string, number | string>[]) =>
@@ -191,18 +191,26 @@ describe.concurrent('ranges in a time zone', () => {
       const utc = await rowsOf(
         scope,
         'hourly_series',
-        { metric: 'pageviews' },
+        {
+          metric: 'pageviews',
+          from_utc: '2026-11-10 00:00:00',
+          to_utc: '2026-11-11 00:00:00',
+        },
         24
       );
-      const local = await rowsOf(
+      const newYork = await rowsOf(
         scope,
         'hourly_series',
-        { metric: 'pageviews', tz: NEW_YORK },
+        {
+          metric: 'pageviews',
+          from_utc: '2026-11-10 05:00:00',
+          to_utc: '2026-11-11 05:00:00',
+        },
         24
       );
 
       expect(total(utc)).toBe(4);
-      expect(total(local)).toBe(3);
+      expect(total(newYork)).toBe(3);
     });
   });
 
