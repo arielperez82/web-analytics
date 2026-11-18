@@ -12,6 +12,7 @@ import {
 } from "@tinybirdco/sdk";
 import { visitorClassSql } from "./payload-columns";
 import { dashboardToken } from "./tokens";
+import { tzParam, tzSql } from "./time-zone";
 
 // ============================================================================
 // Core Endpoints
@@ -79,17 +80,6 @@ export const currentVisitors = defineEndpoint("current_visitors", {
 
 export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
-
-/**
- * The time zone a request reads its days in. The date range is whole days in this zone, so a range
- * starts at the zone's midnight and ends at the next one; the instants are what the queries compare
- * against. An unknown zone makes the query fail rather than fall back to UTC.
- */
-const tzSql = `{{ String(tz, 'UTC', description="IANA time zone the days are read in, e.g. Europe/Madrid. Defaults to UTC") }}`;
-
-const tzParam = {
-  tz: p.string().optional("UTC").describe("IANA time zone the days are read in, e.g. Europe/Madrid. Defaults to UTC"),
-};
 
 /**
  * Percentage change from the previous period to the current one. New traffic against an empty

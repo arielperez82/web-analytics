@@ -3,6 +3,7 @@ import { describe, expect, inject, it } from 'vitest';
 import {
   createPageHitEvent,
   createScope,
+  createWebVitalEvent,
   type Scope,
 } from '../../testing/tinybird/helpers/factories';
 import { pipeRows } from '../../testing/tinybird/helpers/pipe-rows';
@@ -202,6 +203,52 @@ describe.concurrent('ranges in a time zone', () => {
 
       expect(total(utc)).toBe(4);
       expect(total(local)).toBe(3);
+    });
+  });
+
+  describe('web vitals', () => {
+    it('web_vitals_current measures the local day in the time zone asked for', async () => {
+      const scope = createScope();
+      await ingestEvents(
+        env,
+        [
+          '2026-11-10T01:00:00Z',
+          '2026-11-10T04:30:00Z',
+          '2026-11-10T14:00:00Z',
+          '2026-11-10T23:30:00Z',
+          '2026-11-11T02:00:00Z',
+          '2026-11-11T06:00:00Z',
+        ].map(utc =>
+          createWebVitalEvent({
+            ...scope,
+            name: 'LCP',
+            value: 1000,
+            pathname: '/a',
+            now: at(utc),
+          })
+        )
+      );
+      const measurements = (tz?: string) =>
+        waitForRow(
+          () =>
+            pipeRows<{ metric_name: string; measurements: number | string }>(
+              env,
+              'web_vitals_current',
+              {
+                tenant_id: scope.tenantId,
+                domain: scope.domain,
+                date_from: '2026-11-10',
+                date_to: '2026-11-10',
+                ...(tz === undefined ? {} : { tz }),
+              }
+            ),
+          rows => rows.some(row => Number(row.measurements) > 0)
+        ).then(rows =>
+          Number(rows.find(row => row.metric_name === 'LCP')?.measurements)
+        );
+
+      expect(await measurements()).toBe(4);
+      expect(await measurements(NEW_YORK)).toBe(3);
     });
   });
 });

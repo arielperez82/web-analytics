@@ -11,6 +11,7 @@ import {
   type InferOutputRow,
 } from "@tinybirdco/sdk";
 import { dashboardToken } from "./tokens";
+import { tzParam, tzSql } from "./time-zone";
 
 /**
  * Web vitals events - parsed web_vital events with metadata
@@ -202,8 +203,8 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             tenant_id
         FROM web_vitals_events
         WHERE {% if defined(date_from) and defined(date_to) %}
-                timestamp >= toDateTime(concat(toString({{ Date(date_from) }}), ' 00:00:00'))
-                AND timestamp <= toDateTime(concat(toString({{ Date(date_to) }}), ' 23:59:59'))
+                timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
+                AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
                 timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
             {% end %}
@@ -266,6 +267,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
     }),
   ],
   params: {
+    ...tzParam,
     days: p.int32().optional(1).describe("Number of days to analyze"),
     date_from: p
       .date()
@@ -346,8 +348,8 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
             tenant_id
         FROM web_vitals_events
         WHERE
-            timestamp >= toDateTime(concat(toString((SELECT current_start FROM date_calculations)), ' 00:00:00'))
-            AND timestamp <= toDateTime(concat(toString((SELECT current_end FROM date_calculations)), ' 23:59:59'))
+            timestamp >= toDateTime(toDate((SELECT current_start FROM date_calculations)), ${tzSql})
+            AND timestamp < toDateTime(toDate((SELECT current_end FROM date_calculations)) + 1, ${tzSql})
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -375,8 +377,8 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
             tenant_id
         FROM web_vitals_events
         WHERE
-            timestamp >= toDateTime(concat(toString((SELECT previous_start FROM date_calculations)), ' 00:00:00'))
-            AND timestamp <= toDateTime(concat(toString((SELECT previous_end FROM date_calculations)), ' 23:59:59'))
+            timestamp >= toDateTime(toDate((SELECT previous_start FROM date_calculations)), ${tzSql})
+            AND timestamp < toDateTime(toDate((SELECT previous_end FROM date_calculations)) + 1, ${tzSql})
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -556,6 +558,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
     }),
   ],
   params: {
+    ...tzParam,
     date_from: p.string().optional().describe("Start date"),
     date_to: p.string().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
@@ -627,8 +630,8 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             domain
         FROM web_vitals_events
         WHERE {% if defined(date_from) and defined(date_to) %}
-                timestamp >= toDateTime(concat(toString({{ Date(date_from) }}), ' 00:00:00'))
-                AND timestamp <= toDateTime(concat(toString({{ Date(date_to) }}), ' 23:59:59'))
+                timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
+                AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
                 timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
             {% end %}
@@ -744,6 +747,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
     }),
   ],
   params: {
+    ...tzParam,
     days: p.int32().optional(1).describe("Number of days to analyze"),
     date_from: p
       .date()
@@ -809,10 +813,10 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
         FROM web_vitals_events
         WHERE 1=1
             {% if defined(date_from) %}
-            AND timestamp >= toDateTime(concat(toString({{ Date(date_from) }}), ' 00:00:00'))
+            AND timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
             {% end %}
             {% if defined(date_to) %}
-            AND timestamp <= toDateTime(concat(toString({{ Date(date_to) }}), ' 23:59:59'))
+            AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% end %}
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
@@ -842,6 +846,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
     }),
   ],
   params: {
+    ...tzParam,
     date_from: p.date().optional().describe("Start date"),
     date_to: p.date().optional().describe("End date"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
