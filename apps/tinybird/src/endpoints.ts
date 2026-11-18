@@ -116,15 +116,15 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         GROUP BY date, period, visitor_class
         {% else %}
         SELECT
-            date,
+            toDate(bucket) AS date,
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             visitor_class,
-            visitors AS visitors_state,
-            visits AS sessions_state,
-            hits AS hits_state
-        FROM visitor_state_daily_mv
-        WHERE date >= (SELECT ${startColumn} FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+            uniqCombined64MergeState(visitors) AS visitors_state,
+            uniqCombined64MergeState(visits) AS sessions_state,
+            countMergeState(hits) AS hits_state
+        FROM visitor_state_hourly_mv
+        WHERE toDate(bucket) >= (SELECT ${startColumn} FROM date_calculations)
+            AND toDate(bucket) <= (SELECT current_end FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
             {% end %}
@@ -134,6 +134,7 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
+        GROUP BY date, period, visitor_class
         {% end %}
       `;
 
@@ -165,25 +166,16 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
       sql: dailyVisitorStateSql("previous_start"),
     }),
     node({
-      name: "anonymous_visitors_per_day",
-      description: "Daily ids cannot be linked across days, so count them per day",
-      sql: `
-        SELECT date, period, uniqCombined64MergeIf(visitors_state, visitor_class = 'daily') AS n
-        FROM state_in_range
-        GROUP BY date, period
-      `,
-    }),
-    node({
       name: "period_counts",
       sql: `
         SELECT
             uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'current') AS known_visitors,
-            (SELECT sumIf(n, period = 'current') FROM anonymous_visitors_per_day) AS anonymous_visitors,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily' AND period = 'current') AS anonymous_visitors,
             uniqCombined64MergeIf(visitors_state, visitor_class = 'legacy' AND period = 'current') AS legacy_visitors,
             uniqCombined64MergeIf(sessions_state, period = 'current') AS sessions,
             uniqCombined64MergeIf(sessions_state, visitor_class = 'known' AND period = 'current') AS known_sessions,
             uniqCombined64MergeIf(visitors_state, visitor_class = 'known' AND period = 'previous') AS previous_known_visitors,
-            (SELECT sumIf(n, period = 'previous') FROM anonymous_visitors_per_day) AS previous_anonymous_visitors,
+            uniqCombined64MergeIf(visitors_state, visitor_class = 'daily' AND period = 'previous') AS previous_anonymous_visitors,
             uniqCombined64MergeIf(sessions_state, period = 'previous') AS previous_sessions
         FROM state_in_range
       `,

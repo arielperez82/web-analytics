@@ -131,16 +131,16 @@ export const analyticsPagesMv = defineDatasource("analytics_pages_mv", {
 });
 
 /**
- * Daily visitor state: one mergeable distinct-count state per UTC day, tenant,
- * domain, bot flag and visitor class. Read with uniqCombined64Merge so a range
- * is a true distinct count; only daily visitors (D2) are summed across days.
- * Cross-filtered queries read analytics_hits instead, because a state answers
- * only the dimensions it keeps.
+ * Visitor state per UTC hour - mergeable states, so any time zone with a whole-hour offset and any
+ * range of whole hours can be cut from it; half-hour zones can fill their edge hours from the hits.
+ * Visitors are keyed by `visitor_key` (distinct across the merged hours, so an id that spans two UTC
+ * days counts once); sessions by `session_id`. Read with uniqCombined64Merge. It answers only these
+ * dimensions; cross-filtered queries read analytics_hits.
  */
-export const visitorStateDailyMv = defineDatasource("visitor_state_daily_mv", {
+export const visitorStateHourlyMv = defineDatasource("visitor_state_hourly_mv", {
   jsonPaths: false,
   schema: {
-    date: t.date(),
+    bucket: t.dateTime(),
     tenant_id: t.string(),
     domain: t.string(),
     is_bot: t.uint8(),
@@ -150,8 +150,8 @@ export const visitorStateDailyMv = defineDatasource("visitor_state_daily_mv", {
     hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
-    partitionKey: "toYYYYMM(date)",
-    sortingKey: ["tenant_id", "domain", "date", "is_bot", "visitor_class"],
+    partitionKey: "toYYYYMM(bucket)",
+    sortingKey: ["tenant_id", "domain", "bucket", "is_bot", "visitor_class"],
   }),
 });
 
