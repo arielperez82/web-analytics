@@ -78,7 +78,9 @@ const withProxyIdentity = async (
   request: TrackingRequest,
   deps: TrackingDeps,
 ): Promise<TrackingEvent> => {
+  const { time_zone: timeZone, ...payload } = event.payload ?? {};
   const identity = await resolveProxyIdentity({
+    timeZone: typeof timeZone === "string" ? timeZone : undefined,
     ip: clientIp(request.headers),
     userAgent: request.headers.get("user-agent") ?? "",
     domain: originHost(request.headers),
@@ -91,7 +93,7 @@ const withProxyIdentity = async (
     ...event,
     session_id: identity.sessionId,
     payload: {
-      ...event.payload,
+      ...payload,
       id_mode: "daily_proxy",
       visitor_id: identity.visitorId,
     },

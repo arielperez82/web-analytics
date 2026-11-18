@@ -115,6 +115,22 @@ describe("handleTracking anonymous events", () => {
     expect(forwarded[0]?.authorization).toBe("Bearer tracker-token");
   });
 
+  it("uses the time zone the browser reports for the visitor's day, and does not store it", async () => {
+    const { deps, forwarded } = createFakeDeps();
+    await handleTracking(
+      post({
+        ...anonymousEvent,
+        payload: { ...anonymousEvent.payload, time_zone: "Pacific/Pago_Pago" },
+      }),
+      deps,
+    );
+    await handleTracking(post(anonymousEvent), deps);
+    const reported = forwarded[0]?.body.payload as Record<string, unknown>;
+    const missing = forwarded[1]?.body.payload as Record<string, unknown>;
+    expect(reported).not.toHaveProperty("time_zone");
+    expect(reported.visitor_id).not.toBe(missing.visitor_id);
+  });
+
   it("never forwards the raw ip", async () => {
     const { deps, forwarded } = createFakeDeps();
     await handleTracking(post(anonymousEvent), deps);

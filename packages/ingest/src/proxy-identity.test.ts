@@ -52,6 +52,31 @@ describe("resolveProxyIdentity visitor id", () => {
     expect(tomorrow.visitorId).not.toBe(today.visitorId);
   });
 
+  it("lasts the visitor's own day: it rotates at their midnight, not at midnight UTC", async () => {
+    const newYork = (now: number) =>
+      resolveProxyIdentity(createInput({ now, timeZone: "America/New_York" }));
+    const beforeUtcMidnight = await newYork(Date.UTC(2026, 10, 10, 23, 30));
+    const afterUtcMidnight = await newYork(Date.UTC(2026, 10, 11, 0, 30));
+    const afterLocalMidnight = await newYork(Date.UTC(2026, 10, 11, 5, 30));
+    expect(afterUtcMidnight.visitorId).toBe(beforeUtcMidnight.visitorId);
+    expect(afterLocalMidnight.visitorId).not.toBe(beforeUtcMidnight.visitorId);
+  });
+
+  it("uses the UTC day when the time zone is missing or unknown", async () => {
+    const at = (timeZone: string | undefined, now: number) =>
+      resolveProxyIdentity(createInput({ now, timeZone }));
+    const utcEvening = Date.UTC(2026, 10, 10, 23, 30);
+    const utcMorning = Date.UTC(2026, 10, 11, 0, 30);
+    for (const timeZone of [undefined, "Not/AZone"]) {
+      expect((await at(timeZone, utcEvening)).visitorId).not.toBe(
+        (await at(timeZone, utcMorning)).visitorId,
+      );
+      expect((await at(timeZone, utcEvening)).visitorId).toBe(
+        (await at(undefined, utcEvening)).visitorId,
+      );
+    }
+  });
+
   it("changes with the secret and never contains the raw ip", async () => {
     const a = await resolveProxyIdentity(createInput());
     const b = await resolveProxyIdentity(createInput({ secret: "other" }));
