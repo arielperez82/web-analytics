@@ -36,4 +36,36 @@ describe("rangeToParams", () => {
       date_to: "2026-11-03",
     });
   });
+
+  describe("in a time zone", () => {
+    const lateEvening = new Date("2026-11-08T02:00:00Z");
+
+    it("counts today on the clock of the zone", () => {
+      expect(rangeToParams({ days: 1 }, lateEvening, "America/New_York")).toEqual({
+        date_from: "2026-11-07",
+        date_to: "2026-11-07",
+      });
+    });
+
+    it("counts back from the local today", () => {
+      expect(rangeToParams({ days: 3 }, lateEvening, "America/New_York")).toEqual({
+        date_from: "2026-11-05",
+        date_to: "2026-11-07",
+      });
+    });
+
+    it("keeps counting whole days across a daylight saving change", () => {
+      expect(rangeToParams({ days: 7 }, new Date("2026-11-03T12:00:00Z"), "America/New_York")).toEqual({
+        date_from: "2026-10-28",
+        date_to: "2026-11-03",
+      });
+    });
+
+    it("reads UTC when no zone is given", () => {
+      expect(rangeToParams({ days: 1 }, lateEvening)).toEqual({
+        date_from: "2026-11-08",
+        date_to: "2026-11-08",
+      });
+    });
+  });
 });
