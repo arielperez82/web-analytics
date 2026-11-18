@@ -11,12 +11,13 @@ import { useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 
 import { DateRangePicker } from "./DateRangePicker";
+import { TimeZonePicker } from "./TimeZonePicker";
 import { fmt, type Row } from "./ui";
 
 const ALL_TENANTS = "__all";
 
 export const Shell = ({ email, children }: { email: string; children: ReactNode }) => {
-  const { state, update } = useDashboardState();
+  const { state, update, zone } = useDashboardState();
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
   const onOverview = pathname === "/";
@@ -76,7 +77,8 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             Include bots
           </label>
         )}
-        <DateRangePicker range={state.range} onChange={(range) => update({ ...state, range })} />
+        <TimeZonePicker zone={zone} onChange={(tz) => update({ ...state, tz })} />
+        <DateRangePicker range={state.range} zone={zone} onChange={(range) => update({ ...state, range })} />
         <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
       </header>
       <nav>

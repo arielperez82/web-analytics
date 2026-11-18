@@ -309,3 +309,49 @@ test('only the breakdowns that filter say so, inside their panel', async ({
   ).toHaveCount(0);
   await expect(page.getByText('Click a row to filter')).toHaveCount(3);
 });
+
+const ZONE_AWARE = [
+  'visitor_counts',
+  'engagement',
+  'daily_series',
+  'top_locations',
+  'top_pages',
+  'channels',
+];
+
+test.describe('time zone', () => {
+  test.use({ timezoneId: 'Asia/Tokyo' });
+
+  test('the dashboard reads in the zone of the browser until the viewer picks another', async ({
+    page,
+  }) => {
+    const api = await stubApi(page, routes);
+    await signIn(page);
+    await expect(page.getByLabel('Time zone')).toHaveValue('Asia/Tokyo');
+    await expect
+      .poll(() =>
+        ZONE_AWARE.map(endpoint => api.requestsTo(endpoint).at(-1)?.get('tz'))
+      )
+      .toEqual(ZONE_AWARE.map(() => 'Asia/Tokyo'));
+
+    await page.getByLabel('Time zone').selectOption('America/New_York');
+
+    await expect(page).toHaveURL(/tz=America%2FNew_York/);
+    await expect
+      .poll(() =>
+        ZONE_AWARE.map(endpoint => api.requestsTo(endpoint).at(-1)?.get('tz'))
+      )
+      .toEqual(ZONE_AWARE.map(() => 'America/New_York'));
+  });
+
+  test('anonymous visitors are described as counted per visitor day', async ({
+    page,
+  }) => {
+    await stubApi(page, routes);
+    await signIn(page);
+
+    await expect(
+      page.getByText('which ends at each visitor’s own midnight')
+    ).toBeVisible();
+  });
+});
