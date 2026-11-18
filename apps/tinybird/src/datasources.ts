@@ -106,7 +106,7 @@ export type AnalyticsEventsRow = InferRow<typeof analyticsEvents>;
 export const analyticsPagesMv = defineDatasource("analytics_pages_mv", {
   jsonPaths: false,
   schema: {
-    date: t.date(),
+    bucket: t.dateTime(),
     tenant_id: t.string(),
     domain: t.string(),
     device: t.string(),
@@ -117,11 +117,11 @@ export const analyticsPagesMv = defineDatasource("analytics_pages_mv", {
     hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
-    partitionKey: "toYYYYMM(date)",
+    partitionKey: "toYYYYMM(bucket)",
     sortingKey: [
       "tenant_id",
       "domain",
-      "date",
+      "bucket",
       "device",
       "browser",
       "location",
@@ -161,7 +161,7 @@ export const visitorStateHourlyMv = defineDatasource("visitor_state_hourly_mv", 
 export const analyticsSessionsMv = defineDatasource("analytics_sessions_mv", {
   jsonPaths: false,
   schema: {
-    date: t.date(),
+    bucket: t.dateTime(),
     session_id: t.string(),
     tenant_id: t.string(),
     domain: t.string(),
@@ -173,8 +173,8 @@ export const analyticsSessionsMv = defineDatasource("analytics_sessions_mv", {
     hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
-    partitionKey: "toYYYYMM(date)",
-    sortingKey: ["tenant_id", "domain", "date", "session_id"],
+    partitionKey: "toYYYYMM(bucket)",
+    sortingKey: ["tenant_id", "domain", "bucket", "session_id"],
   }),
 });
 
@@ -184,7 +184,7 @@ export const analyticsSessionsMv = defineDatasource("analytics_sessions_mv", {
 export const analyticsSourcesMv = defineDatasource("analytics_sources_mv", {
   jsonPaths: false,
   schema: {
-    date: t.date(),
+    bucket: t.dateTime(),
     tenant_id: t.string(),
     domain: t.string(),
     device: t.string(),
@@ -195,11 +195,11 @@ export const analyticsSourcesMv = defineDatasource("analytics_sources_mv", {
     hits: t.aggregateFunction("count"),
   },
   engine: engine.aggregatingMergeTree({
-    partitionKey: "toYYYYMM(date)",
+    partitionKey: "toYYYYMM(bucket)",
     sortingKey: [
       "tenant_id",
       "domain",
-      "date",
+      "bucket",
       "device",
       "browser",
       "location",

@@ -111,7 +111,7 @@ export const analyticsPages = defineMaterializedView("analytics_pages", {
       description: "Aggregate by pathname and calculate session and hits",
       sql: `
         SELECT
-            toDate(timestamp) AS date,
+            toStartOfHour(timestamp) AS bucket,
             tenant_id,
             domain,
             device,
@@ -121,7 +121,7 @@ export const analyticsPages = defineMaterializedView("analytics_pages", {
             uniqState(session_id) AS visits,
             countState() AS hits
         FROM analytics_hits
-        GROUP BY date, tenant_id, domain, device, browser, location, pathname
+        GROUP BY bucket, tenant_id, domain, device, browser, location, pathname
       `,
     }),
   ],
@@ -165,7 +165,7 @@ export const analyticsSessions = defineMaterializedView("analytics_sessions", {
       description: "Aggregate by session_id and calculate session metrics",
       sql: `
         SELECT
-            toDate(timestamp) AS date,
+            toStartOfHour(timestamp) AS bucket,
             session_id,
             tenant_id,
             domain,
@@ -176,7 +176,7 @@ export const analyticsSessions = defineMaterializedView("analytics_sessions", {
             maxSimpleState(timestamp) AS latest_hit,
             countState() AS hits
         FROM analytics_hits
-        GROUP BY date, session_id, tenant_id, domain
+        GROUP BY bucket, session_id, tenant_id, domain
       `,
     }),
   ],
@@ -193,7 +193,7 @@ export const analyticsSources = defineMaterializedView("analytics_sources", {
       description: "Aggregate by referral and calculate session and hits",
       sql: `
         SELECT
-            toDate(timestamp) AS date,
+            toStartOfHour(timestamp) AS bucket,
             tenant_id,
             domain,
             device,
@@ -204,7 +204,7 @@ export const analyticsSources = defineMaterializedView("analytics_sources", {
             countState() AS hits
         FROM analytics_hits
         WHERE domainWithoutWWW(referrer) != current_domain
-        GROUP BY date, tenant_id, domain, device, browser, location, referrer
+        GROUP BY bucket, tenant_id, domain, device, browser, location, referrer
       `,
     }),
   ],

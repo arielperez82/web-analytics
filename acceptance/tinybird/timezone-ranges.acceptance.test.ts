@@ -206,6 +206,38 @@ describe.concurrent('ranges in a time zone', () => {
     });
   });
 
+  describe('top lists', () => {
+    it.each([
+      ['top_browsers', 'sessions'],
+      ['top_devices', 'sessions'],
+      ['top_locations', 'sessions'],
+      ['top_pages', 'sessions'],
+      ['top_sources', 'sessions'],
+    ] as const)(
+      '%s counts the local day in the time zone asked for',
+      async (pipe, column) => {
+        const scope = await seeded();
+        const total = (tz?: string) =>
+          waitForRow(
+            () =>
+              pipeRows<Record<string, number | string>>(env, pipe, {
+                tenant_id: scope.tenantId,
+                domain: scope.domain,
+                date_from: '2026-11-10',
+                date_to: '2026-11-10',
+                ...(tz === undefined ? {} : { tz }),
+              }),
+            rows => rows.length > 0
+          ).then(rows =>
+            rows.reduce((sum, row) => sum + Number(row[column]), 0)
+          );
+
+        expect(await total()).toBe(4);
+        expect(await total(NEW_YORK)).toBe(3);
+      }
+    );
+  });
+
   describe('web vitals', () => {
     it('web_vitals_current measures the local day in the time zone asked for', async () => {
       const scope = createScope();
