@@ -177,6 +177,7 @@ test('changing a filter does not move the layout below the chart', async ({
   await signIn(page);
   const panel = page.getByRole('heading', { name: /Sessions per day/ });
   await expect(panel).toBeVisible();
+  await expect(page.getByText('Loading…')).toHaveCount(0);
   const main = page.locator('main');
   const heightBefore = (await main.boundingBox())?.height;
   expect(heightBefore).toBeGreaterThan(0);
