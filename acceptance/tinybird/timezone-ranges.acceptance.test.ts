@@ -45,6 +45,17 @@ describe.concurrent('ranges in a time zone', () => {
   const seeded = async (): Promise<Scope> => {
     const scope = createScope();
     await ingestEvents(env, visits(scope));
+    await waitForRow(
+      () =>
+        pipeRows<SeriesRow>(env, 'daily_series', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          date_from: '2026-11-09',
+          date_to: '2026-11-11',
+          metric: 'pageviews',
+        }),
+      rows => rows.reduce((sum, row) => sum + Number(row.value), 0) === 6
+    );
     return scope;
   };
 
@@ -118,6 +129,79 @@ describe.concurrent('ranges in a time zone', () => {
         sessions: 3,
         anonymous: 3,
       });
+    });
+  });
+  describe('endpoints that read the hits', () => {
+    const day = { date_from: '2026-11-10', date_to: '2026-11-10' };
+    const rowsOf = (
+      scope: Scope,
+      pipe: string,
+      params: Readonly<Record<string, string>>,
+      expectRows: number
+    ) =>
+      waitForRow(
+        () =>
+          pipeRows<Record<string, number | string>>(env, pipe, {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            ...day,
+            ...params,
+          }),
+        rows => rows.length >= expectRows
+      );
+    const numberAt = (
+      rows: readonly Record<string, number | string>[],
+      column: string
+    ) => Number(rows[0]?.[column]);
+
+    it.each([
+      ['channels', 'sessions', {}],
+      ['entry_pages', 'sessions', {}],
+      ['conversions', 'sessions', { goal_path: '/a' }],
+      ['conversion_summary', 'sessions', { goal_path: '/a' }],
+    ] as const)(
+      '%s counts the local day in the time zone asked for',
+      async (pipe, column, extra) => {
+        const scope = await seeded();
+
+        const utc = await rowsOf(scope, pipe, extra, 1);
+        const local = await rowsOf(scope, pipe, { ...extra, tz: NEW_YORK }, 1);
+
+        expect(numberAt(utc, column)).toBe(4);
+        expect(numberAt(local, column)).toBe(3);
+      }
+    );
+
+    it('engagement counts the local day in the time zone asked for', async () => {
+      const scope = await seeded();
+
+      const utc = await rowsOf(scope, 'engagement', {}, 1);
+      const local = await rowsOf(scope, 'engagement', { tz: NEW_YORK }, 1);
+
+      expect(numberAt(utc, 'pageviews')).toBe(4);
+      expect(numberAt(local, 'pageviews')).toBe(3);
+    });
+
+    it('hourly_series covers the local day, hour by hour', async () => {
+      const scope = await seeded();
+
+      const total = (rows: readonly Record<string, number | string>[]) =>
+        rows.reduce((sum, row) => sum + Number(row.value), 0);
+      const utc = await rowsOf(
+        scope,
+        'hourly_series',
+        { metric: 'pageviews' },
+        24
+      );
+      const local = await rowsOf(
+        scope,
+        'hourly_series',
+        { metric: 'pageviews', tz: NEW_YORK },
+        24
+      );
+
+      expect(total(utc)).toBe(4);
+      expect(total(local)).toBe(3);
     });
   });
 });
