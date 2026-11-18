@@ -188,6 +188,22 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards a valid tz to the endpoint", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("visitor_counts", "tz=America%2FNew_York"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/visitor_counts.json?tz=America%2FNew_York");
+  });
+
+  it("rejects an invalid tz with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["Not/AZone", "x'; --", "New York"]) {
+      const query = new URLSearchParams({ tz: bad }).toString();
+      expect((await proxyEndpoint(request("visitor_counts", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("ignores a caller tenant_id for conversions when pinned", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
     await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);

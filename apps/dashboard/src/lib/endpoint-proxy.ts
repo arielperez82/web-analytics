@@ -1,4 +1,5 @@
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
+import { isValidTimeZone } from "./time-zone";
 
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
@@ -46,6 +47,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "include_bots",
   "goal_path",
   "goal_event",
+  "tz",
 ];
 
 export type ProxyDeps = {
@@ -92,6 +94,10 @@ export const proxyEndpoint = async (
   const goalEvent = query.get("goal_event");
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
+
+  const tz = query.get("tz");
+  if (tz !== null && !isValidTimeZone(tz))
+    return { status: 400, body: { error: "Invalid tz" } };
 
   const qs = forwardedQuery(query, tenantId);
   const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;
