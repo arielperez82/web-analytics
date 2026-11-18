@@ -1,4 +1,5 @@
 import type { Filters } from "./filters";
+import { isValidTimeZone } from "./time-zone";
 
 export const RANGE_OPTIONS = [1, 7, 30, 90] as const;
 export const DEFAULT_DAYS = 7;
@@ -16,6 +17,7 @@ export type DashboardState = {
   readonly domain?: string;
   readonly filters: Filters;
   readonly includeBots?: boolean;
+  readonly tz?: string;
 };
 
 const FILTER_KEYS = ["location", "device", "browser"] as const;
@@ -38,10 +40,12 @@ const parseRange = (search: URLSearchParams): Range => {
 export const parseState = (search: URLSearchParams): DashboardState => {
   const domain = search.get("domain");
   const tenant = search.get("tenant");
+  const tz = search.get("tz");
   return {
     range: parseRange(search),
     ...(tenant !== null ? { tenant } : {}),
     ...(domain ? { domain } : {}),
+    ...(tz !== null && isValidTimeZone(tz) ? { tz } : {}),
     ...(search.get("bots") === "1" ? { includeBots: true } : {}),
     ...(isGrain(search.get("grain")) ? { grain: search.get("grain") as Grain } : {}),
     filters: Object.fromEntries(
@@ -53,7 +57,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
   };
 };
 
-export const toSearch = ({ range, grain, tenant, domain, filters, includeBots }: DashboardState): string =>
+export const toSearch = ({ range, grain, tenant, domain, filters, includeBots, tz }: DashboardState): string =>
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
@@ -63,6 +67,7 @@ export const toSearch = ({ range, grain, tenant, domain, filters, includeBots }:
     ...(tenant !== undefined ? [["tenant", tenant]] : []),
     ...(domain ? [["domain", domain]] : []),
     ...(includeBots ? [["bots", "1"]] : []),
+    ...(tz ? [["tz", tz]] : []),
     ...(grain ? [["grain", grain]] : []),
     ...FILTER_KEYS.flatMap((key) => {
       const value = filters[key];

@@ -161,3 +161,23 @@ describe("tenantLabel", () => {
     expect(tenantLabel("acme")).toBe("acme");
   });
 });
+
+describe("time zone in the URL", () => {
+  it("reads a valid zone", () => {
+    expect(parse("tz=Europe%2FMadrid").tz).toBe("Europe/Madrid");
+  });
+
+  it.each(["tz=Not%2FAZone", "tz=", "tz=x%27%3B"])("ignores an invalid zone (%s)", (search) => {
+    expect(parse(search)).toEqual({ range: { days: 7 }, filters: {} });
+  });
+
+  it("writes a chosen zone and nothing when none was chosen", () => {
+    expect(toSearch({ ...parse(""), tz: "Asia/Tokyo" })).toBe("tz=Asia%2FTokyo");
+    expect(toSearch(parse(""))).toBe("");
+  });
+
+  it("keeps the zone when drilling into a day", () => {
+    expect(drillDay({ ...parse("tz=Asia%2FTokyo") }, "2026-11-02").tz).toBe("Asia/Tokyo");
+  });
+});
+
