@@ -24,6 +24,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "web_vitals_timeseries",
 ];
 
+const UTC_INSTANT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
 const UNPINNED_ONLY: readonly string[] = ["tenants"];
 
 const FORWARDED_PARAMS: readonly string[] = [
@@ -48,6 +50,8 @@ const FORWARDED_PARAMS: readonly string[] = [
   "goal_path",
   "goal_event",
   "tz",
+  "from_utc",
+  "to_utc",
 ];
 
 export type ProxyDeps = {
@@ -94,6 +98,12 @@ export const proxyEndpoint = async (
   const goalEvent = query.get("goal_event");
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
+
+  for (const key of ["from_utc", "to_utc"]) {
+    const instant = query.get(key);
+    if (instant !== null && !UTC_INSTANT.test(instant))
+      return { status: 400, body: { error: `Invalid ${key}` } };
+  }
 
   const tz = query.get("tz");
   if (tz !== null && !isValidTimeZone(tz))

@@ -13,6 +13,7 @@ import {
   formatSignedPercent,
 } from "@/lib/format";
 import type { QueryParams } from "@/lib/use-dashboard-state";
+import { hourlyRequest, zonedHour } from "@/lib/hour-window";
 import { useEndpoint } from "@/lib/use-endpoint";
 
 import { Panel, type Row,Status } from "./ui";
@@ -84,8 +85,11 @@ export const Kpis = ({
   const grain = effectiveGrain({ grain: state.grain, params });
   const hourly = grain === "hour";
   const { endpoint, key, unit } = hourly ? SERIES.hourly : SERIES.daily;
-  const { data, loading, error } = useEndpoint<Row>(endpoint, { ...params, metric });
-  const rows = data ?? [];
+  const { data, loading, error } = useEndpoint<Row>(endpoint, {
+    ...(hourly ? hourlyRequest(params) : params),
+    metric,
+  });
+  const rows: readonly Row[] = hourly ? (data ?? []).map((row) => ({ ...row, hour: zonedHour(String(row.hour), params.tz ?? "UTC") })) : (data ?? []);
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (

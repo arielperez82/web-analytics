@@ -197,6 +197,38 @@ describe("Kpis", () => {
     expect(await screen.findByText(/per hour/)).toBeTruthy();
   });
 
+  it("asks the hourly series for the UTC instants of the local days, without a zone", async () => {
+    const api = renderKpis({
+      params: { ...params, date_from: "2026-11-10", date_to: "2026-11-10", tz: "America/New_York" },
+    });
+
+    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
+    const query = api.requestsTo("hourly_series")[0];
+    expect(query?.get("from_utc")).toBe("2026-11-10 05:00:00");
+    expect(query?.get("to_utc")).toBe("2026-11-11 05:00:00");
+    expect(query?.has("tz")).toBe(false);
+    expect(query?.has("date_from")).toBe(false);
+    expect(query?.has("date_to")).toBe(false);
+  });
+
+  it("shows the UTC hours it gets on the clock of the zone", async () => {
+    renderKpis({
+      params: { ...params, date_from: "2026-11-10", date_to: "2026-11-10", tz: "America/New_York" },
+    });
+
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
+    await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
+    expect(within(chart).getByTitle("2026-11-10 04:00:00: 7")).toBeTruthy();
+  });
+
+  it("keeps the zone on the endpoints that cut whole days", async () => {
+    const api = renderKpis({ params: { ...params, tz: "America/New_York" } });
+
+    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
+    expect(api.requestsTo("daily_series")[0]?.get("tz")).toBe("America/New_York");
+    expect(api.requestsTo("visitor_counts")[0]?.get("tz")).toBe("America/New_York");
+  });
+
   it("does not offer a drill-down on the hours of a single day", async () => {
     renderKpis({ params: { ...params, date_to: "2026-11-10" } });
 

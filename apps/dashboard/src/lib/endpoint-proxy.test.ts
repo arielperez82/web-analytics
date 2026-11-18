@@ -204,6 +204,25 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards a UTC window to the hourly series", async () => {
+    const { deps, calls } = createFakeDeps();
+    const query = new URLSearchParams({ from_utc: "2026-11-10 05:00:00", to_utc: "2026-11-11 05:00:00" }).toString();
+    const result = await proxyEndpoint(request("hourly_series", query), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe(
+      "http://tb.test/v0/pipes/hourly_series.json?from_utc=2026-11-10+05%3A00%3A00&to_utc=2026-11-11+05%3A00%3A00",
+    );
+  });
+
+  it("rejects a malformed UTC window with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["tomorrow", "2026-11-10", "2026-11-10 05:00:00'; --"]) {
+      const query = new URLSearchParams({ from_utc: bad }).toString();
+      expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("ignores a caller tenant_id for conversions when pinned", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
     await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);
