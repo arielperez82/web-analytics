@@ -48,22 +48,47 @@ describe('resolveIdMode', () => {
 });
 
 describe('dailyIdentity', () => {
-  it('gives the same visitor the same id for the whole UTC day', () => {
+  it('gives the same visitor the same id for the whole day on their own clock', () => {
     const morning = dailyIdentity(device());
-    const evening = dailyIdentity(
-      device({ now: new Date('2026-11-10T23:59:59.000Z') })
+    const lateEvening = dailyIdentity(
+      device({ now: new Date('2026-11-10T22:59:59.000Z') })
     );
 
-    expect(evening.visitorId).toBe(morning.visitorId);
+    expect(lateEvening.visitorId).toBe(morning.visitorId);
   });
 
-  it('gives the same visitor a new id on the next UTC day', () => {
-    const today = dailyIdentity(device());
-    const tomorrow = dailyIdentity(
-      device({ now: new Date('2026-11-11T00:00:00.000Z') })
+  it('gives the same visitor a new id when their own day ends, not at midnight UTC', () => {
+    const lateEvening = dailyIdentity(
+      device({ now: new Date('2026-11-10T22:59:59.000Z') })
+    );
+    const afterLocalMidnight = dailyIdentity(
+      device({ now: new Date('2026-11-10T23:00:00.000Z') })
     );
 
-    expect(tomorrow.visitorId).not.toBe(today.visitorId);
+    expect(afterLocalMidnight.visitorId).not.toBe(lateEvening.visitorId);
+  });
+
+  it('does not rotate at midnight UTC for a visitor whose day is still running', () => {
+    const beforeUtcMidnight = dailyIdentity(
+      device({ now: new Date('2026-11-10T23:30:00.000Z'), timeZone: 'America/New_York' })
+    );
+    const afterUtcMidnight = dailyIdentity(
+      device({ now: new Date('2026-11-11T00:30:00.000Z'), timeZone: 'America/New_York' })
+    );
+
+    expect(afterUtcMidnight.visitorId).toBe(beforeUtcMidnight.visitorId);
+  });
+
+  it('falls back to the UTC day for an unknown time zone instead of failing', () => {
+    const unknown = (now: string) =>
+      dailyIdentity(device({ now: new Date(now), timeZone: 'Not/AZone' })).visitorId;
+
+    expect(unknown('2026-11-10T00:00:00.000Z')).toBe(
+      unknown('2026-11-10T23:59:59.000Z')
+    );
+    expect(unknown('2026-11-11T00:00:00.000Z')).not.toBe(
+      unknown('2026-11-10T23:59:59.000Z')
+    );
   });
 
   it.each([

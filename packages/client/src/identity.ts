@@ -28,6 +28,22 @@ export type DailyIdentity = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SESSION_WINDOW_MS = 30 * 60 * 1000;
+const localDayNumber = (now: Date, timeZone: string): number => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(now);
+    const part = (type: string): number =>
+      Number(parts.find(entry => entry.type === type)?.value);
+    return Date.UTC(part('year'), part('month') - 1, part('day')) / DAY_MS;
+  } catch {
+    return Math.floor(now.getTime() / DAY_MS);
+  }
+};
+
 const FNV_PRIME = 16_777_619;
 const FIRST_SEED = 2_166_136_261;
 const SECOND_SEED = 0x97_47_b2_8c;
@@ -66,7 +82,7 @@ export const dailyIdentity = ({
   const visitorId = hash64(
     [
       'visitor',
-      Math.floor(now.getTime() / DAY_MS),
+      localDayNumber(now, timeZone),
       domain,
       userAgent,
       screen.width,
