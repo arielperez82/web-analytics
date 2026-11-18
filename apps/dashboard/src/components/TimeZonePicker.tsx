@@ -1,9 +1,12 @@
 "use client";
 
-const zonesKnown = (): readonly string[] => Intl.supportedValuesOf("timeZone");
+import { useSyncExternalStore } from "react";
 
-const optionsFor = (zone: string): readonly string[] =>
-  Array.from(new Set(["UTC", zone, ...zonesKnown()]));
+const BROWSER_ZONES: readonly string[] =
+  typeof window === "undefined" ? [] : Intl.supportedValuesOf("timeZone");
+const noSubscription = () => () => undefined;
+const browserZones = () => BROWSER_ZONES;
+const serverZones = (): readonly string[] => [];
 
 export const TimeZonePicker = ({
   zone,
@@ -11,10 +14,13 @@ export const TimeZonePicker = ({
 }: {
   zone: string;
   onChange: (zone: string) => void;
-}) => (
-  <select aria-label="Time zone" value={zone} onChange={(event) => onChange(event.target.value)}>
-    {optionsFor(zone).map((name) => (
-      <option key={name} value={name}>{name}</option>
-    ))}
-  </select>
-);
+}) => {
+  const known = useSyncExternalStore(noSubscription, browserZones, serverZones);
+  return (
+    <select aria-label="Time zone" value={zone} onChange={(event) => onChange(event.target.value)}>
+      {Array.from(new Set(["UTC", zone, ...known])).map((name) => (
+        <option key={name} value={name}>{name}</option>
+      ))}
+    </select>
+  );
+};
