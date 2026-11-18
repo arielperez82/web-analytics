@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 import { type ApiRow, signIn, stubApi } from './support';
 
+test.use({ timezoneId: 'UTC' });
+
 const counts: ApiRow = {
   known_visitors: 120,
   anonymous_visitors: 340,
@@ -147,8 +149,9 @@ test('clicking a day on the chart shows that day hour by hour', async ({
   await expect(page.getByText('Sessions per hour')).toBeVisible();
   await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
   const query = api.requestsTo('hourly_series').at(-1);
-  expect(query?.get('date_from')).toBe('2026-11-10');
-  expect(query?.get('date_to')).toBe('2026-11-10');
+  expect(query?.get('from_utc')).toBe('2026-11-10 00:00:00');
+  expect(query?.get('to_utc')).toBe('2026-11-11 00:00:00');
+  expect(query?.has('tz')).toBe(false);
 });
 
 test('See all opens the full report for that widget', async ({ page }) => {

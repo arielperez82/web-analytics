@@ -89,7 +89,7 @@ export const Kpis = ({
     ...(hourly ? hourlyRequest(params) : params),
     metric,
   });
-  const rows: readonly Row[] = hourly ? (data ?? []).map((row) => ({ ...row, hour: zonedHour(String(row.hour), params.tz ?? "UTC") })) : (data ?? []);
+  const rows: readonly Row[] = hourly ? (data ?? []).map((row) => (typeof row.hour === "string" ? { ...row, hour: zonedHour(row.hour, params.tz ?? "UTC") } : row)) : (data ?? []);
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (
