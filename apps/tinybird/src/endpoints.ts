@@ -81,6 +81,17 @@ export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
 /**
+ * The time zone a request reads its days in. The date range is whole days in this zone, so a range
+ * starts at the zone's midnight and ends at the next one; the instants are what the queries compare
+ * against. An unknown zone makes the query fail rather than fall back to UTC.
+ */
+const tzSql = `{{ String(tz, 'UTC', description="IANA time zone the days are read in, e.g. Europe/Madrid. Defaults to UTC") }}`;
+
+const tzParam = {
+  tz: p.string().optional("UTC").describe("IANA time zone the days are read in, e.g. Europe/Madrid. Defaults to UTC"),
+};
+
+/**
  * Percentage change from the previous period to the current one. New traffic against an empty
  * previous period reads as 100, and two empty periods as 0.
  */
@@ -95,15 +106,15 @@ const growthPercentSql = (current: string, previous: string): string =>
 const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): string => `
         {% if defined(location) or defined(device) or defined(browser) %}
         SELECT
-            toDate(timestamp) AS date,
+            toDate(toTimeZone(timestamp, ${tzSql})) AS date,
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors_state,
             uniqCombined64State(session_id) AS sessions_state,
             countState() AS hits_state
         FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT ${startColumn} FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+        WHERE timestamp >= (SELECT ${startColumn}_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -116,15 +127,15 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         GROUP BY date, period, visitor_class
         {% else %}
         SELECT
-            toDate(bucket) AS date,
+            toDate(toTimeZone(bucket, ${tzSql})) AS date,
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             visitor_class,
             uniqCombined64MergeState(visitors) AS visitors_state,
             uniqCombined64MergeState(visits) AS sessions_state,
             countMergeState(hits) AS hits_state
         FROM visitor_state_hourly_mv
-        WHERE toDate(bucket) >= (SELECT ${startColumn} FROM date_calculations)
-            AND toDate(bucket) <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT ${startColumn}_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
             {% end %}
@@ -156,7 +167,10 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
-            current_start - period_days AS previous_start
+            current_start - period_days AS previous_start,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -205,6 +219,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     known_visitors: t.uint64(),
@@ -374,7 +389,9 @@ export const dailySeries = defineEndpoint("daily_series", {
       sql: `
         SELECT
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
-            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -437,6 +454,7 @@ export const dailySeries = defineEndpoint("daily_series", {
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     date: t.date(),
