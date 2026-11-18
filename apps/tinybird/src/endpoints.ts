@@ -468,18 +468,18 @@ export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
  */
 export const hourlySeries = defineEndpoint("hourly_series", {
   description:
-    "One value per UTC hour between two UTC instants (from_utc inclusive, to_utc exclusive) for metric = sessions, known, anonymous or pageviews over at most 7 days, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
+    "One value per UTC hour between two instants (from_at inclusive, to_at exclusive, ISO 8601) for metric = sessions, known, anonymous or pageviews over at most 744 hours, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
       name: "date_calculations",
-      description: "The window, refused when longer than seven days",
+      description: "The window, refused when it holds more than 744 hours",
       sql: `
         WITH
-            {% if defined(from_utc) %} toDateTime({{ String(from_utc, description="First instant, inclusive, as UTC 'YYYY-MM-DD HH:MM:SS'") }}, 'UTC') {% else %} toStartOfDay(now('UTC')) {% end %} AS requested_start,
-            {% if defined(to_utc) %} toDateTime({{ String(to_utc, description="Last instant, exclusive, as UTC 'YYYY-MM-DD HH:MM:SS'") }}, 'UTC') {% else %} requested_start + INTERVAL 1 DAY {% end %} AS requested_end
+            {% if defined(from_at) %} parseDateTimeBestEffort({{ String(from_at, description="First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z") }}, 'UTC') {% else %} toStartOfDay(now('UTC')) {% end %} AS requested_start,
+            {% if defined(to_at) %} parseDateTimeBestEffort({{ String(to_at, description="Last instant, exclusive, ISO 8601") }}, 'UTC') {% else %} requested_start + INTERVAL 1 DAY {% end %} AS requested_end
         SELECT
-            requested_start + throwIf(dateDiff('hour', requested_start, requested_end) > 169, 'An hourly series covers at most 7 days') AS current_start_at,
+            requested_start + throwIf(dateDiff('hour', requested_start, requested_end) > 744, 'An hourly series covers at most 744 hours') AS current_start_at,
             requested_end AS current_end_at
       `,
     }),
@@ -545,8 +545,8 @@ export const hourlySeries = defineEndpoint("hourly_series", {
   params: {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
-    from_utc: p.string().optional().describe("First instant, inclusive, as UTC 'YYYY-MM-DD HH:MM:SS'; defaults to the start of today (UTC)"),
-    to_utc: p.string().optional().describe("Last instant, exclusive, as UTC 'YYYY-MM-DD HH:MM:SS'; at most 7 days after from_utc"),
+    from_at: p.string().optional().describe("First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z; defaults to the start of today (UTC)"),
+    to_at: p.string().optional().describe("Last instant, exclusive, ISO 8601; at most 744 hours after from_at"),
     metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
   },

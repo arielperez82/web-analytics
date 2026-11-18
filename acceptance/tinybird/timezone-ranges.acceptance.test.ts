@@ -193,8 +193,8 @@ describe.concurrent('ranges in a time zone', () => {
         'hourly_series',
         {
           metric: 'pageviews',
-          from_utc: '2026-11-10 00:00:00',
-          to_utc: '2026-11-11 00:00:00',
+          from_at: '2026-11-10T00:00:00Z',
+          to_at: '2026-11-11T00:00:00Z',
         },
         24
       );
@@ -203,8 +203,8 @@ describe.concurrent('ranges in a time zone', () => {
         'hourly_series',
         {
           metric: 'pageviews',
-          from_utc: '2026-11-10 05:00:00',
-          to_utc: '2026-11-11 05:00:00',
+          from_at: '2026-11-10T05:00:00Z',
+          to_at: '2026-11-11T05:00:00Z',
         },
         24
       );
