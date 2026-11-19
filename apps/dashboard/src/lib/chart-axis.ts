@@ -24,11 +24,10 @@ const dayLabel = (key: string): string => {
 const hourLabel = (key: string): string => key.slice(11, 16);
 
 const HOURS_PER_DAY = 24;
-const MIDNIGHT = "00:00";
 
 export const xLabels = (keys: readonly string[], unit: "day" | "hour"): readonly string[] => {
   if (unit === "hour" && keys.length > HOURS_PER_DAY)
-    return keys.map((key) => (hourLabel(key) === MIDNIGHT ? dayLabel(key.slice(0, 10)) : ""));
+    return keys.map((key, index) => (index === 0 || key.slice(0, 10) !== keys[index - 1]?.slice(0, 10) ? dayLabel(key.slice(0, 10)) : ""));
   const step = unit === "hour" ? HOURS_PER_LABEL : Math.ceil(keys.length / MAX_LABELS);
   const label = unit === "hour" ? hourLabel : dayLabel;
   return keys.map((key, index) => (index % step === 0 ? label(key) : ""));

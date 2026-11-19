@@ -229,6 +229,22 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards the bucket size to the hourly series", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("hourly_series", "bucket_hours=4"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/hourly_series.json?bucket_hours=4");
+  });
+
+  it("rejects a bucket size that is not a whole number of hours from 1 to 24, never calling Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["0", "25", "-1", "1.5", "four", "4; DROP"]) {
+      const query = new URLSearchParams({ bucket_hours: bad }).toString();
+      expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("ignores a caller tenant_id for conversions when pinned", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
     await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);

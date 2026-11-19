@@ -466,20 +466,24 @@ export type DailySeriesOutput = InferOutputRow<typeof dailySeries>;
  * is capped at seven days to keep the scan small. Each hour counts its own distinct sessions and
  * visitors, so the hours can add up to more than the day. Bots are left out unless include_bots=1.
  */
+const BUCKET_HOURS_SQL = "greatest({{ Int32(bucket_hours, 1) }}, 1)";
+
 export const hourlySeries = defineEndpoint("hourly_series", {
   description:
-    "One value per UTC hour between two instants (from_at inclusive, to_at exclusive, ISO 8601) for metric = sessions, known, anonymous or pageviews over at most 744 hours, with bar_percent against the busiest hour. Bots excluded unless include_bots=1",
+    "One value per bucket of bucket_hours (default 1) between two instants (from_at inclusive, to_at exclusive, ISO 8601, buckets start at from_at) for metric = sessions, known, anonymous or pageviews over at most 744 buckets, with bar_percent against the busiest bucket. Each session or visitor counts once per bucket. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
       name: "date_calculations",
-      description: "The window, refused when it holds more than 744 hours",
+      description: "The window and bucket size, refused when the bucket is not 1 to 24 hours or the window holds more than 744 buckets",
       sql: `
         WITH
             {% if defined(from_at) %} parseDateTimeBestEffort({{ String(from_at, description="First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z") }}, 'UTC') {% else %} toStartOfDay(now('UTC')) {% end %} AS requested_start,
             {% if defined(to_at) %} parseDateTimeBestEffort({{ String(to_at, description="Last instant, exclusive, ISO 8601") }}, 'UTC') {% else %} requested_start + INTERVAL 1 DAY {% end %} AS requested_end
         SELECT
-            requested_start + throwIf(dateDiff('hour', requested_start, requested_end) > 744, 'An hourly series covers at most 744 hours') AS current_start_at,
+            requested_start
+                + throwIf({{ Int32(bucket_hours, 1, description="Hours per bucket from 1 to 24, counted from from_at") }} < 1 OR {{ Int32(bucket_hours, 1) }} > 24, 'bucket_hours must be between 1 and 24')
+                + throwIf(ceil(dateDiff('hour', requested_start, requested_end) / ${BUCKET_HOURS_SQL}) > 744, 'An hourly series covers at most 744 buckets') AS current_start_at,
             requested_end AS current_end_at
       `,
     }),
@@ -488,7 +492,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
       description: "Every metric per hour, from the hits",
       sql: `
         SELECT
-            toStartOfHour(timestamp) AS hour,
+            toDateTime(toUInt32((SELECT current_start_at FROM date_calculations)) + intDiv(toUInt32(timestamp) - toUInt32((SELECT current_start_at FROM date_calculations)), 3600 * ${BUCKET_HOURS_SQL}) * 3600 * ${BUCKET_HOURS_SQL}, 'UTC') AS hour,
             uniqCombined64(session_id) AS sessions_count,
             uniqCombined64If(visitor_key, ${visitorClassSql} = 'known') AS known_count,
             uniqCombined64If(visitor_key, ${visitorClassSql} = 'daily') AS anonymous_count,
@@ -510,9 +514,9 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     }),
     node({
       name: "hours",
-      description: "Every hour of the range, so quiet hours show zero",
+      description: "Every bucket of the range, so quiet buckets show zero",
       sql: `
-        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32((SELECT current_start_at FROM date_calculations)), toUInt32((SELECT current_end_at FROM date_calculations)), 3600))) AS hour
+        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32((SELECT current_start_at FROM date_calculations)), toUInt32((SELECT current_end_at FROM date_calculations)), toUInt32(3600 * ${BUCKET_HOURS_SQL})))) AS hour
       `,
     }),
     node({
@@ -546,7 +550,8 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Filter by domain"),
     from_at: p.string().optional().describe("First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z; defaults to the start of today (UTC)"),
-    to_at: p.string().optional().describe("Last instant, exclusive, ISO 8601; at most 744 hours after from_at"),
+    to_at: p.string().optional().describe("Last instant, exclusive, ISO 8601; at most 744 buckets after from_at"),
+    bucket_hours: p.int32().optional(1).describe("Hours per bucket, 1 to 24; buckets start at from_at, so the last one may be shorter"),
     metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
   },

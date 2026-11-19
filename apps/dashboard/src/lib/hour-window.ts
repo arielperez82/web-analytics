@@ -1,3 +1,5 @@
+import { hourBucket } from "./grain";
+
 const DAY_MS = 86_400_000;
 
 type DayRange = { readonly date_from?: string; readonly date_to?: string };
@@ -56,5 +58,5 @@ export const hourlyRequest = (
   params: Readonly<Record<string, string | undefined>>,
 ): Readonly<Record<string, string | undefined>> => {
   const { date_from, date_to, tz, ...rest } = params;
-  return { ...rest, ...hourWindow({ date_from, date_to }, tz ?? "UTC") };
+  return { ...rest, ...hourWindow({ date_from, date_to }, tz ?? "UTC"), bucket_hours: String(hourBucket({ date_from, date_to }) ?? 1) };
 };

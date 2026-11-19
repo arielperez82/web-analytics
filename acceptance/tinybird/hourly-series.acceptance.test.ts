@@ -196,7 +196,7 @@ describe.concurrent('hourly series', () => {
         from_at: '2026-10-01T00:00:00Z',
         to_at: '2026-11-01T01:00:00Z',
       })
-    ).rejects.toThrow(/744 hours/);
+    ).rejects.toThrow(/744/);
   });
 
   it('accepts a window of exactly 744 hours', async () => {
@@ -210,6 +210,147 @@ describe.concurrent('hourly series', () => {
     });
 
     expect(rows).toHaveLength(744);
+  });
+
+  describe('with bucket_hours', () => {
+    it('groups the hours into buckets and counts each session once per bucket', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        hitAt(scope, 'v-1', 3, 1, { sessionId: 'shared' }),
+        hitAt(scope, 'v-1', 3, 3, { sessionId: 'shared' }),
+        hitAt(scope, 'v-2', 3, 5),
+        hitAt(scope, 'v-3', 3, 9),
+      ]);
+
+      const rows = await series(scope, 3, { bucket_hours: 4 });
+
+      expect(values(rows)).toEqual([1, 1, 1, 0, 0, 0]);
+      expect(rows[1]?.hour).toBe(`${dayOf(3)} 04:00:00`);
+    });
+
+    it('starts the buckets at from_at, not at midnight', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [hitAt(scope, 'v-1', 3, 6)]);
+
+      const rows = await series(scope, 1, {
+        bucket_hours: 4,
+        from_at: `${dayOf(3)}T05:00:00Z`,
+        to_at: `${dayOf(2)}T05:00:00Z`,
+      });
+
+      expect(rows.map(row => row.hour)).toEqual([
+        `${dayOf(3)} 05:00:00`,
+        `${dayOf(3)} 09:00:00`,
+        `${dayOf(3)} 13:00:00`,
+        `${dayOf(3)} 17:00:00`,
+        `${dayOf(3)} 21:00:00`,
+        `${dayOf(2)} 01:00:00`,
+      ]);
+      expect(values(rows)).toEqual([1, 0, 0, 0, 0, 0]);
+    });
+
+    it('buckets a local day from its own midnight when the window has an offset', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        hitAt(scope, 'v-1', 3, 6),
+        hitAt(scope, 'v-2', 3, 10),
+        hitAt(scope, 'v-3', 3, 11),
+      ]);
+
+      const rows = await series(scope, 3, {
+        bucket_hours: 4,
+        from_at: `${dayOf(3)}T00:00:00-05:00`,
+        to_at: `${dayOf(2)}T00:00:00-05:00`,
+      });
+
+      expect(rows).toHaveLength(6);
+      expect(rows[0]?.hour).toBe(`${dayOf(3)} 05:00:00`);
+      expect(values(rows)).toEqual([1, 2, 0, 0, 0, 0]);
+    });
+
+    it('applies the filters to each bucket', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        hitAt(scope, 'v-1', 3, 1, { location: 'ES' }),
+        hitAt(scope, 'v-2', 3, 2, { location: 'FR' }),
+        hitAt(scope, 'v-3', 3, 5, { location: 'ES' }),
+      ]);
+
+      const rows = await series(scope, 2, {
+        bucket_hours: 4,
+        location: 'ES',
+      });
+
+      expect(values(rows)).toEqual([1, 1, 0, 0, 0, 0]);
+    });
+
+    it('ends with a shorter bucket when the window is not a multiple of the bucket', async () => {
+      const scope = createScope();
+
+      const rows = await pipeRows<Row>(env, 'hourly_series', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        bucket_hours: 4,
+        from_at: `${dayOf(3)}T00:00:00Z`,
+        to_at: `${dayOf(3)}T06:00:00Z`,
+      });
+
+      expect(rows).toHaveLength(2);
+    });
+
+    it('fits a month into 186 buckets of four hours', async () => {
+      const scope = createScope();
+
+      const rows = await pipeRows<Row>(env, 'hourly_series', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        bucket_hours: 4,
+        from_at: '2026-10-01T00:00:00Z',
+        to_at: '2026-11-01T00:00:00Z',
+      });
+
+      expect(rows).toHaveLength(186);
+    });
+
+    it('accepts exactly 744 buckets of four hours', async () => {
+      const scope = createScope();
+
+      const rows = await pipeRows<Row>(env, 'hourly_series', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        bucket_hours: 4,
+        from_at: '2026-01-01T00:00:00Z',
+        to_at: '2026-05-05T00:00:00Z',
+      });
+
+      expect(rows).toHaveLength(744);
+    });
+
+    it('refuses more than 744 buckets', async () => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<Row>(env, 'hourly_series', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          bucket_hours: 4,
+          from_at: '2026-01-01T00:00:00Z',
+          to_at: '2026-05-06T04:00:00Z',
+        })
+      ).rejects.toThrow(/744/);
+    });
+
+    it.each([0, 25])('refuses a bucket of %s hours', async bucket => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<Row>(env, 'hourly_series', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          bucket_hours: bucket,
+        })
+      ).rejects.toThrow(/bucket/);
+    });
   });
 
   it('refuses an instant it cannot read instead of returning an empty series', async () => {

@@ -124,9 +124,12 @@ counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `v
   first day to local midnight after the last. A single-day range switches the chart to hourly buckets; the headline is
   still one distinct count for the whole day, not the sum of hours.
 - **Only endpoints that cut whole days or more take `tz`.** Below a day the client sends ISO 8601 instants
-  (`hourly_series` takes `from_at` and `to_at`, at most 744 hours) and converts the UTC hours it gets back to the
-  viewer's
-  zone for labels. The dashboard offers the hour grain while it fits 200 bars (8 days).
+  (`hourly_series` takes `from_at`, `to_at` and `bucket_hours`, at most 744 buckets) and converts the UTC hours it gets
+  back to the viewer's zone for labels. Buckets start at `from_at`, so they follow the viewer's local day, and each
+  session or visitor counts once per bucket. The dashboard keeps the chart to 200 bars: one-hour buckets up to 8 days,
+  four-hour buckets up to 33 days, and the hour grain is not offered beyond that. Around a clock change a day holds 23
+  or 25 hours, so the four-hour bars shift by an hour against the wall clock for that day, and the last bar of a range
+  may be shorter.
 - **The zone the dashboard uses:** the one in the URL (`tz=`), else the browser's. The header has a picker. The same
   zone shapes the preset ranges ("Today", "Last 7 days") and the date picker's "today".
 - **Why local time.** Viewers read their dashboards in their own day; ids that expire at each visitor's midnight need no
@@ -304,8 +307,9 @@ Constraints that come straight from the definitions:
   `include_bots=1`. **Built:** `engagement` (page views, pages per session, bounce rate and average session length,
   weighted by session over the whole range, with the previous period and growth) and `daily_series` (one metric per day
   with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. **Built:**
-  `hourly_series`, the same metrics per UTC hour between two ISO 8601 instants (at most 744 hours), shown for single-day
-  ranges and for ranges up to 8 days when the viewer chooses Hour. It rolls
+  `hourly_series`, the same metrics per bucket of `bucket_hours` between two ISO 8601 instants (at most 744 buckets), shown
+  for single-day ranges and, when the viewer chooses Hour, for ranges up to 33 days (one-hour buckets to 8 days, then
+  four-hour buckets). It rolls
   the hours up from `analytics_hits` at read time and has no materialization: a day for one tenant and domain is a range
   read on `analytics_events` (sorted by tenant, domain, timestamp), and the filtered `visitor_counts` path already scans
   `analytics_hits` over longer ranges. Add an hourly materialization only if measured latency for a busy tenant

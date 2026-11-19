@@ -59,6 +59,19 @@ describe("xLabels", () => {
     expect(labels[24]).toBe("Nov 11");
   });
 
+  it("labels the first bar of each day when bars are several hours wide, even after a clock change shifts them", () => {
+    const keys = [
+      "2026-03-07 22:00:00",
+      "2026-03-08 02:00:00",
+      "2026-03-08 06:00:00",
+      "2026-03-08 09:00:00",
+      "2026-03-08 13:00:00",
+      "2026-03-09 01:00:00",
+    ].concat(Array.from({ length: 30 }, (_, index) => `2026-03-10 ${String(index % 24).padStart(2, "0")}:00:00`));
+    const labels = xLabels(keys, "hour");
+    expect(labels.slice(0, 6)).toEqual(["Mar 7", "Mar 8", "", "", "", "Mar 9"]);
+  });
+
   it("returns nothing for no bars", () => {
     expect(xLabels([], "day")).toEqual([]);
   });
