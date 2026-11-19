@@ -249,6 +249,41 @@ describe.concurrent('hourly series', () => {
       expect(values(rows)).toEqual([1, 0, 0, 0, 0, 0]);
     });
 
+    it('buckets a local day from its own midnight when the window has an offset', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        hitAt(scope, 'v-1', 3, 6),
+        hitAt(scope, 'v-2', 3, 10),
+        hitAt(scope, 'v-3', 3, 11),
+      ]);
+
+      const rows = await series(scope, 3, {
+        bucket_hours: 4,
+        from_at: `${dayOf(3)}T00:00:00-05:00`,
+        to_at: `${dayOf(2)}T00:00:00-05:00`,
+      });
+
+      expect(rows).toHaveLength(6);
+      expect(rows[0]?.hour).toBe(`${dayOf(3)} 05:00:00`);
+      expect(values(rows)).toEqual([1, 2, 0, 0, 0, 0]);
+    });
+
+    it('applies the filters to each bucket', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        hitAt(scope, 'v-1', 3, 1, { location: 'ES' }),
+        hitAt(scope, 'v-2', 3, 2, { location: 'FR' }),
+        hitAt(scope, 'v-3', 3, 5, { location: 'ES' }),
+      ]);
+
+      const rows = await series(scope, 2, {
+        bucket_hours: 4,
+        location: 'ES',
+      });
+
+      expect(values(rows)).toEqual([1, 1, 0, 0, 0, 0]);
+    });
+
     it('ends with a shorter bucket when the window is not a multiple of the bucket', async () => {
       const scope = createScope();
 
