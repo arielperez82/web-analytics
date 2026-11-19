@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { hrefFor, parseState, type DashboardState } from "./dashboard-state";
 import { rangeToParams } from "./time-range";
@@ -24,6 +24,9 @@ export const useDashboardState = () => {
     (next: DashboardState) => router.replace(hrefFor(pathname, next), { scroll: false }),
     [pathname, router],
   );
+  useEffect(() => {
+    if (state.tz === undefined) update({ ...state, tz: browserTimeZone() });
+  }, [state, update]);
   const params = useMemo<QueryParams>(
     () => ({
       ...rangeToParams(state.range, new Date(), zone),

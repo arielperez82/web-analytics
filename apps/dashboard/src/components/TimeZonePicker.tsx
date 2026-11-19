@@ -6,7 +6,8 @@ const BROWSER_ZONES: readonly string[] =
   typeof window === "undefined" ? [] : Intl.supportedValuesOf("timeZone");
 const noSubscription = () => () => undefined;
 const browserZones = () => BROWSER_ZONES;
-const serverZones = (): readonly string[] => [];
+const NO_ZONES: readonly string[] = [];
+const serverZones = (): readonly string[] => NO_ZONES;
 
 export const TimeZonePicker = ({
   zone,
