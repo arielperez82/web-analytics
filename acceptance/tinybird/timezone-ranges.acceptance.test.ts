@@ -16,7 +16,10 @@ const ONE_MINUTE_MS = 60_000;
 const at = (utc: string): Date =>
   new Date(new Date(utc).getTime() + ONE_MINUTE_MS);
 
-const visits = (scope: Scope) =>
+const visits = (
+  scope: Scope,
+  locations: readonly (string | undefined)[] = []
+) =>
   [
     '2026-11-10T01:00:00Z',
     '2026-11-10T04:30:00Z',
@@ -30,6 +33,7 @@ const visits = (scope: Scope) =>
       pathname: '/a',
       visitorId: `anon-${String(index)}`,
       idMode: 'daily_direct',
+      location: locations[index],
       now: at(utc),
     })
   );
@@ -43,9 +47,11 @@ type CountsRow = {
 describe.concurrent('ranges in a time zone', () => {
   const env = inject('tinybird');
 
-  const seeded = async (): Promise<Scope> => {
+  const seeded = async (
+    locations: readonly (string | undefined)[] = []
+  ): Promise<Scope> => {
     const scope = createScope();
-    await ingestEvents(env, visits(scope));
+    await ingestEvents(env, visits(scope, locations));
     await waitForRow(
       () =>
         pipeRows<SeriesRow>(env, 'daily_series', {
@@ -131,7 +137,21 @@ describe.concurrent('ranges in a time zone', () => {
         anonymous: 3,
       });
     });
+
+    it('counts the local day in the time zone asked for when a filter is set', async () => {
+      const scope = await seeded(['US', 'US', 'US', 'DE', 'US', 'US']);
+
+      expect(await counts(scope, { location: 'US' })).toEqual({
+        sessions: 3,
+        anonymous: 3,
+      });
+      expect(await counts(scope, { location: 'US', tz: NEW_YORK })).toEqual({
+        sessions: 2,
+        anonymous: 2,
+      });
+    });
   });
+
   describe('endpoints that read the hits', () => {
     const day = { date_from: '2026-11-10', date_to: '2026-11-10' };
     const rowsOf = (
