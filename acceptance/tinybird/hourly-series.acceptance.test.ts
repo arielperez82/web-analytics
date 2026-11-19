@@ -23,6 +23,10 @@ const midnight = (daysAgo: number): Date => {
 };
 const dayOf = (daysAgo: number): string =>
   midnight(daysAgo).toISOString().slice(0, 10);
+const utcWindow = (fromDaysAgo: number, toDaysAgo: number) => ({
+  from_at: `${dayOf(fromDaysAgo)}T00:00:00Z`,
+  to_at: `${dayOf(toDaysAgo - 1)}T00:00:00Z`,
+});
 
 type Row = {
   hour: string;
@@ -72,8 +76,7 @@ describe.concurrent('hourly series', () => {
         pipeRows<Row>(env, 'hourly_series', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
-          date_from: dayOf(3),
-          date_to: dayOf(3),
+          ...utcWindow(3, 3),
           ...params,
         }),
       rows =>
@@ -162,37 +165,63 @@ describe.concurrent('hourly series', () => {
       hitAt(scope, 'v-2', 3, 0),
     ]);
 
-    const rows = await series(scope, 2, { date_from: dayOf(4) });
+    const rows = await series(scope, 2, utcWindow(4, 3));
 
     expect(rows).toHaveLength(48);
     expect(values(rows)[23]).toBe(1);
     expect(values(rows)[24]).toBe(1);
   });
 
-  it('refuses a range longer than seven days', async () => {
+  it('reads an ISO 8601 instant with an offset, so a local day reads as its own 24 hours', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [hitAt(scope, 'v-1', 3, 9)]);
+
+    const rows = await series(scope, 1, {
+      from_at: `${dayOf(3)}T00:00:00-05:00`,
+      to_at: `${dayOf(2)}T00:00:00-05:00`,
+    });
+
+    expect(rows).toHaveLength(24);
+    expect(rows[0]?.hour).toBe(`${dayOf(3)} 05:00:00`);
+    expect(values(rows)[4]).toBe(1);
+  });
+
+  it('refuses a window of more than 744 hours', async () => {
     const scope = createScope();
 
     await expect(
       pipeRows<Row>(env, 'hourly_series', {
         tenant_id: scope.tenantId,
         domain: scope.domain,
-        date_from: dayOf(7),
-        date_to: dayOf(0),
+        from_at: '2026-10-01T00:00:00Z',
+        to_at: '2026-11-01T01:00:00Z',
       })
-    ).rejects.toThrow(/7 days/);
+    ).rejects.toThrow(/744 hours/);
   });
 
-  it('accepts a range of exactly seven days', async () => {
+  it('accepts a window of exactly 744 hours', async () => {
     const scope = createScope();
 
     const rows = await pipeRows<Row>(env, 'hourly_series', {
       tenant_id: scope.tenantId,
       domain: scope.domain,
-      date_from: dayOf(6),
-      date_to: dayOf(0),
+      from_at: '2026-10-01T00:00:00Z',
+      to_at: '2026-11-01T00:00:00Z',
     });
 
-    expect(rows).toHaveLength(168);
+    expect(rows).toHaveLength(744);
+  });
+
+  it('refuses an instant it cannot read instead of returning an empty series', async () => {
+    const scope = createScope();
+
+    await expect(
+      pipeRows<Row>(env, 'hourly_series', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        from_at: 'tomorrow-ish',
+      })
+    ).rejects.toThrow();
   });
 
   it('leaves a crawler out by default and counts it with include_bots', async () => {

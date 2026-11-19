@@ -13,6 +13,7 @@ import {
   formatSignedPercent,
 } from "@/lib/format";
 import type { QueryParams } from "@/lib/use-dashboard-state";
+import { hourlyRequest, zonedHour } from "@/lib/hour-window";
 import { useEndpoint } from "@/lib/use-endpoint";
 
 import { Panel, type Row,Status } from "./ui";
@@ -84,8 +85,11 @@ export const Kpis = ({
   const grain = effectiveGrain({ grain: state.grain, params });
   const hourly = grain === "hour";
   const { endpoint, key, unit } = hourly ? SERIES.hourly : SERIES.daily;
-  const { data, loading, error } = useEndpoint<Row>(endpoint, { ...params, metric });
-  const rows = data ?? [];
+  const { data, loading, error } = useEndpoint<Row>(endpoint, {
+    ...(hourly ? hourlyRequest(params) : params),
+    metric,
+  });
+  const rows: readonly Row[] = hourly ? (data ?? []).map((row) => (typeof row.hour === "string" ? { ...row, hour: zonedHour(row.hour, params.tz ?? "UTC") } : row)) : (data ?? []);
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (
@@ -103,7 +107,7 @@ export const Kpis = ({
           label="Anonymous visitors"
           value={formatNumber(field(counts, "anonymous_visitors"))}
           growth={formatSignedPercent(field(counts, "anonymous_visitors_growth_percent"))}
-          caption="Unique within a day only: a returning person counts again each day"
+          caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
         <Card

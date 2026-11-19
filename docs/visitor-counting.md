@@ -28,20 +28,24 @@ it is only approximate. Our answer: we never publish one blended "unique visitor
 4. **Legacy events:** Events with no `visitor_id` fall back to `session_id`, namespaced `legacy:` and reported
    separately.
 5. **`current_visitors`:** Renamed to **active sessions** (it counts sessions).
-6. **Time zone:** UTC for day and range boundaries everywhere. Local time is a display aid only (section 6).
+6. **Time zone:** the viewer's. The dashboard asks for days and ranges in a zone (`tz`, default the browser's, in the
+   URL once chosen) and every figure is cut at local midnight in that zone. Daily anonymous ids roll at the visitor's
+   own local midnight, so the anonymous numbers are caveated (section 6).
 7. **Consent marker:** None. Nothing is live, so there is no history to mark.
 8. **Distinct counting:** `uniqCombined64`; `uniqExact` is never used (section 9).
-9. **Local-zone view:** Not built, including for consented-only traffic. Not needed (section 6).
+9. **Local-zone view:** Built for every number, not only consented traffic. Visitor state is kept per UTC hour, so a
+   range can start and end on any whole-hour boundary. Half-hour zones (India, Nepal) are approximate at the two edge
+   hours; that gap can be filled later from the raw table (section 6).
 
 ## 3. Vocabulary
 
-| Term                  | Meaning here                                                                                             |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Pageview**          | One `page_hit` event.                                                                                    |
-| **Session**           | A run of activity from one browser with no gap over 30 minutes. Counted by distinct `session_id`.        |
-| **Known visitor**     | A `persistent` visitor id: consented, stable across days.                                                |
-| **Anonymous visitor** | A `daily_direct` or `daily_proxy` id: exists for one UTC day only. Counted per day, so repeats re-count. |
-| **Legacy visitor**    | An older event with no `visitor_id`, keyed by `legacy:` plus `session_id`. Reported on its own.          |
+| Term                  | Meaning here                                                                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pageview**          | One `page_hit` event.                                                                                                                        |
+| **Session**           | A run of activity from one browser with no gap over 30 minutes. Counted by distinct `session_id`.                                            |
+| **Known visitor**     | A `persistent` visitor id: consented, stable across days.                                                                                    |
+| **Anonymous visitor** | A `daily_direct` or `daily_proxy` id: lasts one local day of the visitor. Distinct ids are counted, so a return on another day counts again. |
+| **Legacy visitor**    | An older event with no `visitor_id`, keyed by `legacy:` plus `session_id`. Reported on its own.                                              |
 
 A visitor is a browser, not a person.
 
@@ -50,30 +54,35 @@ A visitor is a browser, not a person.
 Where they come from: `packages/client/src/identity.ts` (`resolveIdMode`, `dailyIdentity`),
 `packages/client/src/visitor-manager.ts`, `packages/ingest/src/proxy-identity.ts`. Every event carries `id_mode`.
 
-| `id_mode`           | How it is made                                                           | Lifetime                       | Links one browser across days? | Known error                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------ | ------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `persistent`        | Random UUID in browser storage, only after consent                       | 395 days (`RETENTION_SECONDS`) | Yes                            | One person with two browsers or cleared storage counts as several. Covers only visitors who consented.          |
-| `daily_direct`      | Client-side hash of day, domain, user agent, screen, language, time zone | One UTC day                    | No, by design                  | Identical settings merge people (undercount). Same person on two days counts twice. See the clock caveat below. |
-| `daily_proxy`       | Server HMAC of IP, user agent, domain with a salt that changes daily     | One UTC day (`dailySalt`)      | No, by design; salt discarded  | As above, plus shared IPs (office, carrier NAT) merge people.                                                   |
-| none (older events) | Only a random `session_id` in storage; no `visitor_id`                   | 30 minutes per session         | No                             | A returning person is a new "visitor" every visit.                                                              |
+| `id_mode`           | How it is made                                                                                   | Lifetime                                                                  | Links one browser across days?                 | Known error                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `persistent`        | Random UUID in browser storage, only after consent                                               | 395 days (`RETENTION_SECONDS`)                                            | Yes                                            | One person with two browsers or cleared storage counts as several. Covers only visitors who consented.                                                               |
+| `daily_direct`      | Client-side hash of the local day, domain, user agent, screen, language, time zone               | One local day on the visitor's clock                                      | No, by design                                  | Identical settings merge people (undercount). Same person on two days counts twice. See the clock caveat below.                                                      |
+| `daily_proxy`       | Server HMAC of IP, user agent, domain with a salt derived from a server secret and the local day | One local day in the zone the client reports (`time_zone`, UTC if absent) | No, by design; the salt is derived, not stored | As above, plus shared IPs (office, carrier NAT) merge people. Anyone holding the secret can recompute a day's salt, so the privacy claim rests on never storing IPs. |
+| none (older events) | Only a random `session_id` in storage; no `visitor_id`                                           | 30 minutes per session                                                    | No                                             | A returning person is a new "visitor" every visit.                                                                                                                   |
 
 What follows from this:
 
 - **Across several days, only `persistent` ids deduplicate.** For daily modes the system cannot know that Monday's
-  visitor and Tuesday's visitor are the same browser, and we have chosen not to make that possible. So an anonymous-visitor
+  visitor and Tuesday's visitor are the same browser, and we have chosen not to make that possible. So an
+  anonymous-visitor
   total over several days is a count of **person-days**, not people, and the UI says so.
 - **Anonymous visitors is not a pure upper bound on people.** B2B offices run standard machine images with the same user
   agent, screen, language and time zone. Those merge under `daily_direct`, and under `daily_proxy` they also share an
   IP. So anonymous visitors can undercount as well as overcount. State both.
 - **The consent mix biases visitor totals.** A site with a high consent rate has more known visitors and fewer daily
   visitors for the same traffic. This is why the two are never added and why a consented share is shown beside them.
-- **Daily ids rotate at 00:00 UTC.** Keeping day boundaries on UTC means a daily id never straddles two dashboard days
+- **Daily ids rotate at the visitor's local midnight.** `daily_direct` hashes the day on the visitor's own clock and
+  zone. `daily_proxy` uses the zone the client passes (`time_zone`, sent only when the client asks the proxy to mint the
+  id). A viewer looking at the dashboard in another zone can therefore see one person on both sides of a dashboard day
+  edge, with two ids. This is the price of letting ids expire continuously instead of all at once at UTC midnight
   (section 6).
-- **The client clock, bounded.** `daily_direct` takes its day from the client (`Math.floor(now / DAY_MS)`) while
-  events are bucketed by `timestamp`, which is also the client's clock. An event is stored only when its `timestamp` is
-  within 24 hours of its `reception_timestamp` (section 6), so a badly skewed clock is rejected rather than counted.
-  Inside that window an id can still sit on a neighbouring UTC day, by at most one day boundary. Accepted: it is
-  bounded, rare, and `daily_proxy` takes its day from the server clock.
+- **The client clock, bounded.** `daily_direct` takes its day from the client while events are bucketed by `timestamp`,
+  which is also the client's clock. An event is stored only when its `timestamp` is within 24 hours of its
+  `reception_timestamp` (section 6), so a badly skewed clock is rejected rather than counted. `daily_proxy` takes its
+  instant from the server clock and only its zone from the client.
+- **Sessions on the client** are `hash(visitor id, floor(now / 30 minutes))`: fixed 30-minute clock buckets. The proxy
+  keeps a sliding 30-minute window in a store instead, so the two modes cut sessions slightly differently.
 - **A consent change mid-day counts that person twice** (one `daily_*` key, one `persistent` key). The privacy design
   prevents joining them. Accept; it is one visitor per consent decision.
 - **Visitor ids are never shown or exported.** Only counts leave the system.
@@ -83,9 +92,11 @@ What follows from this:
 **D1. Known visitors.** Distinct `visitor_id` with `id_mode = persistent` and at least one qualifying event in the
 range. A true distinct count across the range, never a sum of daily counts.
 
-**D2. Anonymous visitors.** For each UTC day, distinct `visitor_id` with `id_mode` in (`daily_direct`, `daily_proxy`); the
-headline is the **sum of those per-day counts** (person-days), labelled as such. It is the one place where summing days
-is correct, because ids cannot be linked across days.
+**D2. Anonymous visitors.** Distinct `visitor_id` with `id_mode` in (`daily_direct`, `daily_proxy`) across the range: one
+distinct count, not a sum of daily counts. Because each id lasts one visitor-local day, a person who returns on another
+day has another id, so the number is person-days. Two ids can also belong to one person within a single dashboard day
+when the visitor's zone differs from the one being viewed and they visit on both sides of its midnight. Both caveats are
+stated on the card.
 
 **D3. Sessions.** Distinct `session_id` in the range, computed over the range. Sessions exist in every identity mode, so
 they are the consent-invariant measure, the weekly headline, and the denominator for conversion rate.
@@ -99,7 +110,7 @@ the range started. Defined for `persistent` only; undefined until history accumu
 **D6. Legacy visitors.** Events with no `visitor_id`, keyed `legacy:` plus `session_id`. Reported on their own and never
 merged with real visitor ids. Each return visit counts as a new legacy visitor.
 
-**D7. Range totals are computed over the range, never summed from buckets, except D2.** A persistent visitor active on
+**D7. Range totals are computed over the range, never summed from buckets.** A persistent visitor active on
 three days appears in three daily bars and counts once in D1. Today the "Sessions" card sums per-day distinct sessions
 (`Kpis.tsx`, `sum("sessions")`; the `kpis` pipe grouped by `date, session_id`), so a session that crossed UTC midnight
 counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `visitor_counts` and `engagement`.
@@ -107,23 +118,27 @@ counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `v
 
 ## 6. Date filters and time zone
 
-- The range is inclusive whole UTC days, `date_from` to `date_to` (`rangeToParams`). A single-day range switches the
-  chart to hourly buckets; the headline is still one distinct count for the whole day, not the sum of hours.
-- **Time zone: UTC for day and range boundaries everywhere.** Reasons, from the data-science review:
-  - A local day always spans two UTC ids, so a person can count twice. Under assumed 5-10% same-day repeat rates and
-    B2B working-hours traffic the overcount on a single local day is roughly 1-4% of anonymous visitors. These are derived
-    figures from stated assumptions, not measurements.
-  - It is worst on single-day and hourly views. On an N-day range only the two edge days differ, so it fades beyond
-    about two weeks.
-  - UTC buckets keep an exact invariant: the anonymous-visitor headline equals the sum of the daily bars. Keep this as a
-    regression test.
-- **Local time is a display aid only.** A permanent `UTC` badge sits beside the date picker; its popover shows the
-  viewer's local equivalent (for example "days run midnight to midnight UTC, 4pm PT"). The hourly axis is relabelled in
-  the viewer's local time, since hourly distinct counts are unaffected by id rotation. No count changes.
-- **No time zone picker, and no local-zone view for consented-only traffic.** Persistent ids would permit it, but it
-  creates two day boundaries in one UI, needs a zone parameter and DST handling in every pipe, and a pre-aggregated
-  per-UTC-day state cannot be re-cut into local days. The hourly local axis covers the launch-monitoring case. Revisit
-  only if owners ask.
+- The range is inclusive whole days, `date_from` to `date_to`, in the zone given by `tz` (an IANA name, default `UTC`;
+  an
+  unknown name makes the query fail instead of falling back). The query reads the instants from local midnight of the
+  first day to local midnight after the last. A single-day range switches the chart to hourly buckets; the headline is
+  still one distinct count for the whole day, not the sum of hours.
+- **Only endpoints that cut whole days or more take `tz`.** Below a day the client sends ISO 8601 instants
+  (`hourly_series` takes `from_at` and `to_at`, at most 744 hours) and converts the UTC hours it gets back to the
+  viewer's
+  zone for labels. The dashboard offers the hour grain while it fits 200 bars (8 days).
+- **The zone the dashboard uses:** the one in the URL (`tz=`), else the browser's. The header has a picker. The same
+  zone shapes the preset ranges ("Today", "Last 7 days") and the date picker's "today".
+- **Why local time.** Viewers read their dashboards in their own day; ids that expire at each visitor's midnight need no
+  global cutoff, and any range or granularity can be sliced. The cost is the caveat on anonymous numbers, which is
+  stated on the card:
+  - Anonymous ids are person-days, and a person whose zone differs from the viewed zone can count twice around a day
+    edge. How large the overcount is has not been measured; it depends on the audience mix of visitor zones.
+  - It matters most on single-day and hourly views and fades beyond about two weeks.
+- **How the state is kept.** Visitor and session state is kept per UTC hour (`visitor_state_hourly_mv`), so a range can
+  start and end on any whole-hour offset and still be a true distinct count (`uniqCombined64Merge` over the hours).
+  Half-hour zones (India, Nepal) cut inside an hour, so their two edge hours are approximate. If that ever matters,
+  build a state for the edge hours from `analytics_hits` and merge it with the hourly ones.
 - **Which timestamp.** Every event carries two. `timestamp` is generated by the sender and never overwritten; it is the
   partition and sort key, and all bucketing uses it. `reception_timestamp` is the first time any server of ours
   received the event, not the time Tinybird did. The proxy stamps it from its own clock and ignores any client value.
@@ -164,7 +179,8 @@ the top lists.
 - **Opt-in toggle** ("Include bot traffic", a switch, default off, in the URL so shared links reproduce the view).
   - Impact shown as a quiet line: "412 bot sessions hidden. Show". Hidden when zero.
   - When on, an amber "Including bots" chip and an "incl. bots" suffix on affected cards.
-  - Show counts and share, by channel and by landing page, in sessions. Bots almost never consent, so the effect lands on
+  - Show counts and share, by channel and by landing page, in sessions. Bots almost never consent, so the effect lands
+    on
     anonymous visitors, not known visitors.
 - **Classifier limits** (the current rule is a user-agent regex, `pipes.ts`):
   - False positives: the substring "bot" also matches some Android devices.
@@ -216,7 +232,7 @@ Sourced from official docs and source, accessed 2026-11-12. Items marked unverif
   default. Cookie and cookieless counts are blended in one number; no split is documented.
 - **Simple Analytics:** no visitor identity at all; a visit is a unique pageview, so there is no cross-visit dedupe.
   Bots hidden by default and retrievable via export. Reports follow the site zone; exports use UTC.
-- Report time zones for Umami and Matomo, and the distinct engine for Simple Analytics, are unverified.
+- The distinct engine for Simple Analytics is unverified.
 
 What this means for us:
 
@@ -226,8 +242,9 @@ What this means for us:
 - No surveyed tool lets you toggle bots back in the way we plan; only Simple Analytics offers the hidden sessions, via
   export.
 - No surveyed tool documents how to compare periods across a tracking-method change. Unverified for all four.
-- Plausible's salt rotates on UTC while its reports use the site zone, and no doc reconciles the two. We avoid the
-  problem by bucketing in UTC.
+- Plausible's salt rotates on UTC while its reports use the site zone, and no doc reconciles the two. We pass the
+  zone through instead: ids roll at the local midnight of the zone the visitor reports, and the dashboard is read in the
+  viewer's zone. The gap between the two is the caveat on the anonymous numbers.
 
 ## 11. Interface rules
 
@@ -237,12 +254,13 @@ Layout (separate cards grouped by what they measure; one chart series at a time,
  PEOPLE (browsers)                         ACTIVITY
  [Known visitors] [Anonymous visitors]         [Sessions]
  Not additive: known and anonymous are different people; sessions are a different unit.
- Chart: [Sessions | Known | Anonymous] selector, one series at a time   (Times in UTC)
+ Chart: [Sessions | Known | Anonymous] selector, one series at a time   (Times in the viewer's zone)
 ```
 
 - Labels and one-line caveats:
   - Known visitors: "Counted once per browser across the whole range. Only people who accepted tracking."
-  - Anonymous visitors: "Unique within a day only: a returning person counts again each day."
+  - Anonymous visitors: "Counted per visitor day, which ends at each visitor\u2019s own midnight: a returning person
+    counts again each day."
   - Sessions: "Browsing sessions; one person can make several."
   - Active sessions now: "Sessions with activity in the last 5 minutes."
 - Show the consented share (known sessions over all sessions) beside the visitor cards and channel rows.
@@ -266,10 +284,10 @@ Constraints that come straight from the definitions:
 - A pre-aggregated state answers only the filter combinations it keeps as dimensions, cannot be subtracted, and freezes
   the visitor key at write time. The existing `analytics_sessions_mv` is keyed by `session_id` with
   `device`/`browser`/`location` as `any(...)`, so it already loses multi-valued hits.
-- Per-UTC-day states cannot be re-cut into other zones. This is fine because the time zone decision is UTC.
+- States kept per UTC hour can be re-cut at any whole-hour zone offset, which is why the state is hourly (section 6).
 - State size is up to about 96 KiB per group at high cardinality, so a wide dimension cross-product bloats storage.
-- **Decided: both.** The unfiltered headline counts (D1 to D3) read `visitor_state_daily_mv`, which holds mergeable
-  `uniqCombined64State` states per UTC day, tenant, domain, bot flag and visitor class (`known`, `daily`, `legacy`).
+- **Decided: both.** The unfiltered headline counts (D1 to D3) read `visitor_state_hourly_mv`, which holds mergeable
+  `uniqCombined64State` states per UTC hour, tenant, domain, bot flag and visitor class (`known`, `daily`, `legacy`).
   Cross-filtered queries (section 7) read `analytics_hits` directly, because a state answers only the dimensions it
   keeps. Whether the volume needs the state at all is still **unverified**; it is cheap to keep and a deploy
   populates it from existing history (checked locally on 3 rows).
@@ -278,21 +296,23 @@ Constraints that come straight from the definitions:
 - `visitor_id` and `id_mode` are already columns of `analytics_hits`. **Built:** `is_bot` and `classifier_version`
   (`ua-regex-v1`) are stamped at ingest and stored; `analytics_hits` exposes `is_bot` and `visitor_key` (the
   `visitor_id`, else `legacy:` plus `session_id`, D6) and derives `device = 'bot'` from the stored flag. A sender cannot
-  set `is_bot`: the landing has no such column. **Built:** `visitor_state_daily_mv` with bots as separate rows, and the
-  `visitor_counts` endpoint that reads it (known, anonymous as person-days, legacy, sessions; bots out unless
-  `include_bots=1`; with a location, device or browser filter the same per-day states are built from `analytics_hits`,
+  set `is_bot`: the landing has no such column. **Built:** `visitor_state_hourly_mv` with bots as separate rows, and the
+  `visitor_counts` endpoint that reads it (known, anonymous as a distinct count of daily ids, legacy, sessions; bots out
+  unless
+  `include_bots=1`; with a location, device or browser filter the same hourly states are built from `analytics_hits`,
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
   `include_bots=1`. **Built:** `engagement` (page views, pages per session, bounce rate and average session length,
   weighted by session over the whole range, with the previous period and growth) and `daily_series` (one metric per day
   with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. **Built:**
-  `hourly_series`, the same metrics per UTC hour for ranges of at most seven days, shown for single-day ranges. It rolls
+  `hourly_series`, the same metrics per UTC hour between two ISO 8601 instants (at most 744 hours), shown for single-day
+  ranges and for ranges up to 8 days when the viewer chooses Hour. It rolls
   the hours up from `analytics_hits` at read time and has no materialization: a day for one tenant and domain is a range
   read on `analytics_events` (sorted by tenant, domain, timestamp), and the filtered `visitor_counts` path already scans
-  `analytics_hits` over longer ranges. Add an hourly materialization only if measured latency for a busy tenant justifies
+  `analytics_hits` over longer ranges. Add an hourly materialization only if measured latency for a busy tenant
+  justifies
   it; each hour counts its own distinct ids, so the hours can add up to more than the day.
 
 ## 13. Open items
 
 - **Unverified:** estimator error on real, skewed traffic (section 9 measures uniformly distinct ids).
 - **Unverified:** the production rollout date of `visitor_id` and how much existing traffic predates it.
-- **Unverified:** Plausible's rotation time zone and the report time zones of Umami, Matomo and Simple Analytics.

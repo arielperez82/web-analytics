@@ -188,6 +188,47 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards a valid tz to the endpoint", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("visitor_counts", "tz=America%2FNew_York"), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/visitor_counts.json?tz=America%2FNew_York");
+  });
+
+  it("rejects an invalid tz with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["Not/AZone", "x'; --", "New York"]) {
+      const query = new URLSearchParams({ tz: bad }).toString();
+      expect((await proxyEndpoint(request("visitor_counts", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("forwards an ISO 8601 window to the hourly series", async () => {
+    const { deps, calls } = createFakeDeps();
+    const query = new URLSearchParams({ from_at: "2026-11-10T05:00:00Z", to_at: "2026-11-11T05:00:00Z" }).toString();
+    const result = await proxyEndpoint(request("hourly_series", query), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe(
+      "http://tb.test/v0/pipes/hourly_series.json?from_at=2026-11-10T05%3A00%3A00Z&to_at=2026-11-11T05%3A00%3A00Z",
+    );
+  });
+
+  it("accepts an ISO 8601 instant with an offset", async () => {
+    const { deps } = createFakeDeps();
+    const query = new URLSearchParams({ from_at: "2026-11-10T00:00:00-05:00" }).toString();
+    expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(200);
+  });
+
+  it("rejects a malformed ISO 8601 window with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["tomorrow", "2026-11-10", "2026-11-10 05:00:00", "2026-11-10T05:00:00Z'; --"]) {
+      const query = new URLSearchParams({ from_at: bad }).toString();
+      expect((await proxyEndpoint(request("hourly_series", query), deps)).status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("ignores a caller tenant_id for conversions when pinned", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
     await proxyEndpoint(request("conversions", "tenant_id=someone-else&goal_path=/thanks"), deps);

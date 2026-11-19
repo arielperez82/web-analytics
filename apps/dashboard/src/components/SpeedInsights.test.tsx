@@ -11,7 +11,7 @@ afterEach(() => {
   removeFakeApi();
 });
 
-const params = { date_from: "2026-11-10", date_to: "2026-11-16", days: "7", domain: "a.example" };
+const params = { date_from: "2026-11-10", date_to: "2026-11-16", days: "7", domain: "a.example", tz: "Asia/Tokyo" };
 
 const vital = (metric_name: string, p75: number): ApiRow => ({
   domain: "a.example",
@@ -39,6 +39,7 @@ describe("SpeedInsights", () => {
       expect(query?.get("date_to")).toBe("2026-11-16");
       expect(query?.get("domain")).toBe("a.example");
       expect(query?.has("days")).toBe(false);
+      expect(query?.get("tz")).toBe("Asia/Tokyo");
     }
   });
 

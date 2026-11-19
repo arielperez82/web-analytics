@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RANGE_OPTIONS, type DashboardState } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
+import { localDay } from "@/lib/time-zone";
 
 const presetLabel = (days: number): string => (days === 1 ? "Today" : `Last ${days} days`);
 
@@ -17,14 +18,16 @@ const describe = (range: DashboardState["range"]): string =>
 
 export const DateRangePicker = ({
   range,
+  zone,
   onChange,
 }: {
   range: DashboardState["range"];
+  zone: string;
   onChange: (range: DashboardState["range"]) => void;
 }) => {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const current = rangeToParams(range, now);
+  const today = localDay(now, zone);
+  const current = rangeToParams(range, now, zone);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({ from: current.date_from, to: current.date_to });
   const normalized = normalizeRange(draft.from, draft.to, today);

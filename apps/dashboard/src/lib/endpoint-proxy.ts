@@ -1,4 +1,5 @@
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
+import { isValidTimeZone } from "./time-zone";
 
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
@@ -23,6 +24,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "web_vitals_timeseries",
 ];
 
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
+
 const UNPINNED_ONLY: readonly string[] = ["tenants"];
 
 const FORWARDED_PARAMS: readonly string[] = [
@@ -46,6 +49,9 @@ const FORWARDED_PARAMS: readonly string[] = [
   "include_bots",
   "goal_path",
   "goal_event",
+  "tz",
+  "from_at",
+  "to_at",
 ];
 
 export type ProxyDeps = {
@@ -92,6 +98,16 @@ export const proxyEndpoint = async (
   const goalEvent = query.get("goal_event");
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
+
+  for (const key of ["from_at", "to_at"]) {
+    const instant = query.get(key);
+    if (instant !== null && !ISO_INSTANT.test(instant))
+      return { status: 400, body: { error: `Invalid ${key}` } };
+  }
+
+  const tz = query.get("tz");
+  if (tz !== null && !isValidTimeZone(tz))
+    return { status: 400, body: { error: "Invalid tz" } };
 
   const qs = forwardedQuery(query, tenantId);
   const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;
