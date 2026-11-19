@@ -77,7 +77,8 @@ analytics.identify("user123", {
   [Identity modes and consent](#identity-modes-and-consent)). Without it the
   tracker treats consent as unknown and stays anonymous
 - `anonymousIdentity`: `'client'` (default) builds the anonymous ids in the
-  browser; `'proxy'` leaves them to a collector that mints them
+  browser; `'proxy'` leaves them to a collector that mints them and requires
+  `proxy` or `proxyUrl` (it throws at start without one)
 - `goals`: Pages that count as a conversion, as `{ name, path }` pairs. When a
   page view lands on `path` (a trailing slash is ignored; the match is exact),
   the tracker also records an event called `name`. Nothing is built in: each site

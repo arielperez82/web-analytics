@@ -244,6 +244,12 @@ const tinybirdAnalytics = (
     );
   }
 
+  if (config.anonymousIdentity === 'proxy' && !config.proxy && !config.proxyUrl) {
+    throw new Error(
+      "anonymousIdentity 'proxy' needs proxy or proxyUrl: without a collector nothing mints the anonymous ids"
+    );
+  }
+
   if (config.webVitals) {
     const sendMetric = (metric: WebVital): void => {
       try {

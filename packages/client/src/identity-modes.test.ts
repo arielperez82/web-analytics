@@ -94,6 +94,35 @@ describe('identity modes', () => {
     });
   });
 
+  describe('when the browser is told a proxy mints the ids', () => {
+    it.each([
+      ['a token only', {}],
+      ['a token and a host', { host: 'http://test.com' }],
+    ])('refuses to start with %s, since nothing would mint them', (_name, extra) => {
+      expect(() =>
+        tinybirdAnalytics({
+          token: 'test-token',
+          domain: 'example.com',
+          anonymousIdentity: 'proxy',
+          ...extra,
+        })
+      ).toThrow(/anonymousIdentity.*proxy/);
+    });
+
+    it.each([
+      ['proxy', { proxy: 'http://collector.test' }],
+      ['proxyUrl', { proxyUrl: 'http://collector.test/api/tracking' }],
+    ])('starts when %s names the collector', (_name, extra) => {
+      expect(() =>
+        tinybirdAnalytics({
+          domain: 'example.com',
+          anonymousIdentity: 'proxy',
+          ...extra,
+        })
+      ).not.toThrow();
+    });
+  });
+
   describe('when the visitor declined', () => {
     it('behaves like unknown consent: daily id, nothing stored', async () => {
       const analytics = tracker({ consent: consentOf('denied') });
@@ -108,6 +137,7 @@ describe('identity modes', () => {
       const analytics = tracker({
         consent: consentOf('denied'),
         anonymousIdentity: 'proxy',
+        proxyUrl: 'http://test.com/v0/events',
       });
 
       const sent = await sendAndCapture(() => analytics.page({}));
@@ -122,6 +152,7 @@ describe('identity modes', () => {
       const analytics = tracker({
         consent: consentOf('denied'),
         anonymousIdentity: 'proxy',
+        proxyUrl: 'http://test.com/v0/events',
       });
 
       const sent = await sendAndCapture(() => analytics.page({}));
