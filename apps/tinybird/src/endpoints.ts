@@ -12,6 +12,7 @@ import {
 } from "@tinybirdco/sdk";
 import { visitorClassSql } from "./payload-columns";
 import { dashboardToken } from "./tokens";
+import { tzParam, tzSql } from "./time-zone";
 
 // ============================================================================
 // Core Endpoints
@@ -95,15 +96,15 @@ const growthPercentSql = (current: string, previous: string): string =>
 const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): string => `
         {% if defined(location) or defined(device) or defined(browser) %}
         SELECT
-            toDate(timestamp) AS date,
+            toDate(toTimeZone(timestamp, ${tzSql})) AS date,
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors_state,
             uniqCombined64State(session_id) AS sessions_state,
             countState() AS hits_state
         FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT ${startColumn} FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+        WHERE timestamp >= (SELECT ${startColumn}_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -116,15 +117,15 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         GROUP BY date, period, visitor_class
         {% else %}
         SELECT
-            toDate(bucket) AS date,
+            toDate(toTimeZone(bucket, ${tzSql})) AS date,
             if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
             visitor_class,
             uniqCombined64MergeState(visitors) AS visitors_state,
             uniqCombined64MergeState(visits) AS sessions_state,
             countMergeState(hits) AS hits_state
         FROM visitor_state_hourly_mv
-        WHERE toDate(bucket) >= (SELECT ${startColumn} FROM date_calculations)
-            AND toDate(bucket) <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT ${startColumn}_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
             {% end %}
@@ -156,7 +157,10 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
-            current_start - period_days AS previous_start
+            current_start - period_days AS previous_start,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -205,6 +209,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     known_visitors: t.uint64(),
@@ -242,7 +247,10 @@ export const engagement = defineEndpoint("engagement", {
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
-            current_start - period_days AS previous_start
+            current_start - period_days AS previous_start,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -252,8 +260,8 @@ export const engagement = defineEndpoint("engagement", {
         SELECT DISTINCT session_id
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
-            AND toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            AND timestamp >= (SELECT previous_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -268,13 +276,13 @@ export const engagement = defineEndpoint("engagement", {
       sql: `
         SELECT
             session_id,
-            if(toDate(min(timestamp)) >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            if(min(timestamp) >= (SELECT current_start_at FROM date_calculations), 'current', 'previous') AS period,
             count() AS session_pageviews,
             toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT previous_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+        WHERE timestamp >= (SELECT previous_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -340,6 +348,7 @@ export const engagement = defineEndpoint("engagement", {
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     pageviews: t.uint64(),
@@ -374,7 +383,9 @@ export const dailySeries = defineEndpoint("daily_series", {
       sql: `
         SELECT
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
-            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -437,6 +448,7 @@ export const dailySeries = defineEndpoint("daily_series", {
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     date: t.date(),
@@ -468,7 +480,9 @@ export const hourlySeries = defineEndpoint("hourly_series", {
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS requested_end
         SELECT
             requested_start + throwIf(dateDiff('day', requested_start, requested_end) > 6, 'An hourly series covers at most 7 days') AS current_start,
-            requested_end AS current_end
+            requested_end AS current_end,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
     }),
     node({
@@ -482,8 +496,8 @@ export const hourlySeries = defineEndpoint("hourly_series", {
             uniqCombined64If(visitor_key, ${visitorClassSql} = 'daily') AS anonymous_count,
             count() AS pageviews_count
         FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+        WHERE timestamp >= (SELECT current_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -500,7 +514,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
       name: "hours",
       description: "Every hour of the range, so quiet hours show zero",
       sql: `
-        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32(toDateTime((SELECT current_start FROM date_calculations))), toUInt32(toDateTime((SELECT current_end FROM date_calculations))) + 86400, 3600))) AS hour
+        SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32((SELECT current_start_at FROM date_calculations)), toUInt32((SELECT current_end_at FROM date_calculations)), 3600))) AS hour
       `,
     }),
     node({
@@ -537,6 +551,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     date_to: p.string().optional().describe("Last UTC day, inclusive; at most 7 days after date_from"),
     metric: p.string().optional("sessions").describe("sessions, known, anonymous or pageviews"),
     ...crossFilterParams,
+    ...tzParam,
   },
   output: {
     hour: t.dateTime(),
@@ -815,7 +830,16 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             dateDiff('day', current_start, current_end) + 1 as period_days,
             timestampAdd(current_start, interval -period_days day) as previous_start,
             timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT current_start, current_end, previous_start, previous_end, period_days
+        SELECT
+            current_start,
+            current_end,
+            previous_start,
+            previous_end,
+            period_days,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
       `,
     }),
     node({
@@ -827,8 +851,8 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             uniq(session_id) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sessions_mv
-        WHERE date >= (SELECT current_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -848,8 +872,8 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             uniq(session_id) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sessions_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT previous_end FROM date_calculations)
+        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
+            AND bucket < (SELECT previous_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -912,6 +936,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
       .describe("Include previous period"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
+    ...tzParam,
   },
   output: {
     browser: t.string(),
@@ -946,7 +971,16 @@ export const topDevices = defineEndpoint("top_devices", {
             dateDiff('day', current_start, current_end) + 1 as period_days,
             timestampAdd(current_start, interval -period_days day) as previous_start,
             timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT current_start, current_end, previous_start, previous_end, period_days
+        SELECT
+            current_start,
+            current_end,
+            previous_start,
+            previous_end,
+            period_days,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
       `,
     }),
     node({
@@ -957,8 +991,8 @@ export const topDevices = defineEndpoint("top_devices", {
             uniq(session_id) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sessions_mv
-        WHERE date >= (SELECT current_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -977,8 +1011,8 @@ export const topDevices = defineEndpoint("top_devices", {
             uniq(session_id) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sessions_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT previous_end FROM date_calculations)
+        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
+            AND bucket < (SELECT previous_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1040,6 +1074,7 @@ export const topDevices = defineEndpoint("top_devices", {
       .describe("Include previous period"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
+    ...tzParam,
   },
   output: {
     device: t.string(),
@@ -1074,7 +1109,16 @@ export const topLocations = defineEndpoint("top_locations", {
             dateDiff('day', current_start, current_end) + 1 as period_days,
             timestampAdd(current_start, interval -period_days day) as previous_start,
             timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT current_start, current_end, previous_start, previous_end, period_days
+        SELECT
+            current_start,
+            current_end,
+            previous_start,
+            previous_end,
+            period_days,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
       `,
     }),
     node({
@@ -1085,8 +1129,8 @@ export const topLocations = defineEndpoint("top_locations", {
             uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_pages_mv
-        WHERE date >= (SELECT current_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1105,8 +1149,8 @@ export const topLocations = defineEndpoint("top_locations", {
             uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_pages_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT previous_end FROM date_calculations)
+        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
+            AND bucket < (SELECT previous_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1168,6 +1212,7 @@ export const topLocations = defineEndpoint("top_locations", {
       .describe("Include previous period"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
+    ...tzParam,
   },
   output: {
     location: t.string(),
@@ -1201,7 +1246,16 @@ export const topPages = defineEndpoint("top_pages", {
             dateDiff('day', current_start, current_end) + 1 as period_days,
             timestampAdd(current_start, interval -period_days day) as previous_start,
             timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT current_start, current_end, previous_start, previous_end, period_days
+        SELECT
+            current_start,
+            current_end,
+            previous_start,
+            previous_end,
+            period_days,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
       `,
     }),
     node({
@@ -1215,8 +1269,8 @@ export const topPages = defineEndpoint("top_pages", {
             uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_pages_mv
-        WHERE date >= (SELECT current_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1238,8 +1292,8 @@ export const topPages = defineEndpoint("top_pages", {
             uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_pages_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT previous_end FROM date_calculations)
+        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
+            AND bucket < (SELECT previous_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1301,6 +1355,7 @@ export const topPages = defineEndpoint("top_pages", {
       .describe("Include previous period"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
+    ...tzParam,
   },
   output: {
     pathname: t.string(),
@@ -1335,7 +1390,16 @@ export const topSources = defineEndpoint("top_sources", {
             dateDiff('day', current_start, current_end) + 1 as period_days,
             timestampAdd(current_start, interval -period_days day) as previous_start,
             timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT current_start, current_end, previous_start, previous_end, period_days
+        SELECT
+            current_start,
+            current_end,
+            previous_start,
+            previous_end,
+            period_days,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
+            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
       `,
     }),
     node({
@@ -1346,8 +1410,8 @@ export const topSources = defineEndpoint("top_sources", {
             uniqMerge(visits) as current_sessions,
             countMerge(hits) as current_hits
         FROM analytics_sources_mv
-        WHERE date >= (SELECT current_start FROM date_calculations)
-            AND date <= (SELECT current_end FROM date_calculations)
+        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
+            AND bucket < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1366,8 +1430,8 @@ export const topSources = defineEndpoint("top_sources", {
             uniqMerge(visits) as previous_sessions,
             countMerge(hits) as previous_hits
         FROM analytics_sources_mv
-        WHERE date >= (SELECT previous_start FROM date_calculations)
-            AND date <= (SELECT previous_end FROM date_calculations)
+        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
+            AND bucket < (SELECT previous_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1429,6 +1493,7 @@ export const topSources = defineEndpoint("top_sources", {
       .describe("Include previous period"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
+    ...tzParam,
   },
   output: {
     referrer: t.string(),
@@ -1453,7 +1518,11 @@ const channelDateNode = () =>
                 toDate(timestampAdd(today(), interval -7 day)) as current_start,
                 toDate(today()) as current_end
             {% end %}
-        SELECT current_start, current_end
+        SELECT
+            current_start,
+            current_end,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
       `,
   });
 
@@ -1479,8 +1548,8 @@ const channelVisitsNode = (extraColumns = "") =>
             argMin(current_domain, timestamp) as site_domain,
             count() as hits${extraColumns}
         FROM analytics_hits
-        WHERE toDate(timestamp) >= (SELECT current_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+        WHERE timestamp >= (SELECT current_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1508,8 +1577,8 @@ const channelVisitorCampaignsNode = () =>
         FROM analytics_hits
         WHERE visitor_id != ''
             AND id_mode IN ('daily_direct', 'daily_proxy')
-            AND toDate(timestamp) >= (SELECT current_start FROM date_calculations)
-            AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+            AND timestamp >= (SELECT current_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1560,6 +1629,7 @@ const channelParams = {
   tenant_id: p.string().optional().describe("Filter by tenant ID"),
   domain: p.string().optional().describe("Filter by domain"),
   include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
+  ...tzParam,
 };
 
 /**
@@ -1609,8 +1679,8 @@ const goalConvertedColumn = `,
                 SELECT session_id
                 FROM analytics_events
                 WHERE action = {{ String(goal_event, description="Name of the goal event, e.g. signup_completed") }}
-                    AND toDate(timestamp) >= (SELECT current_start FROM date_calculations)
-                    AND toDate(timestamp) <= (SELECT current_end FROM date_calculations)
+                    AND timestamp >= (SELECT current_start_at FROM date_calculations)
+                    AND timestamp < (SELECT current_end_at FROM date_calculations)
                     {% if defined(tenant_id) %}
                     AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
                     {% end %}
@@ -1736,13 +1806,15 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
               {% else %}
                   toDate(timestampAdd(today(), interval -7 day)) as current_start,
                   toDate(today()) as current_end
-              {% end %}
+              {% end %},
+              toDateTime(current_start, ${tzSql}) as current_start_at,
+              toDateTime(current_end + 1, ${tzSql}) as current_end_at
           SELECT
               session_id,
               ${pick}(${normalizedPath}, timestamp) as pathname
           FROM analytics_hits
-          WHERE toDate(timestamp) >= current_start
-              AND toDate(timestamp) <= current_end
+          WHERE timestamp >= current_start_at
+              AND timestamp < current_end_at
               {% if defined(tenant_id) %}
               AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
               {% end %}
@@ -1771,6 +1843,7 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
       ...crossFilterParams,
       skip: p.int32().optional(0).describe("Skip for pagination"),
       limit: p.int32().optional(50).describe("Limit for pagination"),
+      ...tzParam,
     },
     output: {
       pathname: t.string(),
