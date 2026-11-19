@@ -270,10 +270,23 @@ test('the chart granularity is chosen apart from what it counts', async ({
     .toBe('pageviews');
 });
 
-test('hours are not offered for a month', async ({ page }) => {
-  await stubApi(page, routes);
+test('a month shows hours in four-hour buckets', async ({ page }) => {
+  const api = await stubApi(page, routes);
   await signIn(page);
   await page.goto('/?days=30');
+
+  await page.getByRole('button', { name: 'Hour', exact: true }).click();
+
+  await expect
+    .poll(() => api.requestsTo('hourly_series').at(-1)?.get('bucket_hours'))
+    .toBe('4');
+  await expect(page.getByText('Sessions per 4 hours')).toBeVisible();
+});
+
+test('hours are not offered for ninety days', async ({ page }) => {
+  await stubApi(page, routes);
+  await signIn(page);
+  await page.goto('/?days=90');
 
   await expect(
     page.getByRole('button', { name: 'Hour', exact: true })

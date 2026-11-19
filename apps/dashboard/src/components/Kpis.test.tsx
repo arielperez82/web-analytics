@@ -211,6 +211,17 @@ describe("Kpis", () => {
     expect(query?.has("date_to")).toBe(false);
   });
 
+  it("steps down to four-hour buckets when the viewer asks for hours over a month", async () => {
+    const api = renderKpis({
+      params: { ...params, date_from: "2026-10-18", date_to: "2026-11-16" },
+      state: { ...state, grain: "hour" },
+    });
+
+    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
+    expect(api.requestsTo("hourly_series")[0]?.get("bucket_hours")).toBe("4");
+    expect(await screen.findByText(/per 4 hours/)).toBeTruthy();
+  });
+
   it("shows the UTC hours it gets on the clock of the zone", async () => {
     renderKpis({
       params: { ...params, date_from: "2026-11-10", date_to: "2026-11-10", tz: "America/New_York" },
@@ -287,8 +298,8 @@ describe("Kpis", () => {
     await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
   });
 
-  it("does not offer Hour for a range longer than the API will roll up", async () => {
-    renderKpis({ params: { ...params, date_from: "2026-10-18" } });
+  it("does not offer Hour for a range too long even for four-hour buckets", async () => {
+    renderKpis({ params: { ...params, date_from: "2026-08-18" } });
 
     const grain = await screen.findByRole("group", { name: "Chart granularity" });
     expect((within(grain).getByRole("button", { name: "Hour" }) as HTMLButtonElement).disabled).toBe(true);

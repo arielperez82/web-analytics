@@ -51,6 +51,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "goal_event",
   "tz",
   "from_at",
+  "bucket_hours",
   "to_at",
 ];
 
@@ -104,6 +105,10 @@ export const proxyEndpoint = async (
     if (instant !== null && !ISO_INSTANT.test(instant))
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
+
+  const bucket = query.get("bucket_hours");
+  if (bucket !== null && !(/^\d{1,2}$/.test(bucket) && Number(bucket) >= 1 && Number(bucket) <= 24))
+    return { status: 400, body: { error: "Invalid bucket_hours" } };
 
   const tz = query.get("tz");
   if (tz !== null && !isValidTimeZone(tz))

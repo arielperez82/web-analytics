@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import { type DashboardState, drillDay, type Grain } from "@/lib/dashboard-state";
-import { effectiveGrain, hourAvailable } from "@/lib/grain";
+import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import {
   APPROXIMATE_COUNT_NOTE,
   formatNumber,
@@ -84,6 +84,8 @@ export const Kpis = ({
   const engagement = useEndpoint<Row>("engagement", params).data?.[0];
   const grain = effectiveGrain({ grain: state.grain, params });
   const hourly = grain === "hour";
+  const bucket = hourBucket(params) ?? 1;
+  const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const { endpoint, key, unit } = hourly ? SERIES.hourly : SERIES.daily;
   const { data, loading, error } = useEndpoint<Row>(endpoint, {
     ...(hourly ? hourlyRequest(params) : params),
@@ -132,7 +134,7 @@ export const Kpis = ({
           growth={formatSignedPercent(field(engagement, "avg_session_sec_growth_percent"))}
         />
       </div>
-      <Panel title={hourly ? `${label} per hour` : `${label} per day · click a bar to drill in`}>
+      <Panel title={hourly ? `${label} per ${perHour}` : `${label} per day · click a bar to drill in`}>
         <div className="chart-controls">
           <div className="chart-metric" role="group" aria-label="Chart series">
             {METRICS.map((option) => (

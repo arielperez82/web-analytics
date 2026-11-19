@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hourWindow, zonedHour } from "./hour-window";
+import { hourlyRequest, hourWindow, zonedHour } from "./hour-window";
 
 describe("hourWindow", () => {
   it("is the UTC span of the local days", () => {
@@ -37,5 +37,12 @@ describe("zonedHour", () => {
     expect(zonedHour("2026-11-10 05:00:00", "America/New_York")).toBe("2026-11-10 00:00:00");
     expect(zonedHour("2026-11-10 23:00:00", "Asia/Tokyo")).toBe("2026-11-11 08:00:00");
     expect(zonedHour("2026-11-10 09:00:00", "UTC")).toBe("2026-11-10 09:00:00");
+  });
+});
+
+describe("hourlyRequest", () => {
+  it("asks for one-hour buckets for a day and four-hour buckets for a month", () => {
+    expect(hourlyRequest({ date_from: "2026-11-10", date_to: "2026-11-10" }).bucket_hours).toBe("1");
+    expect(hourlyRequest({ date_from: "2026-10-18", date_to: "2026-11-16" }).bucket_hours).toBe("4");
   });
 });
