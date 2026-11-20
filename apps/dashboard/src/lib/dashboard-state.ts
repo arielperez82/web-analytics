@@ -1,12 +1,30 @@
 import type { Filters } from "./filters";
 import { isValidTimeZone } from "./time-zone";
 
-export const RANGE_OPTIONS = [1, 7, 30, 90] as const;
 export const DEFAULT_DAYS = 7;
+
+export const PRESETS = ["yesterday", "this_week", "this_month", "this_year", "last_12_months", "all_time"] as const;
+export type Preset = (typeof PRESETS)[number];
+
+type Shortcut = { readonly label: string; readonly range: Range };
 
 export type Range =
   | { readonly days: number }
+  | { readonly preset: Preset }
   | { readonly from: string; readonly to: string };
+
+export const SHORTCUTS: readonly Shortcut[] = [
+  { label: "Yesterday", range: { preset: "yesterday" } },
+  { label: "Today", range: { days: 1 } },
+  { label: "Last 7 Days", range: { days: 7 } },
+  { label: "This Week", range: { preset: "this_week" } },
+  { label: "Last 30 Days", range: { days: 30 } },
+  { label: "This Month", range: { preset: "this_month" } },
+  { label: "Last 90 Days", range: { days: 90 } },
+  { label: "This Year", range: { preset: "this_year" } },
+  { label: "Last 12 Months", range: { preset: "last_12_months" } },
+  { label: "All Time", range: { preset: "all_time" } },
+];
 
 export type Grain = "day" | "hour";
 
@@ -33,8 +51,11 @@ const parseRange = (search: URLSearchParams): Range => {
   const from = search.get("from");
   const to = search.get("to");
   if (isRealDay(from) && isRealDay(to) && from <= to) return { from, to };
+  const preset = PRESETS.find((name) => name === search.get("range"));
+  if (preset !== undefined) return { preset };
   const days = Number(search.get("days"));
-  return RANGE_OPTIONS.some((option) => option === days) ? { days } : { days: DEFAULT_DAYS };
+  const known = SHORTCUTS.find((shortcut) => "days" in shortcut.range && shortcut.range.days === days);
+  return known !== undefined && "days" in known.range ? { days: known.range.days } : { days: DEFAULT_DAYS };
 };
 
 export const parseState = (search: URLSearchParams): DashboardState => {
@@ -61,9 +82,11 @@ export const toSearch = ({ range, grain, tenant, domain, filters, includeBots, t
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
-      : range.days === DEFAULT_DAYS
-        ? []
-        : [["days", String(range.days)]]),
+      : "preset" in range
+        ? [["range", range.preset]]
+        : range.days === DEFAULT_DAYS
+          ? []
+          : [["days", String(range.days)]]),
     ...(tenant !== undefined ? [["tenant", tenant]] : []),
     ...(domain ? [["domain", domain]] : []),
     ...(includeBots ? [["bots", "1"]] : []),
