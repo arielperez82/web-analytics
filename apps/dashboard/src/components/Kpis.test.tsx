@@ -279,7 +279,8 @@ describe("Kpis", () => {
   it("says that the lines can add up to more than the card", async () => {
     renderKpis();
 
-    expect(await screen.findByText("Lines are per-day counts and can add up to more than the card.")).toBeTruthy();
+    const note = await screen.findByText("Lines are per-day counts and can add up to more than the card.");
+    expect(note.className).toBe("footnote");
   });
 
   describe("the comparison control", () => {

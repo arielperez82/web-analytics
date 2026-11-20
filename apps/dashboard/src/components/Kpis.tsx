@@ -215,7 +215,7 @@ export const Kpis = ({
             <li className="previous">{`${state.compare === "last_week" ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`}</li>
           )}
         </ul>
-        <p className="muted">Lines are per-{unit} counts and can add up to more than the card.</p>
+        <small className="footnote">Lines are per-{unit} counts and can add up to more than the card.</small>
       </Panel>
     </>
   );

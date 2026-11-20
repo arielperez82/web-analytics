@@ -21,9 +21,26 @@ const routes = {
   top_browsers: [{ browser: "Chrome", sessions: 12 }, { browser: "Safari", sessions: 3 }],
 };
 
-const renderMenu = (filters: Filters = {}, onChange: (filters: Filters) => void = () => undefined) => {
+type Options = {
+  readonly includeBots?: boolean;
+  readonly onIncludeBotsChange?: (include: boolean) => void;
+};
+
+const renderMenu = (
+  filters: Filters = {},
+  onChange: (filters: Filters) => void = () => undefined,
+  { includeBots = false, onIncludeBotsChange = () => undefined }: Options = {},
+) => {
   const api = installFakeApi(routes);
-  render(<FilterMenu filters={filters} params={{ ...params, ...filters }} onChange={onChange} />);
+  render(
+    <FilterMenu
+      filters={filters}
+      params={{ ...params, ...filters }}
+      onChange={onChange}
+      includeBots={includeBots}
+      onIncludeBotsChange={onIncludeBotsChange}
+    />,
+  );
   return api;
 };
 
@@ -95,6 +112,26 @@ describe("FilterMenu", () => {
   it("counts the filters in use on its button", () => {
     renderMenu({ location: "ES", browser: "Chrome" });
 
+    expect(within(screen.getByRole("button", { name: /^Filters/ })).getByText("2")).toBeTruthy();
+  });
+
+  it("keeps bots out until the viewer includes them", async () => {
+    const onIncludeBotsChange = vi.fn();
+    renderMenu({}, undefined, { onIncludeBotsChange });
+    const user = await openMenu();
+
+    const box = screen.getByRole("checkbox", { name: "Include bots" }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await user.click(box);
+
+    expect(onIncludeBotsChange).toHaveBeenCalledWith(true);
+  });
+
+  it("shows bots as included, and counts that as a filter in use", async () => {
+    renderMenu({ location: "ES" }, undefined, { includeBots: true });
+    await openMenu();
+
+    expect((screen.getByRole("checkbox", { name: "Include bots" }) as HTMLInputElement).checked).toBe(true);
     expect(within(screen.getByRole("button", { name: /^Filters/ })).getByText("2")).toBeTruthy();
   });
 });
