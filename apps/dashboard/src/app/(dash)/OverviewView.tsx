@@ -8,10 +8,10 @@ import { REPORTS } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
 export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; goalErrors: readonly string[] }) => {
-  const { state, update, params } = useDashboardState();
+  const { state, update, params, comparison } = useDashboardState();
   return (
     <>
-      <Kpis state={state} params={params} onChange={update} />
+      <Kpis state={state} params={params} comparison={comparison} onChange={update} />
       {(goals.length > 0 || goalErrors.length > 0) && (
         <>
           <h2 className="section">Conversions <small>ignores device, location and browser filters</small></h2>

@@ -8,7 +8,7 @@ test('speed insights follow the dates of the chosen range', async ({
   const api = await stubApi(page, {
     visitor_counts: [],
     engagement: [],
-    daily_series: [],
+    series: [],
     top_locations: [],
     top_devices: [],
     top_browsers: [],

@@ -28,9 +28,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
 
 export type Grain = "day" | "hour";
 
+export type Compare = "last_week" | "off";
+
 export type DashboardState = {
   readonly range: Range;
   readonly grain?: Grain;
+  readonly compare?: Compare;
   readonly tenant?: string;
   readonly domain?: string;
   readonly filters: Filters;
@@ -44,6 +47,8 @@ export const isRealDay = (value: string | null): value is string =>
   value !== null &&
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+
+const isCompare = (value: string | null): value is Compare => value === "last_week" || value === "off";
 
 const isGrain = (value: string | null): boolean => value === "day" || value === "hour";
 
@@ -68,6 +73,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
     ...(domain ? { domain } : {}),
     ...(tz !== null && isValidTimeZone(tz) ? { tz } : {}),
     ...(search.get("bots") === "1" ? { includeBots: true } : {}),
+    ...(isCompare(search.get("compare")) ? { compare: search.get("compare") as Compare } : {}),
     ...(isGrain(search.get("grain")) ? { grain: search.get("grain") as Grain } : {}),
     filters: Object.fromEntries(
       FILTER_KEYS.flatMap((key) => {
@@ -78,7 +84,7 @@ export const parseState = (search: URLSearchParams): DashboardState => {
   };
 };
 
-export const toSearch = ({ range, grain, tenant, domain, filters, includeBots, tz }: DashboardState): string =>
+export const toSearch = ({ range, grain, compare, tenant, domain, filters, includeBots, tz }: DashboardState): string =>
   new URLSearchParams([
     ...("from" in range
       ? [["from", range.from], ["to", range.to]]
@@ -92,6 +98,7 @@ export const toSearch = ({ range, grain, tenant, domain, filters, includeBots, t
     ...(includeBots ? [["bots", "1"]] : []),
     ...(tz ? [["tz", tz]] : []),
     ...(grain ? [["grain", grain]] : []),
+    ...(compare ? [["compare", compare]] : []),
     ...FILTER_KEYS.flatMap((key) => {
       const value = filters[key];
       return value ? [[key, value]] : [];

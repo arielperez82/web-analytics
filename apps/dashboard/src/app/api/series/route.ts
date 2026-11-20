@@ -1,0 +1,25 @@
+import { getServerSession } from "next-auth";
+
+import { buildAuthOptions } from "@/lib/auth-options";
+import { loadSeries } from "@/lib/series-loader";
+
+export const dynamic = "force-dynamic";
+
+export const GET = async (request: Request) => {
+  const session = await getServerSession(buildAuthOptions(process.env));
+  const result = await loadSeries(
+    {
+      query: new URL(request.url).searchParams,
+      authenticated: Boolean(session?.user?.email),
+    },
+    {
+      tinybird: {
+        host: process.env.TINYBIRD_HOST ?? "",
+        token: process.env.TINYBIRD_TOKEN ?? "",
+      },
+      tenantId: process.env.DASHBOARD_TENANT_ID,
+      fetch,
+    },
+  );
+  return Response.json(result.body, { status: result.status });
+};

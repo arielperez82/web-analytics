@@ -13,6 +13,16 @@ export const stubApi = async (
   routes: Readonly<Record<string, Route>>
 ): Promise<FakeApi> => {
   const requests: { endpoint: string; query: URLSearchParams }[] = [];
+  await page.route('**/api/series*', async route => {
+    const url = new URL(route.request().url());
+    requests.push({ endpoint: 'series', query: url.searchParams });
+    const found = routes.series;
+    const points =
+      typeof found === 'function' ? found(url.searchParams) : (found ?? []);
+    await route.fulfill({
+      json: { grain: url.searchParams.get('grain') ?? 'day', points },
+    });
+  });
   await page.route('**/api/endpoints/*', async route => {
     const url = new URL(route.request().url());
     const endpoint = url.pathname.split('/').pop() ?? '';

@@ -37,11 +37,30 @@ const locations: readonly ApiRow[] = [
 const routes = {
   visitor_counts: [counts],
   engagement: [engagement],
-  daily_series: [{ date: '2026-11-10', value: 10, bar_percent: 100 }],
-  hourly_series: [
-    { hour: '2026-11-10 09:00:00', value: 7, bar_percent: 100 },
-    { hour: '2026-11-10 10:00:00', value: 2, bar_percent: 30 },
-  ],
+  series: (query: URLSearchParams): readonly ApiRow[] =>
+    query.get('grain') === 'hour'
+      ? [
+          {
+            label: '2026-11-10 09:00:00',
+            current: 7,
+            previousLabel: null,
+            previous: null,
+          },
+          {
+            label: '2026-11-10 10:00:00',
+            current: 2,
+            previousLabel: null,
+            previous: null,
+          },
+        ]
+      : [
+          {
+            label: '2026-11-10',
+            current: 10,
+            previousLabel: '2026-11-03',
+            previous: 4,
+          },
+        ],
   top_locations: locations,
   top_devices: [],
   top_browsers: [],
@@ -73,8 +92,8 @@ test('picking a country in the filter menu slices every widget by it', async ({
 
   await expect
     .poll(() =>
-      ['visitor_counts', 'engagement', 'daily_series', 'top_pages'].map(
-        endpoint => api.requestsTo(endpoint).at(-1)?.get('location')
+      ['visitor_counts', 'engagement', 'series', 'top_pages'].map(endpoint =>
+        api.requestsTo(endpoint).at(-1)?.get('location')
       )
     )
     .toEqual(['FR', 'FR', 'FR', 'FR']);
@@ -84,7 +103,7 @@ test('picking a country in the filter menu slices every widget by it', async ({
 const BOT_AWARE = [
   'visitor_counts',
   'engagement',
-  'daily_series',
+  'series',
   'top_locations',
   'top_devices',
   'top_browsers',
@@ -144,17 +163,19 @@ test('clicking a day on the chart shows that day hour by hour', async ({
   const api = await stubApi(page, routes);
   await signIn(page);
   await expect(page.getByText('Sessions per day')).toBeVisible();
-  expect(api.requestsTo('hourly_series')).toHaveLength(0);
+  expect(
+    api.requestsTo('series').filter(q => q.get('grain') === 'hour')
+  ).toHaveLength(0);
 
   await page.getByTitle('2026-11-10: 10').click();
 
   await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
   await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
-  const query = api.requestsTo('hourly_series').at(-1);
-  expect(query?.get('from_at')).toBe('2026-11-10T00:00:00Z');
-  expect(query?.get('to_at')).toBe('2026-11-11T00:00:00Z');
-  expect(query?.has('tz')).toBe(false);
+  const query = api.requestsTo('series').at(-1);
+  expect(query?.get('grain')).toBe('hour');
+  expect(query?.get('date_from')).toBe('2026-11-10');
+  expect(query?.get('date_to')).toBe('2026-11-10');
 });
 
 test('See all opens the full report for that widget', async ({ page }) => {
@@ -192,7 +213,7 @@ test('changing a filter does not move the layout below the chart', async ({
   const gate = new Promise<void>(resolve => {
     release = resolve;
   });
-  await page.route('**/api/endpoints/daily_series*', async route => {
+  await page.route('**/api/series*', async route => {
     await gate;
     await route.fallback();
   });
@@ -261,7 +282,9 @@ test('the chart granularity is chosen apart from what it counts', async ({
 }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  expect(api.requestsTo('hourly_series')).toHaveLength(0);
+  expect(
+    api.requestsTo('series').filter(q => q.get('grain') === 'hour')
+  ).toHaveLength(0);
 
   await page.getByRole('button', { name: 'Hour', exact: true }).click();
 
@@ -269,7 +292,7 @@ test('the chart granularity is chosen apart from what it counts', async ({
   await expect(page.getByText('Sessions per hour')).toBeVisible();
   await page.getByRole('button', { name: 'Pageviews' }).click();
   await expect
-    .poll(() => api.requestsTo('hourly_series').at(-1)?.get('metric'))
+    .poll(() => api.requestsTo('series').at(-1)?.get('metric'))
     .toBe('pageviews');
 });
 
@@ -281,8 +304,8 @@ test('a month shows hours in four-hour buckets', async ({ page }) => {
   await page.getByRole('button', { name: 'Hour', exact: true }).click();
 
   await expect
-    .poll(() => api.requestsTo('hourly_series').at(-1)?.get('bucket_hours'))
-    .toBe('4');
+    .poll(() => api.requestsTo('series').at(-1)?.get('grain'))
+    .toBe('hour');
   await expect(page.getByText('Sessions per 4 hours')).toBeVisible();
 });
 
@@ -296,7 +319,7 @@ test('hours are not offered for ninety days', async ({ page }) => {
   ).toBeDisabled();
 });
 
-test('the granularity toggle sits right of the metric keys', async ({
+test('the granularity and comparison toggles sit right of the metric keys', async ({
   page,
 }) => {
   await stubApi(page, routes);
@@ -308,11 +331,17 @@ test('the granularity toggle sits right of the metric keys', async ({
   const grain = await page
     .getByRole('group', { name: 'Chart granularity' })
     .boundingBox();
+  const compare = await page
+    .getByRole('group', { name: 'Compare to' })
+    .boundingBox();
   const panel = await page
     .getByRole('group', { name: 'Sessions chart' })
     .boundingBox();
   expect(grain?.x).toBeGreaterThan((keys?.x ?? Infinity) + (keys?.width ?? 0));
-  expect((grain?.x ?? 0) + (grain?.width ?? 0)).toBeGreaterThan(
+  expect(compare?.x).toBeGreaterThan(
+    (grain?.x ?? Infinity) + (grain?.width ?? 0)
+  );
+  expect((compare?.x ?? 0) + (compare?.width ?? 0)).toBeGreaterThan(
     (panel?.x ?? 0) + (panel?.width ?? 0) - 40
   );
 });
@@ -352,7 +381,7 @@ test('a shortcut stays in the link, and the API only ever sees dates', async ({
 const ZONE_AWARE = [
   'visitor_counts',
   'engagement',
-  'daily_series',
+  'series',
   'top_locations',
   'top_pages',
   'channels',
@@ -396,4 +425,28 @@ test.describe('time zone', () => {
       page.getByText('which ends at each visitor’s own midnight')
     ).toBeVisible();
   });
+});
+
+test('the chart is compared with the period before it until the viewer switches that off', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+
+  await expect
+    .poll(() => api.requestsTo('series').at(-1)?.get('compare_from'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(page.getByLabel('Chart legend')).toContainText(
+    'Previous period'
+  );
+
+  await page
+    .getByRole('group', { name: 'Compare to' })
+    .getByRole('button', { name: 'Off' })
+    .click();
+
+  await expect(page).toHaveURL(/compare=off/);
+  await expect
+    .poll(() => api.requestsTo('series').at(-1)?.has('compare_from'))
+    .toBe(false);
 });

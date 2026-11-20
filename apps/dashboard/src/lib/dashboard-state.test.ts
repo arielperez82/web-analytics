@@ -201,3 +201,29 @@ describe("time zone in the URL", () => {
     });
   });
 });
+
+describe("what the chart is compared with, in the link", () => {
+  it("compares with the previous period unless told otherwise", () => {
+    expect(parse("").compare).toBeUndefined();
+  });
+
+  it("reads the same day last week and the choice to compare nothing", () => {
+    expect(parse("compare=last_week").compare).toBe("last_week");
+    expect(parse("compare=off").compare).toBe("off");
+  });
+
+  it("ignores anything else, including an explicit previous", () => {
+    expect(parse("compare=yesterday").compare).toBeUndefined();
+    expect(parse("compare=previous").compare).toBeUndefined();
+  });
+
+  it("writes nothing for the default and the choice otherwise, and round-trips it", () => {
+    expect(toSearch({ range: { days: 7 }, filters: {} })).toBe("");
+    expect(toSearch({ range: { days: 7 }, filters: {}, compare: "off" })).toBe("compare=off");
+    expect(parse(toSearch({ range: { days: 1 }, filters: {}, compare: "last_week" })).compare).toBe("last_week");
+  });
+
+  it("keeps the choice when drilling into a day", () => {
+    expect(drillDay({ range: { days: 7 }, filters: {}, compare: "off" }, "2026-11-10").compare).toBe("off");
+  });
+});

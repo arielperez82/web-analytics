@@ -19,6 +19,11 @@ what it receives.
 - Also allowed: display scaling. Chart axis ticks and label spacing are chosen in the UI (`src/lib/chart-axis.ts`) from
   the range of the rows the API returned. Ticks are labels, not figures: bar heights still come from the API's
   `bar_percent`, and no tick is ever shown as a measurement.
+- Also allowed on the dashboard server, never in the client: arranging what several endpoint calls return into one
+  shape for the screen. `GET /api/series` fetches a series and its comparison range, aligns them by position and
+  leaves a missing counterpart empty (`src/lib/series-loader.ts`, `src/lib/series-comparison.ts`). It does not sum,
+  average or derive a figure; the client only renders what it receives, scaling the line chart to the values it was
+  given the way it scales axis ticks.
 - Not allowed: adding, averaging, dividing or comparing values from the API, including across rows. A range total comes
   from one call over the whole range, never from summing per-day rows.
 - If a screen needs a figure no endpoint returns, add or extend an endpoint (with an acceptance test) before writing

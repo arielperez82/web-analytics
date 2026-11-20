@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { xLabels, yTicks } from "./chart-axis";
+import { lineHeights, xLabels, yTicks } from "./chart-axis";
 
 describe("yTicks", () => {
   it("marks the top, the middle and zero, placed where the bars put them", () => {
@@ -74,5 +74,29 @@ describe("xLabels", () => {
 
   it("returns nothing for no bars", () => {
     expect(xLabels([], "day")).toEqual([]);
+  });
+});
+
+describe("lineHeights", () => {
+  it("draws both lines on one scale, against the highest value of either", () => {
+    expect(
+      lineHeights([
+        { current: 10, previous: 40 },
+        { current: 20, previous: 5 },
+      ]),
+    ).toEqual({ current: [25, 50], previous: [100, 12.5] });
+  });
+
+  it("leaves a missing comparison empty instead of drawing it at zero", () => {
+    expect(lineHeights([{ current: 4, previous: null }]).previous).toEqual([null]);
+  });
+
+  it("draws a real zero on the floor", () => {
+    expect(lineHeights([{ current: 0, previous: 8 }]).current).toEqual([0]);
+  });
+
+  it("keeps everything on the floor when nothing was counted", () => {
+    expect(lineHeights([{ current: 0, previous: 0 }])).toEqual({ current: [0], previous: [0] });
+    expect(lineHeights([])).toEqual({ current: [], previous: [] });
   });
 });
