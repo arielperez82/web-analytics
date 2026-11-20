@@ -9,6 +9,12 @@ export const FILTER_LABEL_KEYS: Readonly<Record<FilterKey, string>> = {
   browser: "browser",
 };
 
+export const FILTER_TITLE: Readonly<Record<FilterKey, string>> = {
+  location: "Country",
+  device: "Device",
+  browser: "Browser",
+};
+
 export const toggleFilter = (
   filters: Filters,
   key: FilterKey,

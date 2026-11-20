@@ -7,6 +7,8 @@ import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
 
+import { TimeZonePicker } from "./TimeZonePicker";
+
 const presetLabel = (days: number): string => (days === 1 ? "Today" : `Last ${days} days`);
 
 const describe = (range: DashboardState["range"]): string =>
@@ -20,10 +22,12 @@ export const DateRangePicker = ({
   range,
   zone,
   onChange,
+  onZoneChange,
 }: {
   range: DashboardState["range"];
   zone: string;
   onChange: (range: DashboardState["range"]) => void;
+  onZoneChange: (zone: string) => void;
 }) => {
   const now = new Date();
   const today = localDay(now, zone);
@@ -45,7 +49,7 @@ export const DateRangePicker = ({
           setOpen(!open);
         }}
       >
-        {describe(range)} ▾
+        {describe(range)} · {zone} ▾
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Date range">
@@ -60,6 +64,10 @@ export const DateRangePicker = ({
               </button>
             ))}
           </div>
+          <label className="zone">
+            Time zone
+            <TimeZonePicker zone={zone} onChange={onZoneChange} />
+          </label>
           <div className="custom">
             <label>
               From

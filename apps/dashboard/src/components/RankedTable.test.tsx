@@ -38,7 +38,6 @@ const renderTable = (overrides: Overrides = {}, data: readonly ApiRow[] = rows) 
       report={report("locations")}
       state={state}
       params={params}
-      onPick={() => undefined}
       {...overrides}
     />,
   );
@@ -105,7 +104,7 @@ describe("RankedTable", () => {
 
   it("shows no growth column for a report that has no previous period", async () => {
     const api = installFakeApi({ channels: [{ channel: "Organic", sessions: 5, hits: 6, bar_percent: 100 }] });
-    render(<RankedTable report={report("channels")} state={state} params={params} onPick={() => undefined} detail />);
+    render(<RankedTable report={report("channels")} state={state} params={params} detail />);
 
     await screen.findByText("Organic");
     expect(screen.queryByText("vs previous")).toBeNull();
@@ -121,32 +120,13 @@ describe("RankedTable", () => {
     expect(query?.get("date_from")).toBe("2026-11-10");
   });
 
-  it("filters by the row the viewer picks", async () => {
-    const picked: (readonly [string, string])[] = [];
-    renderTable({ onPick: (key, value) => picked.push([key, value]) });
-    const user = userEvent.setup();
-
-    await user.click(await rowOf("FR"));
-
-    expect(picked).toEqual([["location", "FR"]]);
-  });
-
-  it("marks the row that is already filtered", async () => {
+  it("leaves filtering to the filter menu: no hint, rows are not clickable", async () => {
     renderTable({ state: { ...state, filters: { location: "FR" } } });
 
-    expect((await rowOf("FR")).className).toBe("picked");
-    expect((await rowOf("ES")).className).toBe("");
-  });
-
-  it("does not offer a filter on a report that cannot filter", async () => {
-    const picked: string[] = [];
-    installFakeApi({ top_pages: [{ pathname: "/a", sessions: 1, hits: 1, bar_percent: 100 }] });
-    render(<RankedTable report={report("pages")} state={state} params={params} onPick={(_, v) => picked.push(v)} />);
-    const user = userEvent.setup();
-
-    await user.click(await rowOf("/a"));
-
-    expect(picked).toEqual([]);
+    const row = await rowOf("FR");
+    expect(screen.queryByText("Click a row to filter")).toBeNull();
+    expect(row.style.cursor).toBe("");
+    expect(row.className).toBe("");
   });
 
   it("offers Show more only when the page is full", async () => {
@@ -175,18 +155,6 @@ describe("RankedTable", () => {
     renderTable();
 
     expect(await screen.findByRole("heading", { name: "Locations" })).toBeTruthy();
-  });
-
-  it("tells the viewer a row filters, only on reports that can filter", async () => {
-    renderTable();
-    expect(await screen.findByText("Click a row to filter")).toBeTruthy();
-    cleanup();
-    removeFakeApi();
-
-    installFakeApi({ top_pages: [{ pathname: "/a", visits: 1, hits: 1, bar_percent: 100 }] });
-    render(<RankedTable report={report("pages")} state={state} params={params} onPick={() => undefined} />);
-    await screen.findByText("/a");
-    expect(screen.queryByText("Click a row to filter")).toBeNull();
   });
 
   it("leaves See all off the detail view", async () => {

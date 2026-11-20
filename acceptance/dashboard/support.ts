@@ -45,3 +45,12 @@ export const signIn = async (page: Page): Promise<void> => {
     timeout: 30_000,
   });
 };
+
+export const pickFilter = async (
+  page: Page,
+  title: string,
+  value: string
+): Promise<void> => {
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByLabel(title, { exact: true }).selectOption(value);
+};
