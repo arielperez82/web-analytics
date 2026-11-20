@@ -1,5 +1,5 @@
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
-import { isValidTimeZone } from "./time-zone";
+import { isValidTimeZone, localDay } from "./time-zone";
 
 export const ALLOWED_ENDPOINTS: readonly string[] = [
   "current_visitors",
@@ -80,6 +80,41 @@ const forwardedQuery = (
     ).map((key) => [key, query.get(key) ?? ""] as [string, string]),
   ]).toString();
 
+const BEFORE_ANY_DATA = "2010-01-01";
+
+const pipeUrl = (host: string, name: string, qs: string): string =>
+  [`${host}/v0/pipes/${name}.json`, qs].filter(Boolean).join("?");
+
+const earliestDay = async (
+  query: URLSearchParams,
+  { tinybird, tenantId, fetch }: ProxyDeps,
+): Promise<string | undefined> => {
+  const tenant = tenantId ?? query.get("tenant_id");
+  const qs = new URLSearchParams(tenant ? [["tenant_id", tenant]] : []).toString();
+  try {
+    const response = await fetch(pipeUrl(tinybird.host, "domains", qs), {
+      headers: { Authorization: `Bearer ${tinybird.token}` },
+    });
+    if (!response.ok) return undefined;
+    const { data } = (await response.json()) as { data?: readonly { first_seen?: string }[] };
+    const first = (data ?? []).map((row) => row.first_seen ?? "").filter(Boolean).sort()[0];
+    return first ? localDay(new Date(`${first.replace(" ", "T")}Z`), query.get("tz") ?? "UTC") : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const startingAtFirstData = async (
+  name: string,
+  query: URLSearchParams,
+  deps: ProxyDeps,
+): Promise<URLSearchParams> => {
+  const from = query.get("date_from");
+  if (name !== "daily_series" || from === null || from >= BEFORE_ANY_DATA) return query;
+  const first = await earliestDay(query, deps);
+  return first && first > from ? new URLSearchParams([...query.entries()].map(([k, v]) => [k, k === "date_from" ? first : v])) : query;
+};
+
 const upstreamError: ProxyResult = {
   status: 502,
   body: { error: "Upstream error" },
@@ -114,8 +149,8 @@ export const proxyEndpoint = async (
   if (tz !== null && !isValidTimeZone(tz))
     return { status: 400, body: { error: "Invalid tz" } };
 
-  const qs = forwardedQuery(query, tenantId);
-  const url = `${tinybird.host}/v0/pipes/${name}.json${qs ? `?${qs}` : ""}`;
+  const qs = forwardedQuery(await startingAtFirstData(name, query, { tinybird, tenantId, fetch }), tenantId);
+  const url = pipeUrl(tinybird.host, name, qs);
 
   try {
     const response = await fetch(url, {

@@ -204,6 +204,59 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  describe("a daily series that starts before the first data", () => {
+    const withDomains = (firstSeen: readonly string[]) => {
+      const calls: string[] = [];
+      const deps: ProxyDeps = {
+        tinybird: { host: "http://tb.test", token: "secret-token" },
+        fetch: async (url) => {
+          calls.push(String(url));
+          const body = String(url).includes("/domains.json")
+            ? { data: firstSeen.map((first_seen) => ({ domain: "a.com", first_seen })) }
+            : { data: [] };
+          return new Response(JSON.stringify(body), { status: 200 });
+        },
+      };
+      return { deps, calls };
+    };
+
+    it("starts at the earliest day with data instead of filling the empty years", async () => {
+      const { deps, calls } = withDomains(["2026-03-05 10:00:00", "2026-02-11 08:30:00"]);
+      await proxyEndpoint(request("daily_series", "date_from=1970-01-01&date_to=2026-11-18&tenant_id=t"), deps);
+      expect(calls.at(-1)).toContain("date_from=2026-02-11");
+      expect(calls[0]).toBe("http://tb.test/v0/pipes/domains.json?tenant_id=t");
+    });
+
+    it("reads the first day on the clock of the viewer's zone", async () => {
+      const { deps, calls } = withDomains(["2026-02-11 02:00:00"]);
+      await proxyEndpoint(
+        request("daily_series", "date_from=1970-01-01&date_to=2026-11-18&tz=America%2FNew_York"),
+        deps,
+      );
+      expect(calls.at(-1)).toContain("date_from=2026-02-10");
+    });
+
+    it("leaves a start that is already after the first data alone, without asking for the domains", async () => {
+      const { deps, calls } = withDomains(["2026-02-11 08:30:00"]);
+      await proxyEndpoint(request("daily_series", "date_from=2026-06-01&date_to=2026-06-30"), deps);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain("date_from=2026-06-01");
+    });
+
+    it("keeps the requested start when there is no data to find", async () => {
+      const { deps, calls } = withDomains([]);
+      await proxyEndpoint(request("daily_series", "date_from=1970-01-01&date_to=2026-11-18"), deps);
+      expect(calls.at(-1)).toContain("date_from=1970-01-01");
+    });
+
+    it("leaves other endpoints alone", async () => {
+      const { deps, calls } = withDomains(["2026-02-11 08:30:00"]);
+      await proxyEndpoint(request("visitor_counts", "date_from=1970-01-01&date_to=2026-11-18"), deps);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain("date_from=1970-01-01");
+    });
+  });
+
   it("forwards an ISO 8601 window to the hourly series", async () => {
     const { deps, calls } = createFakeDeps();
     const query = new URLSearchParams({ from_at: "2026-11-10T05:00:00Z", to_at: "2026-11-11T05:00:00Z" }).toString();
