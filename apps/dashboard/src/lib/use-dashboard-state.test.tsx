@@ -43,6 +43,41 @@ describe("useDashboardState", () => {
     expect(result.current.params.date_to).toBe("2026-11-07");
   });
 
+  describe("the range the chart is compared with", () => {
+    const comparisonOf = (query: string, now = "2026-11-18T12:00:00Z") => {
+      vi.useFakeTimers({ now: new Date(now) });
+      search = `${query}&tz=UTC`;
+      const { result } = renderHook(() => useDashboardState());
+      vi.useRealTimers();
+      return result.current.comparison;
+    };
+
+    it("is the range just before it by default", () => {
+      expect(comparisonOf("days=7")).toEqual({ compare_from: "2026-11-05", compare_to: "2026-11-11" });
+    });
+
+    it("is the same days a week earlier when asked", () => {
+      expect(comparisonOf("days=1&compare=last_week")).toEqual({ compare_from: "2026-11-11", compare_to: "2026-11-11" });
+    });
+
+    it("is nothing when switched off", () => {
+      expect(comparisonOf("days=7&compare=off")).toBeUndefined();
+    });
+
+    it("is nothing for all time", () => {
+      expect(comparisonOf("range=all_time")).toBeUndefined();
+    });
+
+    it("counts days on the calendar of the zone", () => {
+      vi.useFakeTimers({ now: new Date("2026-11-18T02:00:00Z") });
+      search = "days=1&tz=America%2FNew_York";
+      const { result } = renderHook(() => useDashboardState());
+      vi.useRealTimers();
+
+      expect(result.current.comparison).toEqual({ compare_from: "2026-11-16", compare_to: "2026-11-16" });
+    });
+  });
+
   it("writes the browser time zone into a URL that has none, so a shared link reads the same everywhere", () => {
     search = "days=30&domain=a.example";
     renderHook(() => useDashboardState());

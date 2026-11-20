@@ -3,7 +3,8 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { hrefFor, parseState, type DashboardState } from "./dashboard-state";
+import { comparisonRange } from "./comparison-range";
+import { type DashboardState,hrefFor, parseState } from "./dashboard-state";
 import { rangeToParams } from "./time-range";
 import { browserTimeZone } from "./time-zone";
 
@@ -38,5 +39,15 @@ export const useDashboardState = () => {
     }),
     [state, zone],
   );
-  return { state, update, params, zone };
+  const comparison = useMemo(() => {
+    if (state.compare === "off") return undefined;
+    const range = comparisonRange({
+      range: state.range,
+      now: new Date(),
+      zone,
+      mode: state.compare ?? "previous",
+    });
+    return range === undefined ? undefined : { compare_from: range.date_from, compare_to: range.date_to };
+  }, [state, zone]);
+  return { state, update, params, comparison, zone };
 };
