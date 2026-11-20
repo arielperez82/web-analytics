@@ -3,14 +3,12 @@
 import { ConversionsPanel } from "@/components/ConversionsPanel";
 import { Kpis } from "@/components/Kpis";
 import { RankedTable } from "@/components/RankedTable";
-import { type FilterKey,toggleFilter } from "@/lib/filters";
 import { type Goal, isEventGoal } from "@/lib/goals";
 import { REPORTS } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
 export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; goalErrors: readonly string[] }) => {
   const { state, update, params } = useDashboardState();
-  const pick = (key: FilterKey, value: string) => update({ ...state, filters: toggleFilter(state.filters, key, value) });
   return (
     <>
       <Kpis state={state} params={params} onChange={update} />
@@ -30,7 +28,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
       <h2 className="section">Breakdowns</h2>
       <div className="grid">
         {REPORTS.map((report) => (
-          <RankedTable key={report.slug} report={report} state={state} params={params} onPick={pick} />
+          <RankedTable key={report.slug} report={report} state={state} params={params} />
         ))}
       </div>
     </>
