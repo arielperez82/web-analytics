@@ -179,5 +179,25 @@ describe("time zone in the URL", () => {
   it("keeps the zone when drilling into a day", () => {
     expect(drillDay({ ...parse("tz=Asia%2FTokyo") }, "2026-11-02").tz).toBe("Asia/Tokyo");
   });
-});
 
+  describe("calendar shortcuts in the link", () => {
+    it("reads a shortcut by name", () => {
+      expect(parse("range=this_week").range).toEqual({ preset: "this_week" });
+    });
+
+    it("ignores a shortcut it does not know", () => {
+      expect(parse("range=forever").range).toEqual({ days: 7 });
+    });
+
+    it("prefers a custom range over a shortcut", () => {
+      expect(parse("range=this_week&from=2026-11-01&to=2026-11-03").range).toEqual({
+        from: "2026-11-01",
+        to: "2026-11-03",
+      });
+    });
+
+    it("writes the shortcut by name, so the link follows the calendar", () => {
+      expect(toSearch({ range: { preset: "this_month" }, filters: {} })).toBe("range=this_month");
+    });
+  });
+});

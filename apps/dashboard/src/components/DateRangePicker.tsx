@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 
-import { RANGE_OPTIONS, type DashboardState } from "@/lib/dashboard-state";
+import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
 
 import { TimeZonePicker } from "./TimeZonePicker";
 
-const presetLabel = (days: number): string => (days === 1 ? "Today" : `Last ${days} days`);
+const sameRange = (a: DashboardState["range"], b: DashboardState["range"]): boolean =>
+  "days" in a ? "days" in b && a.days === b.days : "preset" in a && "preset" in b && a.preset === b.preset;
 
 const describe = (range: DashboardState["range"]): string =>
   "from" in range
     ? range.from === range.to
       ? range.from
       : `${range.from} → ${range.to}`
-    : presetLabel(range.days);
+    : (SHORTCUTS.find((shortcut) => sameRange(shortcut.range, range))?.label ?? "");
 
 export const DateRangePicker = ({
   range,
@@ -54,13 +55,9 @@ export const DateRangePicker = ({
       {open && (
         <div className="popover" role="dialog" aria-label="Date range">
           <div className="presets">
-            {RANGE_OPTIONS.map((days) => (
-              <button
-                key={days}
-                aria-pressed={"days" in range && range.days === days}
-                onClick={() => choose({ days })}
-              >
-                {presetLabel(days)}
+            {SHORTCUTS.map(({ label, range: shortcut }) => (
+              <button key={label} aria-pressed={sameRange(shortcut, range)} onClick={() => choose(shortcut)}>
+                {label}
               </button>
             ))}
           </div>

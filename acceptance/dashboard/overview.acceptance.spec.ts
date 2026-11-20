@@ -329,6 +329,25 @@ test('filtering lives in the Filters menu, not in the widgets', async ({
   await expect(page.getByLabel('Browser', { exact: true })).toBeVisible();
 });
 
+test('a shortcut stays in the link, and the API only ever sees dates', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+
+  await page.getByRole('button', { name: /Last 7 Days/ }).click();
+  await page.getByRole('button', { name: 'This Week' }).click();
+
+  await expect(page).toHaveURL(/range=this_week/);
+  await expect
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('date_from'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const query = api.requestsTo('visitor_counts').at(-1);
+  expect(query?.get('date_to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(query?.has('range')).toBe(false);
+  expect(query?.has('days')).toBe(false);
+});
+
 const ZONE_AWARE = [
   'visitor_counts',
   'engagement',
