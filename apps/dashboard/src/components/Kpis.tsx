@@ -196,7 +196,7 @@ export const Kpis = ({
             </div>
           </div>
         </div>
-        <p className="muted">Bars are per-{unit} counts and can add up to more than the card.</p>
+        <small className="footnote">Bars are per-{unit} counts and can add up to more than the card.</small>
       </Panel>
     </>
   );
