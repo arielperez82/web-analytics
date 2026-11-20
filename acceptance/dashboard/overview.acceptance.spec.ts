@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { type ApiRow, signIn, stubApi } from './support';
+import { type ApiRow, pickFilter, signIn, stubApi } from './support';
 
 test.use({ timezoneId: 'UTC' });
 
@@ -63,11 +63,13 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
 
-test('picking a location slices every widget by it', async ({ page }) => {
+test('picking a country in the filter menu slices every widget by it', async ({
+  page,
+}) => {
   const api = await stubApi(page, routes);
   await signIn(page);
 
-  await page.getByRole('cell', { name: 'FR', exact: true }).click();
+  await pickFilter(page, 'Country', 'FR');
 
   await expect
     .poll(() =>
@@ -193,7 +195,7 @@ test('changing a filter does not move the layout below the chart', async ({
     await gate;
     await route.fallback();
   });
-  await page.getByText('ES', { exact: true }).click();
+  await pickFilter(page, 'Country', 'ES');
   await expect(page.getByText('Loading…').first()).toBeVisible();
   const heightWhileLoading = (await main.boundingBox())?.height;
   release();
@@ -245,7 +247,7 @@ test('says whether the figures are filtered, and by what', async ({ page }) => {
 
   await expect(page.getByText('Showing all traffic.')).toBeVisible();
 
-  await page.getByRole('cell', { name: 'FR', exact: true }).click();
+  await pickFilter(page, 'Country', 'FR');
 
   await expect(page.getByText('Showing all traffic.')).toHaveCount(0);
   await expect(
@@ -314,16 +316,17 @@ test('the granularity toggle sits right of the metric keys', async ({
   );
 });
 
-test('only the breakdowns that filter say so, inside their panel', async ({
+test('filtering lives in the Filters menu, not in the widgets', async ({
   page,
 }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  await expect(
-    page.getByText('click a row to filter every figure above')
-  ).toHaveCount(0);
-  await expect(page.getByText('Click a row to filter')).toHaveCount(3);
+  await expect(page.getByText('Click a row to filter')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await expect(page.getByLabel('Country', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Device', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Browser', { exact: true })).toBeVisible();
 });
 
 const ZONE_AWARE = [
