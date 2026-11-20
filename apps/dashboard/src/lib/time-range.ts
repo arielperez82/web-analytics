@@ -5,10 +5,10 @@ const DAY_MS = 86_400_000;
 const DAYS_PER_WEEK = 7;
 const MONDAY_OFFSET = 6;
 
-const shifted = (day: string, days: number): string =>
+export const shifted = (day: string, days: number): string =>
   new Date(new Date(`${day}T00:00:00Z`).getTime() + days * DAY_MS).toISOString().slice(0, 10);
 
-const daysBefore = (day: string, days: number): string => shifted(day, -days);
+export const daysBefore = (day: string, days: number): string => shifted(day, -days);
 
 const weekStart = (day: string): string =>
   daysBefore(day, (new Date(`${day}T00:00:00Z`).getUTCDay() + MONDAY_OFFSET) % DAYS_PER_WEEK);
