@@ -11,7 +11,6 @@ import { useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 
 import { DateRangePicker } from "./DateRangePicker";
-import { TimeZonePicker } from "./TimeZonePicker";
 import { fmt, type Row } from "./ui";
 
 const ALL_TENANTS = "__all";
@@ -77,8 +76,12 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             Include bots
           </label>
         )}
-        <TimeZonePicker zone={zone} onChange={(tz) => update({ ...state, tz })} />
-        <DateRangePicker range={state.range} zone={zone} onChange={(range) => update({ ...state, range })} />
+        <DateRangePicker
+          range={state.range}
+          zone={zone}
+          onChange={(range) => update({ ...state, range })}
+          onZoneChange={(tz) => update({ ...state, tz })}
+        />
         <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
       </header>
       <nav>

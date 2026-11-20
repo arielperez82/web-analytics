@@ -343,6 +343,9 @@ test.describe('time zone', () => {
   }) => {
     const api = await stubApi(page, routes);
     await signIn(page);
+    const calendar = page.getByRole('button', { name: /Asia\/Tokyo/ });
+    await expect(calendar).toBeVisible();
+    await calendar.click();
     await expect(page.getByLabel('Time zone')).toHaveValue('Asia/Tokyo');
     await expect
       .poll(() =>
