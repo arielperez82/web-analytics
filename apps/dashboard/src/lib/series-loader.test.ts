@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+
+import type { ProxyDeps } from "./endpoint-proxy";
+import { loadSeries } from "./series-loader";
+
+const fakeDeps = (
+  rowsFor: (url: URL) => readonly Record<string, unknown>[] | undefined,
+): { readonly deps: ProxyDeps; readonly urls: URL[] } => {
+  const urls: URL[] = [];
+  const deps: ProxyDeps = {
+    tinybird: { host: "http://tb.test", token: "t" },
+    fetch: async (url) => {
+      const parsed = new URL(String(url));
+      urls.push(parsed);
+      const data = rowsFor(parsed);
+      return data === undefined
+        ? new Response("boom", { status: 500 })
+        : new Response(JSON.stringify({ data }), { status: 200 });
+    },
+  };
+  return { deps, urls };
+};
+
+const load = (query: string, deps: ProxyDeps, authenticated = true) =>
+  loadSeries({ query: new URLSearchParams(query), authenticated }, deps);
+
+const byStart = (url: URL) =>
+  url.searchParams.get("date_from") === "2026-11-16"
+    ? [
+        { date: "2026-11-16", value: 5 },
+        { date: "2026-11-17", value: 7 },
+      ]
+    : [
+        { date: "2026-11-09", value: 3 },
+        { date: "2026-11-10", value: 4 },
+      ];
+
+describe("loadSeries", () => {
+  it("loads the range and its comparison together and pairs them", async () => {
+    const { deps, urls } = fakeDeps(byStart);
+    const result = await load(
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10&metric=sessions",
+      deps,
+    );
+    expect(urls.map((u) => [u.pathname, u.searchParams.get("date_from"), u.searchParams.get("date_to")])).toEqual([
+      ["/v0/pipes/daily_series.json", "2026-11-16", "2026-11-17"],
+      ["/v0/pipes/daily_series.json", "2026-11-09", "2026-11-10"],
+    ]);
+    expect(result).toEqual({
+      status: 200,
+      body: {
+        grain: "day",
+        points: [
+          { label: "2026-11-16", current: 5, previousLabel: "2026-11-09", previous: 3 },
+          { label: "2026-11-17", current: 7, previousLabel: "2026-11-10", previous: 4 },
+        ],
+      },
+    });
+  });
+
+  it("keeps the filters, the metric and the zone on both calls and never forwards the comparison dates", async () => {
+    const { deps, urls } = fakeDeps(byStart);
+    await load(
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10&metric=known&country=ES&tz=Europe%2FMadrid",
+      deps,
+    );
+    for (const url of urls) {
+      expect(url.searchParams.get("metric")).toBe("known");
+      expect(url.searchParams.get("tz")).toBe("Europe/Madrid");
+      expect(url.searchParams.has("compare_from")).toBe(false);
+      expect(url.searchParams.has("grain")).toBe(false);
+    }
+  });
+
+  it("loads only the range when there is nothing to compare with", async () => {
+    const { deps, urls } = fakeDeps(byStart);
+    const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps);
+    expect(urls).toHaveLength(1);
+    expect(result.body).toMatchObject({ points: [{ previous: null }, { previous: null }] });
+  });
+
+  it("loads hourly buckets for both ranges and reads their labels on the clock of the zone", async () => {
+    const { deps, urls } = fakeDeps((url) => [
+      { hour: url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00", value: 2 },
+    ]);
+    const result = await load(
+      "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare_from=2026-11-16&compare_to=2026-11-16",
+      deps,
+    );
+    expect(urls.map((u) => [u.pathname, u.searchParams.get("from_at"), u.searchParams.has("date_from")])).toEqual([
+      ["/v0/pipes/hourly_series.json", "2026-11-17T05:00:00Z", false],
+      ["/v0/pipes/hourly_series.json", "2026-11-16T05:00:00Z", false],
+    ]);
+    expect(result.body).toMatchObject({
+      grain: "hour",
+      points: [{ label: "2026-11-17 00:00:00", previousLabel: "2026-11-16 00:00:00" }],
+    });
+  });
+
+  it("fails as a whole when either call fails", async () => {
+    const { deps } = fakeDeps((url) => (url.searchParams.get("date_from") === "2026-11-09" ? undefined : byStart(url)));
+    const result = await load(
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10",
+      deps,
+    );
+    expect(result).toEqual({ status: 502, body: { error: "Upstream error" } });
+  });
+
+  it("is closed to anyone who is not signed in, without calling Tinybird", async () => {
+    const { deps, urls } = fakeDeps(byStart);
+    const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps, false);
+    expect(result.status).toBe(401);
+    expect(urls).toHaveLength(0);
+  });
+});
