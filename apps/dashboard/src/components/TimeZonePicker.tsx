@@ -11,6 +11,7 @@ const serverZones = (): readonly string[] => NO_ZONES;
 
 const OTHER = "other";
 const COMMON_ZONES: readonly { readonly zone: string; readonly label: string }[] = [
+  { zone: "UTC", label: "UTC" },
   { zone: "America/New_York", label: "EST (America/New_York)" },
   { zone: "America/Los_Angeles", label: "PST (America/Los_Angeles)" },
   { zone: "Europe/Madrid", label: "CET (Europe/Madrid)" },

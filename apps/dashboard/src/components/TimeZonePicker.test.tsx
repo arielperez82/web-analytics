@@ -19,10 +19,11 @@ describe("TimeZonePicker", () => {
     expect((screen.getByLabelText("Time zone") as HTMLSelectElement).value).toBe("Europe/Madrid");
   });
 
-  it("offers Eastern, Pacific and Central European time, then Other", () => {
+  it("offers UTC, Eastern, Pacific and Central European time, then Other", () => {
     render(<TimeZonePicker zone="Europe/Madrid" onChange={() => undefined} />);
 
     expect(optionsOf("Time zone")).toEqual([
+      { value: "UTC", text: "UTC" },
       { value: "America/New_York", text: "EST (America/New_York)" },
       { value: "America/Los_Angeles", text: "PST (America/Los_Angeles)" },
       { value: "Europe/Madrid", text: "CET (Europe/Madrid)" },
@@ -36,6 +37,7 @@ describe("TimeZonePicker", () => {
     expect((screen.getByLabelText("Time zone") as HTMLSelectElement).value).toBe("Asia/Tokyo");
     expect(optionsOf("Time zone").map((option) => option.value)).toEqual([
       "Asia/Tokyo",
+      "UTC",
       "America/New_York",
       "America/Los_Angeles",
       "Europe/Madrid",
