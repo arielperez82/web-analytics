@@ -5,7 +5,7 @@ import { signIn, stubApi } from './support';
 const emptyOverview = {
   visitor_counts: [],
   engagement: [],
-  daily_series: [],
+  series: [],
   top_locations: [],
   top_devices: [],
   top_browsers: [],

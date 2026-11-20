@@ -3,8 +3,7 @@
 import { useState } from "react";
 
 import { xLabels, yTicks } from "@/lib/chart-axis";
-import { type DashboardState, drillDay, type Grain } from "@/lib/dashboard-state";
-import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
+import { type Compare, type DashboardState, drillDay, type Grain } from "@/lib/dashboard-state";
 import {
   APPROXIMATE_COUNT_NOTE,
   formatNumber,
@@ -12,10 +11,12 @@ import {
   formatSeconds,
   formatSignedPercent,
 } from "@/lib/format";
+import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
-import { hourlyRequest, zonedHour } from "@/lib/hour-window";
 import { useEndpoint } from "@/lib/use-endpoint";
+import { useSeries } from "@/lib/use-series";
 
+import { LineChart } from "./LineChart";
 import { Panel, type Row,Status } from "./ui";
 
 type Metric = "sessions" | "known" | "anonymous" | "pageviews";
@@ -65,18 +66,27 @@ const Card = ({
   </div>
 );
 
-const SERIES = {
-  daily: { endpoint: "daily_series", key: "date", unit: "day" },
-  hourly: { endpoint: "hourly_series", key: "hour", unit: "hour" },
-} as const;
+const COMPARISONS: readonly { readonly key: Compare | "previous"; readonly label: string }[] = [
+  { key: "previous", label: "Previous period" },
+  { key: "last_week", label: "Same day last week" },
+  { key: "off", label: "Off" },
+];
+
+const isSingleDay = (params: QueryParams): boolean => params.date_from === params.date_to;
+
+const comparisonKey = (state: DashboardState): Compare | "previous" => state.compare ?? "previous";
+
+const isAllTime = (state: DashboardState): boolean => "preset" in state.range && state.range.preset === "all_time";
 
 export const Kpis = ({
   state,
   params,
+  comparison,
   onChange,
 }: {
   state: DashboardState;
   params: QueryParams;
+  comparison?: { readonly compare_from: string; readonly compare_to: string };
   onChange: (next: DashboardState) => void;
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");
@@ -86,12 +96,9 @@ export const Kpis = ({
   const hourly = grain === "hour";
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
-  const { endpoint, key, unit } = hourly ? SERIES.hourly : SERIES.daily;
-  const { data, loading, error } = useEndpoint<Row>(endpoint, {
-    ...(hourly ? hourlyRequest(params) : params),
-    metric,
-  });
-  const rows: readonly Row[] = hourly ? (data ?? []).map((row) => (typeof row.hour === "string" ? { ...row, hour: zonedHour(row.hour, params.tz ?? "UTC") } : row)) : (data ?? []);
+  const unit = hourly ? "hour" : "day";
+  const { points, loading, error } = useSeries({ ...params, ...comparison, grain, metric });
+  const rows = points ?? [];
   const selected = "from" in state.range ? state.range.from : undefined;
   const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (
@@ -134,7 +141,7 @@ export const Kpis = ({
           growth={formatSignedPercent(field(engagement, "avg_session_sec_growth_percent"))}
         />
       </div>
-      <Panel title={hourly ? `${label} per ${perHour}` : `${label} per day · click a bar to drill in`}>
+      <Panel title={hourly ? `${label} per ${perHour}` : `${label} per day · click a point to drill in`}>
         <div className="chart-controls">
           <div className="chart-metric" role="group" aria-label="Chart series">
             {METRICS.map((option) => (
@@ -147,6 +154,7 @@ export const Kpis = ({
               </button>
             ))}
           </div>
+          <div className="chart-options">
           <div className="chart-metric" role="group" aria-label="Chart granularity">
             {GRAINS.map((option) => (
               <button
@@ -159,10 +167,24 @@ export const Kpis = ({
               </button>
             ))}
           </div>
+          {isAllTime(state) ? null : (
+            <div className="chart-metric" role="group" aria-label="Compare to">
+              {COMPARISONS.filter((option) => option.key !== "last_week" || isSingleDay(params)).map((option) => (
+                <button
+                  key={option.key}
+                  aria-pressed={comparisonKey(state) === option.key}
+                  onClick={() => onChange({ ...state, compare: option.key === "previous" ? undefined : option.key })}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+          </div>
         </div>
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
-            {yTicks(rows.map((row) => field(row, "value"))).map((tick) => (
+            {yTicks(rows.flatMap((row) => (row.previous === null ? [row.current] : [row.current, row.previous]))).map((tick) => (
               <span key={tick.percent} style={{ bottom: `${tick.percent}%` }}>
                 {formatNumber(tick.value)}
               </span>
@@ -173,30 +195,27 @@ export const Kpis = ({
               <div className="chart-status">
                 <Status loading={loading} error={error} empty={rows.length === 0} />
               </div>
-              {rows.map((row) => {
-                const day = String(row[key]);
-                return (
-                  <button
-                    key={day}
-                    className="col"
-                    disabled={hourly}
-                    aria-pressed={selected === day}
-                    title={`${day}: ${formatNumber(field(row, "value"))}`}
-                    onClick={() => onChange(drillDay(state, day))}
-                  >
-                    <div style={{ height: `${field(row, "bar_percent")}%` }} />
-                  </button>
-                );
-              })}
+              <LineChart
+                points={rows}
+                selected={selected}
+                drillable={!hourly}
+                onDrill={(day) => onChange(drillDay(state, day))}
+              />
             </div>
             <div className="x-axis" role="group" aria-label="Chart x axis">
-              {xLabels(rows.map((row) => String(row[key])), unit).map((text, index) => (
+              {xLabels(rows.map((row) => row.label), unit).map((text, index) => (
                 <span key={index}>{text}</span>
               ))}
             </div>
           </div>
         </div>
-        <p className="muted">Bars are per-{unit} counts and can add up to more than the card.</p>
+        <ul className="legend" aria-label="Chart legend">
+          <li className="current">{`This period · ${String(params.date_from)} – ${String(params.date_to)}`}</li>
+          {comparison === undefined ? null : (
+            <li className="previous">{`${state.compare === "last_week" ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`}</li>
+          )}
+        </ul>
+        <p className="muted">Lines are per-{unit} counts and can add up to more than the card.</p>
       </Panel>
     </>
   );

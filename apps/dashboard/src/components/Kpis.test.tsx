@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DashboardState } from "@/lib/dashboard-state";
-import { installFakeApi, removeFakeApi, type ApiRow } from "@/test/fake-api";
+import { type ApiRow,installFakeApi, removeFakeApi } from "@/test/fake-api";
 
 import { Kpis } from "./Kpis";
 
@@ -41,31 +41,39 @@ const engagement: ApiRow = {
   bounce_rate_growth_percent: -3.85,
   avg_session_sec_growth_percent: 0,
 };
-const series: readonly ApiRow[] = [
-  { date: "2026-11-10", value: 10, bar_percent: 100 },
-  { date: "2026-11-11", value: 90, bar_percent: 25 },
+
+const days: readonly ApiRow[] = [
+  { label: "2026-11-10", current: 40, previousLabel: "2026-11-03", previous: 20 },
+  { label: "2026-11-11", current: 12, previousLabel: "2026-11-04", previous: null },
 ];
 
 const hours: readonly ApiRow[] = [
-  { hour: "2026-11-10 09:00:00", value: 7, bar_percent: 100 },
-  { hour: "2026-11-10 10:00:00", value: 2, bar_percent: 30 },
+  { label: "2026-11-10 09:00:00", current: 7, previousLabel: "2026-11-09 09:00:00", previous: 3 },
+  { label: "2026-11-10 10:00:00", current: 2, previousLabel: "2026-11-09 10:00:00", previous: 5 },
 ];
 
 const renderKpis = (
   overrides: {
     params?: Record<string, string>;
+    comparison?: { compare_from: string; compare_to: string };
     onChange?: (next: DashboardState) => void;
-    series?: readonly ApiRow[];
+    points?: readonly ApiRow[];
     state?: DashboardState;
   } = {},
 ) => {
   const api = installFakeApi({
     visitor_counts: [counts],
     engagement: [engagement],
-    daily_series: overrides.series ?? series,
-    hourly_series: hours,
+    series: (query) => (query.get("grain") === "hour" ? hours : (overrides.points ?? days)),
   });
-  render(<Kpis state={overrides.state ?? state} params={overrides.params ?? params} onChange={overrides.onChange ?? (() => undefined)} />);
+  render(
+    <Kpis
+      state={overrides.state ?? state}
+      params={overrides.params ?? params}
+      comparison={overrides.comparison}
+      onChange={overrides.onChange ?? (() => undefined)}
+    />,
+  );
   return api;
 };
 
@@ -74,6 +82,13 @@ const card = async (label: string): Promise<HTMLElement> => {
   const element = heading.closest<HTMLElement>(".card");
   if (element === null) throw new Error(`no card for ${label}`);
   return element;
+};
+
+const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+const line = async (which: "current" | "previous") => {
+  const chart = await screen.findByRole("group", { name: "Sessions chart" });
+  await waitFor(() => expect(chart.querySelector(`path[data-line="${which}"]`)).not.toBeNull());
+  return chart.querySelector(`path[data-line="${which}"]`) as SVGPathElement;
 };
 
 describe("Kpis", () => {
@@ -106,20 +121,6 @@ describe("Kpis", () => {
     ).toBeTruthy();
   });
 
-  it("labels the y axis from the range of the rows and the x axis with the days", async () => {
-    renderKpis({
-      series: [
-        { date: "2026-11-10", value: 40, bar_percent: 100 },
-        { date: "2026-11-11", value: 12, bar_percent: 30 },
-      ],
-    });
-
-    const yAxis = await screen.findByLabelText("Chart y axis");
-    expect(Array.from(yAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["40", "20", "0"]);
-    const xAxis = screen.getByLabelText("Chart x axis");
-    expect(Array.from(xAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["Nov 10", "Nov 11"]);
-  });
-
   it("does not derive the sessions card from the chart rows", async () => {
     renderKpis();
 
@@ -138,106 +139,83 @@ describe("Kpis", () => {
     expect(within(await card("Bounce rate")).queryByTitle(note)).toBeNull();
   });
 
-  it("sizes each bar from the percentage the API gives, not from the values", async () => {
-    renderKpis();
+  it("labels the y axis from the highest value of either line and the x axis with the days", async () => {
+    renderKpis({ comparison });
 
-    const chart = await screen.findByRole("group", { name: "Sessions chart" });
-    await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
-    const heights = within(chart)
-      .getAllByRole("button")
-      .map((bar) => (bar.firstElementChild as HTMLElement).style.height);
-    expect(heights).toEqual(["100%", "25%"]);
+    const yAxis = await screen.findByLabelText("Chart y axis");
+    await waitFor(() =>
+      expect(Array.from(yAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["40", "20", "0"]),
+    );
+    const xAxis = screen.getByLabelText("Chart x axis");
+    expect(Array.from(xAxis.querySelectorAll("span")).map((tick) => tick.textContent)).toEqual(["Nov 10", "Nov 11"]);
   });
 
-  it("asks the series endpoint for the metric the viewer picks", async () => {
-    const api = renderKpis();
+  it("draws the current period as a solid line and the previous one as a dashed line on one scale", async () => {
+    renderKpis({ comparison });
+
+    expect((await line("current")).getAttribute("d")).toBe("M25,0 L75,70");
+    const previous = await line("previous");
+    expect(previous.getAttribute("d")).toBe("M25,50 L25,50");
+    expect(previous.classList.contains("previous")).toBe(true);
+  });
+
+  it("asks the series route for the metric the viewer picks", async () => {
+    const api = renderKpis({ comparison });
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "Known visitors" }));
 
-    await waitFor(() => expect(api.requestsTo("daily_series").map((query) => query.get("metric"))).toContain("known"));
-    expect(api.requestsTo("daily_series")[0]?.get("metric")).toBe("sessions");
+    await waitFor(() => expect(api.requestsTo("series").map((query) => query.get("metric"))).toContain("known"));
+    expect(api.requestsTo("series")[0]?.get("metric")).toBe("sessions");
   });
 
-  it("sends the range and filters to every endpoint it reads", async () => {
-    const api = renderKpis({ params: { ...params, location: "ES" } });
+  it("sends the range, the comparison and the filters to the series route as plain values", async () => {
+    const api = renderKpis({ params: { ...params, location: "ES", tz: "Europe/Madrid" }, comparison });
 
-    await screen.findByRole("group", { name: "Sessions chart" });
-    await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
-    for (const endpoint of ["visitor_counts", "engagement", "daily_series"]) {
-      const query = api.requestsTo(endpoint)[0];
-      expect(query?.get("date_from")).toBe("2026-11-10");
-      expect(query?.get("location")).toBe("ES");
-    }
+    await waitFor(() => expect(api.requestsTo("series")).toHaveLength(1));
+    const query = api.requestsTo("series")[0];
+    expect(query?.get("date_from")).toBe("2026-11-10");
+    expect(query?.get("compare_from")).toBe("2026-11-03");
+    expect(query?.get("compare_to")).toBe("2026-11-09");
+    expect(query?.get("location")).toBe("ES");
+    expect(query?.get("tz")).toBe("Europe/Madrid");
+    expect(query?.get("grain")).toBe("day");
   });
 
-  it("drills into a day when its bar is clicked", async () => {
+  it("asks for no comparison when there is none", async () => {
+    const api = renderKpis();
+
+    await waitFor(() => expect(api.requestsTo("series")).toHaveLength(1));
+    expect(api.requestsTo("series")[0]?.has("compare_from")).toBe(false);
+    expect(within(screen.getByLabelText("Chart legend")).queryByText(/Previous period/)).toBeNull();
+  });
+
+  it("drills into a day when its point is clicked", async () => {
     const picked: DashboardState[] = [];
-    renderKpis({ onChange: (next) => picked.push(next) });
+    renderKpis({ comparison, onChange: (next) => picked.push(next) });
     const user = userEvent.setup();
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
-    await user.click(await within(chart).findByTitle("2026-11-11: 90"));
+    await user.click(await within(chart).findByTitle("2026-11-11: 12"));
 
     expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" }, grain: "hour" }]);
   });
 
+  it("shows both values in one tooltip, the comparison by its own date", async () => {
+    renderKpis({ comparison });
+
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
+    expect(await within(chart).findByTitle("2026-11-10: 40 · 2026-11-03: 20")).toBeTruthy();
+  });
+
   it("shows the hours of a single-day range from the hourly series", async () => {
-    const api = renderKpis({ params: { ...params, date_to: "2026-11-10" } });
+    const api = renderKpis({ params: { ...params, date_to: "2026-11-10" }, comparison });
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
-    const heights = within(chart)
-      .getAllByRole("button")
-      .map((bar) => (bar.firstElementChild as HTMLElement).style.height);
-    expect(heights).toEqual(["100%", "30%"]);
-    expect(within(chart).getByTitle("2026-11-10 09:00:00: 7")).toBeTruthy();
-    expect(api.requestsTo("hourly_series")[0]?.get("metric")).toBe("sessions");
-    expect(api.requestsTo("daily_series")).toHaveLength(0);
+    expect(within(chart).getByTitle("2026-11-10 09:00:00: 7 · 2026-11-09 09:00:00: 3")).toBeTruthy();
+    expect(api.requestsTo("series")[0]?.get("grain")).toBe("hour");
     expect(await screen.findByText(/per hour/)).toBeTruthy();
-  });
-
-  it("asks the hourly series for the UTC instants of the local days, without a zone", async () => {
-    const api = renderKpis({
-      params: { ...params, date_from: "2026-11-10", date_to: "2026-11-10", tz: "America/New_York" },
-    });
-
-    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
-    const query = api.requestsTo("hourly_series")[0];
-    expect(query?.get("from_at")).toBe("2026-11-10T05:00:00Z");
-    expect(query?.get("to_at")).toBe("2026-11-11T05:00:00Z");
-    expect(query?.has("tz")).toBe(false);
-    expect(query?.has("date_from")).toBe(false);
-    expect(query?.has("date_to")).toBe(false);
-  });
-
-  it("steps down to four-hour buckets when the viewer asks for hours over a month", async () => {
-    const api = renderKpis({
-      params: { ...params, date_from: "2026-10-18", date_to: "2026-11-16" },
-      state: { ...state, grain: "hour" },
-    });
-
-    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
-    expect(api.requestsTo("hourly_series")[0]?.get("bucket_hours")).toBe("4");
-    expect(await screen.findByText(/per 4 hours/)).toBeTruthy();
-  });
-
-  it("shows the UTC hours it gets on the clock of the zone", async () => {
-    renderKpis({
-      params: { ...params, date_from: "2026-11-10", date_to: "2026-11-10", tz: "America/New_York" },
-    });
-
-    const chart = await screen.findByRole("group", { name: "Sessions chart" });
-    await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
-    expect(within(chart).getByTitle("2026-11-10 04:00:00: 7")).toBeTruthy();
-  });
-
-  it("keeps the zone on the endpoints that cut whole days", async () => {
-    const api = renderKpis({ params: { ...params, tz: "America/New_York" } });
-
-    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
-    expect(api.requestsTo("daily_series")[0]?.get("tz")).toBe("America/New_York");
-    expect(api.requestsTo("visitor_counts")[0]?.get("tz")).toBe("America/New_York");
   });
 
   it("does not offer a drill-down on the hours of a single day", async () => {
@@ -248,13 +226,14 @@ describe("Kpis", () => {
     expect(within(chart).getAllByRole("button").every((bar) => (bar as HTMLButtonElement).disabled)).toBe(true);
   });
 
-  it("asks the hourly series for the metric the viewer picks", async () => {
-    const api = renderKpis({ params: { ...params, date_to: "2026-11-10" } });
-    const user = userEvent.setup();
+  it("steps down to four-hour buckets when the viewer asks for hours over a month", async () => {
+    const api = renderKpis({
+      params: { ...params, date_from: "2026-10-18", date_to: "2026-11-16" },
+      state: { ...state, grain: "hour" },
+    });
 
-    await user.click(await screen.findByRole("button", { name: "Pageviews" }));
-
-    await waitFor(() => expect(api.requestsTo("hourly_series").map((query) => query.get("metric"))).toContain("pageviews"));
+    await waitFor(() => expect(api.requestsTo("series")).toHaveLength(1));
+    expect(await screen.findByText(/per 4 hours/)).toBeTruthy();
   });
 
   it("keeps the metric keys and the granularity as two separate controls", async () => {
@@ -271,15 +250,6 @@ describe("Kpis", () => {
     expect(within(grain).getAllByRole("button").map((button) => button.textContent)).toEqual(["Day", "Hour"]);
   });
 
-  it("shows hours for a week when the viewer chooses Hour", async () => {
-    const api = renderKpis({ state: { ...state, grain: "hour" } });
-
-    expect(await screen.findByText(/Sessions per hour/)).toBeTruthy();
-    await waitFor(() => expect(api.requestsTo("hourly_series")).toHaveLength(1));
-    expect(api.requestsTo("daily_series")).toHaveLength(0);
-    expect(within(screen.getByRole("group", { name: "Chart granularity" })).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
-  });
-
   it("asks to switch the grain when Hour or Day is clicked", async () => {
     const picked: DashboardState[] = [];
     renderKpis({ onChange: (next) => picked.push(next) });
@@ -291,13 +261,6 @@ describe("Kpis", () => {
     expect(picked).toEqual([{ ...state, grain: "hour" }]);
   });
 
-  it("offers Day on a single day, where the choice is a single bar", async () => {
-    const api = renderKpis({ state: { ...state, grain: "day" }, params: { ...params, date_to: "2026-11-10" } });
-
-    expect(await screen.findByText(/Sessions per day/)).toBeTruthy();
-    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
-  });
-
   it("does not offer Hour for a range too long even for four-hour buckets", async () => {
     renderKpis({ params: { ...params, date_from: "2026-08-18" } });
 
@@ -306,23 +269,63 @@ describe("Kpis", () => {
     expect((within(grain).getByRole("button", { name: "Day" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("keeps the daily series for ranges longer than a day", async () => {
-    const api = renderKpis();
+  it("names the two ranges in a legend", async () => {
+    renderKpis({ comparison });
 
-    await screen.findByRole("group", { name: "Sessions chart" });
-    await waitFor(() => expect(api.requestsTo("daily_series")).toHaveLength(1));
-    expect(api.requestsTo("hourly_series")).toHaveLength(0);
+    expect(await screen.findByText("This period · 2026-11-10 – 2026-11-16")).toBeTruthy();
+    expect(screen.getByText("Previous period · 2026-11-03 – 2026-11-09")).toBeTruthy();
   });
 
-  it("says that the bars can add up to more than the card", async () => {
+  it("says that the lines can add up to more than the card", async () => {
     renderKpis();
 
-    expect(await screen.findByText("Bars are per-day counts and can add up to more than the card.")).toBeTruthy();
+    expect(await screen.findByText("Lines are per-day counts and can add up to more than the card.")).toBeTruthy();
   });
 
-  it("says the same of the hours", async () => {
-    renderKpis({ params: { ...params, date_to: "2026-11-10" } });
+  describe("the comparison control", () => {
+    it("offers the previous period or nothing for a week", async () => {
+      renderKpis({ comparison });
 
-    expect(await screen.findByText("Bars are per-hour counts and can add up to more than the card.")).toBeTruthy();
+      const group = await screen.findByRole("group", { name: "Compare to" });
+      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
+        "Previous period",
+        "Off",
+      ]);
+      expect(within(group).getByRole("button", { name: "Previous period" }).getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("also offers the same day last week on a single day", async () => {
+      renderKpis({ params: { ...params, date_to: "2026-11-10" }, comparison });
+
+      const group = await screen.findByRole("group", { name: "Compare to" });
+      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
+        "Previous period",
+        "Same day last week",
+        "Off",
+      ]);
+    });
+
+    it("writes the choice into the state, and the default back out of it", async () => {
+      const picked: DashboardState[] = [];
+      renderKpis({
+        comparison,
+        state: { ...state, compare: "off" },
+        onChange: (next) => picked.push(next),
+      });
+      const user = userEvent.setup();
+
+      const group = await screen.findByRole("group", { name: "Compare to" });
+      expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
+      await user.click(within(group).getByRole("button", { name: "Previous period" }));
+
+      expect(picked).toEqual([state]);
+    });
+
+    it("offers nothing to compare all time with", async () => {
+      renderKpis({ state: { ...state, range: { preset: "all_time" } } });
+
+      await screen.findByRole("group", { name: "Chart series" });
+      expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
+    });
   });
 });
