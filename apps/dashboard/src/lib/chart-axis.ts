@@ -32,3 +32,19 @@ export const xLabels = (keys: readonly string[], unit: "day" | "hour"): readonly
   const label = unit === "hour" ? hourLabel : dayLabel;
   return keys.map((key, index) => (index % step === 0 ? label(key) : ""));
 };
+
+type Paired = { readonly current: number; readonly previous: number | null };
+
+const ROUND_TO_HUNDREDTHS = 100;
+
+export const lineHeights = (
+  points: readonly Paired[],
+): { readonly current: readonly number[]; readonly previous: readonly (number | null)[] } => {
+  const top = yTicks(points.flatMap(({ current, previous }) => (previous === null ? [current] : [current, previous])))[0]?.value ?? 0;
+  const height = (value: number): number =>
+    top === 0 ? 0 : Math.round((value / top) * 100 * ROUND_TO_HUNDREDTHS) / ROUND_TO_HUNDREDTHS;
+  return {
+    current: points.map(({ current }) => height(current)),
+    previous: points.map(({ previous }) => (previous === null ? null : height(previous))),
+  };
+};
