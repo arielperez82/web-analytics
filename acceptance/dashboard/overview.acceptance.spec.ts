@@ -103,6 +103,7 @@ test('bots are left out until the viewer includes them', async ({ page }) => {
     expect(api.requestsTo(endpoint).at(-1)?.has('include_bots')).toBe(false);
   }
 
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await page.getByRole('checkbox', { name: 'Include bots' }).click();
 
   await expect(

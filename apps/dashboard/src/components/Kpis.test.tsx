@@ -317,7 +317,8 @@ describe("Kpis", () => {
   it("says that the bars can add up to more than the card", async () => {
     renderKpis();
 
-    expect(await screen.findByText("Bars are per-day counts and can add up to more than the card.")).toBeTruthy();
+    const note = await screen.findByText("Bars are per-day counts and can add up to more than the card.");
+    expect(note.className).toBe("footnote");
   });
 
   it("says the same of the hours", async () => {

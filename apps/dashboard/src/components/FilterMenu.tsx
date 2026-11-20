@@ -60,13 +60,17 @@ export const FilterMenu = ({
   filters,
   params,
   onChange,
+  includeBots,
+  onIncludeBotsChange,
 }: {
   filters: Filters;
   params: QueryParams;
   onChange: (filters: Filters) => void;
+  includeBots: boolean;
+  onIncludeBotsChange: (include: boolean) => void;
 }) => {
   const [open, setOpen] = useState(false);
-  const count = Object.keys(filters).length;
+  const count = Object.keys(filters).length + (includeBots ? 1 : 0);
   return (
     <div className="range">
       <button aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -77,6 +81,9 @@ export const FilterMenu = ({
           {FILTER_REPORTS.map((report) => (
             <FilterSelect key={report.slug} report={report} filters={filters} params={params} onChange={onChange} />
           ))}
+          <label>
+            <input type="checkbox" checked={includeBots} onChange={(e) => onIncludeBotsChange(e.target.checked)} /> Include bots
+          </label>
         </div>
       )}
     </div>

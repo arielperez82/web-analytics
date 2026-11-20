@@ -68,16 +68,14 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
           ))}
         </select>
         {!onSpeed && (
-          <label>
-            <input
-              type="checkbox"
-              checked={state.includeBots === true}
-              onChange={(e) => update({ ...state, includeBots: e.target.checked || undefined })}
-            />{" "}
-            Include bots
-          </label>
+          <FilterMenu
+            filters={state.filters}
+            params={params}
+            onChange={(next) => update({ ...state, filters: next })}
+            includeBots={state.includeBots === true}
+            onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
+          />
         )}
-        {!onSpeed && <FilterMenu filters={state.filters} params={params} onChange={(next) => update({ ...state, filters: next })} />}
         <DateRangePicker
           range={state.range}
           zone={zone}
