@@ -121,6 +121,13 @@ describe("rangeToParams", () => {
       });
     });
 
+    it("all time starts at the epoch and ends today", () => {
+      expect(rangeToParams({ preset: "all_time" }, wednesday)).toEqual({
+        date_from: "1970-01-01",
+        date_to: "2026-11-18",
+      });
+    });
+
     it("the last 12 months from a leap day start on March 1", () => {
       expect(rangeToParams({ preset: "last_12_months" }, new Date("2028-02-29T12:00:00Z"))).toEqual({
         date_from: "2027-03-01",

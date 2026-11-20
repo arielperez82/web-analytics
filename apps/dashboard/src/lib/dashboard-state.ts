@@ -3,7 +3,7 @@ import { isValidTimeZone } from "./time-zone";
 
 export const DEFAULT_DAYS = 7;
 
-export const PRESETS = ["yesterday", "this_week", "this_month", "this_year", "last_12_months"] as const;
+export const PRESETS = ["yesterday", "this_week", "this_month", "this_year", "last_12_months", "all_time"] as const;
 export type Preset = (typeof PRESETS)[number];
 
 type Shortcut = { readonly label: string; readonly range: Range };
@@ -23,6 +23,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { label: "Last 90 Days", range: { days: 90 } },
   { label: "This Year", range: { preset: "this_year" } },
   { label: "Last 12 Months", range: { preset: "last_12_months" } },
+  { label: "All Time", range: { preset: "all_time" } },
 ];
 
 export type Grain = "day" | "hour";

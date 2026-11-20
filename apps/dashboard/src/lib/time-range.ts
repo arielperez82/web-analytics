@@ -35,6 +35,7 @@ export const rangeToParams = (
     this_month: `${today.slice(0, 7)}-01`,
     this_year: `${today.slice(0, 4)}-01-01`,
     last_12_months: dayAfterYearAgo(today),
+    all_time: "1970-01-01",
   }[range.preset];
   return { date_from: first, date_to: range.preset === "yesterday" ? first : today };
 };

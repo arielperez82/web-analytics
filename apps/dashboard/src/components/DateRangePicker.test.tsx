@@ -64,6 +64,7 @@ describe("DateRangePicker", () => {
         "Last 90 Days",
         "This Year",
         "Last 12 Months",
+        "All Time",
       ]);
     });
 
