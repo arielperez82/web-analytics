@@ -66,6 +66,6 @@ describe.concurrent('web vitals over a window of exact instants', () => {
       window(scope),
       1
     );
-    expect(rows.map(row => row.route)).toEqual(['/inside']);
+    expect(rows.map(row => row.route)).toEqual(['inside']);
   });
 });
