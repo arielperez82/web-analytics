@@ -5,3 +5,6 @@
 .ds-btn-primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.08)}
 .ds-btn:disabled{opacity:.5;cursor:not-allowed}
 .ds-seg{display:inline-flex;gap:8px;flex-wrap:wrap}
+.card-select{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.card-select:hover{background:var(--surface-hover)}
+.card-select[aria-pressed=true]{border-color:var(--accent);color:inherit;box-shadow:0 0 0 3px var(--accent-soft)}

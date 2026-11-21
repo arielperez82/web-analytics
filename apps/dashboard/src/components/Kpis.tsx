@@ -49,6 +49,8 @@ const Card = ({
   approximate = false,
   caption,
   note,
+  selected,
+  onSelect,
 }: {
   label: string;
   value: string;
@@ -56,25 +58,43 @@ const Card = ({
   approximate?: boolean;
   caption?: string;
   note?: string;
-}) => (
-  <div className="card">
-    <span>{label}</span>
-    <strong>
-      {value}
-      {approximate ? (
-        <abbr
-          title={APPROXIMATE_COUNT_NOTE}
-          aria-label={APPROXIMATE_COUNT_NOTE}
-        >
-          *
-        </abbr>
-      ) : null}
-    </strong>
-    {growth === undefined ? null : <small>{growth} vs previous period</small>}
-    {caption === undefined ? null : <small>{caption}</small>}
-    {note === undefined ? null : <small>{note}</small>}
-  </div>
-);
+  selected?: boolean;
+  onSelect?: () => void;
+}) => {
+  const body = (
+    <>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {approximate ? (
+          <abbr
+            title={APPROXIMATE_COUNT_NOTE}
+            aria-label={APPROXIMATE_COUNT_NOTE}
+          >
+            *
+          </abbr>
+        ) : null}
+      </strong>
+      {growth === undefined ? null : (
+        <small>{growth} vs previous period</small>
+      )}
+      {caption === undefined ? null : <small>{caption}</small>}
+      {note === undefined ? null : <small>{note}</small>}
+    </>
+  );
+  return onSelect === undefined ? (
+    <div className="card">{body}</div>
+  ) : (
+    <button
+      type="button"
+      className="card card-select"
+      aria-pressed={selected === true}
+      onClick={onSelect}
+    >
+      {body}
+    </button>
+  );
+};
 
 const comparisons = (
   exact: boolean,
@@ -155,11 +175,16 @@ export const Kpis = ({
   const selected = "from" in state.range ? state.range.from : undefined;
   const label =
     METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
+  const pick = (key: Metric) => ({
+    selected: metric === key,
+    onSelect: () => setMetric(key),
+  });
   return (
     <>
       <div className="cards">
         <Card
           label="Known visitors"
+          {...pick("known")}
           value={formatNumber(field(counts, "known_visitors"))}
           growth={formatSignedPercent(
             field(counts, "known_visitors_growth_percent"),
@@ -170,6 +195,7 @@ export const Kpis = ({
         />
         <Card
           label="Anonymous visitors"
+          {...pick("anonymous")}
           value={formatNumber(field(counts, "anonymous_visitors"))}
           growth={formatSignedPercent(
             field(counts, "anonymous_visitors_growth_percent"),
@@ -179,12 +205,14 @@ export const Kpis = ({
         />
         <Card
           label="Sessions"
+          {...pick("sessions")}
           value={formatNumber(field(counts, "sessions"))}
           growth={formatSignedPercent(field(counts, "sessions_growth_percent"))}
           approximate
         />
         <Card
           label="Pageviews"
+          {...pick("pageviews")}
           value={formatNumber(field(engagement, "pageviews"))}
           growth={formatSignedPercent(
             field(engagement, "pageviews_growth_percent"),
@@ -213,17 +241,6 @@ export const Kpis = ({
         }
       >
         <div className="chart-controls">
-          <div className="chart-metric" role="group" aria-label="Chart series">
-            {METRICS.map((option) => (
-              <button
-                key={option.key}
-                aria-pressed={metric === option.key}
-                onClick={() => setMetric(option.key)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
           <div className="chart-options">
             <SegmentedControl
               label="Chart granularity"

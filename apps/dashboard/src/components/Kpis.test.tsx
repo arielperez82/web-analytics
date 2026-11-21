@@ -163,7 +163,7 @@ describe("Kpis", () => {
     const api = renderKpis({ comparison });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: "Known visitors" }));
+    await user.click(await screen.findByRole("button", { name: /^Known visitors/ }));
 
     await waitFor(() => expect(api.requestsTo("series").map((query) => query.get("metric"))).toContain("known"));
     expect(api.requestsTo("series")[0]?.get("metric")).toBe("sessions");
@@ -236,18 +236,31 @@ describe("Kpis", () => {
     expect(await screen.findByText(/per 4 hours/)).toBeTruthy();
   });
 
-  it("keeps the metric keys and the granularity as two separate controls", async () => {
+  it("lets the four countable cards pick the chart metric instead of separate tabs", async () => {
     renderKpis();
 
-    const keys = await screen.findByRole("group", { name: "Chart series" });
-    expect(within(keys).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Sessions",
-      "Known visitors",
-      "Anonymous visitors",
-      "Pageviews",
-    ]);
-    const grain = screen.getByRole("group", { name: "Chart granularity" });
-    expect(within(grain).getAllByRole("button").map((button) => button.textContent)).toEqual(["Day", "Hour"]);
+    await screen.findByRole("group", { name: "Chart granularity" });
+    expect(screen.queryByRole("group", { name: "Chart series" })).toBeNull();
+    const picks = screen
+      .getAllByRole("button", { pressed: false })
+      .concat(screen.getAllByRole("button", { pressed: true }))
+      .map((button) => button.querySelector("span")?.textContent)
+      .filter((text) => text !== undefined);
+    expect(picks).toEqual(expect.arrayContaining(["Sessions", "Known visitors", "Anonymous visitors", "Pageviews"]));
+    expect(screen.queryByRole("button", { name: /^Bounce rate/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Avg session/ })).toBeNull();
+  });
+
+  it("marks the card whose metric the chart shows", async () => {
+    renderKpis();
+    const user = userEvent.setup();
+    const pressed = (name: RegExp) => screen.getByRole("button", { name }).getAttribute("aria-pressed");
+
+    expect(pressed(/^Sessions/)).toBe("true");
+    await user.click(await screen.findByRole("button", { name: /^Pageviews/ }));
+
+    expect(pressed(/^Pageviews/)).toBe("true");
+    expect(pressed(/^Sessions/)).toBe("false");
   });
 
   it("asks to switch the grain when Hour or Day is clicked", async () => {
@@ -325,7 +338,7 @@ describe("Kpis", () => {
     it("offers nothing to compare all time with", async () => {
       renderKpis({ state: { ...state, range: { preset: "all_time" } } });
 
-      await screen.findByRole("group", { name: "Chart series" });
+      await screen.findByRole("group", { name: "Chart granularity" });
       expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
     });
   });
