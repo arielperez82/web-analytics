@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { SegmentedControl } from "@/ds/SegmentedControl";
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import {
   type Compare,
@@ -20,8 +21,6 @@ import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { useSeries } from "@/lib/use-series";
-
-import { SegmentedControl } from "@/ds/SegmentedControl";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
