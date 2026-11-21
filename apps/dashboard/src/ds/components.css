@@ -1,0 +1,7 @@
+.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:36px;padding:0 12px;border-radius:9px;border:1px solid var(--line-control);background:var(--surface);color:var(--text);font-size:13px;line-height:18px;font-weight:500;cursor:pointer}
+.ds-btn:hover:not(:disabled){background:var(--surface-hover)}
+.ds-btn[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.ds-btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.ds-btn-primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.08)}
+.ds-btn:disabled{opacity:.5;cursor:not-allowed}
+.ds-seg{display:inline-flex;gap:8px;flex-wrap:wrap}
