@@ -450,3 +450,32 @@ test('the chart is compared with the period before it until the viewer switches 
     .poll(() => api.requestsTo('series').at(-1)?.has('compare_from'))
     .toBe(false);
 });
+
+test('the last 24 hours start on an exact hour for the cards and the chart alike', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+
+  await page.getByRole('button', { name: /Last 7 Days/ }).click();
+  await page.getByRole('button', { name: 'Last 24 Hours' }).click();
+
+  await expect(page).toHaveURL(/range=last_24_hours/);
+  const exactHour = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
+  await expect
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('from_at'))
+    .toMatch(exactHour);
+  await expect
+    .poll(() => api.requestsTo('series').at(-1)?.get('from_at'))
+    .toMatch(exactHour);
+  await expect
+    .poll(() => api.requestsTo('series').at(-1)?.get('compare_from_at'))
+    .toMatch(exactHour);
+  expect(api.requestsTo('series').at(-1)?.get('grain')).toBe('hour');
+  await expect(
+    page
+      .getByRole('group', { name: 'Chart granularity' })
+      .getByRole('button', { name: 'Day' })
+  ).toBeDisabled();
+  await expect(page.getByLabel('Chart legend')).toContainText('Last 24 hours');
+});
