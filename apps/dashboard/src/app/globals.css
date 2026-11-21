@@ -1,5 +1,4 @@
-:root{--bg:#f6f7f9;--panel:#fff;--text:#14171c;--muted:#6b7280;--line:#e3e6eb;--accent:#2563eb;--bar:#dbe7fd;--good:#15803d;--warn:#b45309;--bad:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--panel:#161b22;--text:#e6e9ee;--muted:#8b94a3;--line:#262d38;--accent:#6b9bff;--bar:#1d2a44;--good:#4ade80;--warn:#fbbf24;--bad:#f87171}}
+@import "../ds/tokens.css";
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}
 .app{max-width:1216px;margin:0 auto;padding:0 16px 48px}
 header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 0}
