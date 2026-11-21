@@ -22,3 +22,6 @@ export const currentWindowSql = `
 export const previousWindowSql = `${currentWindowSql},
             {% if defined(from_at) %} subtractSeconds(current_start_at, dateDiff('second', current_start_at, current_end_at)) {% else %} toDateTime(previous_start, ${tzSql}) {% end %} AS previous_start_at,
             current_start_at AS previous_end_at`;
+
+export const exactRangeSql = `timestamp >= parseDateTimeBestEffort(${FROM_AT}, 'UTC')
+                AND timestamp < {% if defined(to_at) %} parseDateTimeBestEffort(${TO_AT}, 'UTC') {% else %} now('UTC') {% end %}`;
