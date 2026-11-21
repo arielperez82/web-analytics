@@ -27,6 +27,12 @@ describe("effectiveGrain", () => {
     expect(effectiveGrain({ grain: undefined, params: week })).toBe("day");
   });
 
+  it("is always hours for an exact window, whatever was chosen", () => {
+    const window = { date_from: "2026-11-06", date_to: "2026-11-07", from_at: "2026-11-06T16:00:00Z" };
+    expect(effectiveGrain({ grain: "day", params: window })).toBe("hour");
+    expect(hourBucket(window)).toBe(1);
+  });
+
   it("falls back to days when the range is too long for hours, whatever was chosen", () => {
     expect(effectiveGrain({ grain: "hour", params: { date_from: "2026-07-01", date_to: "2026-11-16" } })).toBe("day");
   });
