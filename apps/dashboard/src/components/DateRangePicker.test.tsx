@@ -57,6 +57,7 @@ describe("DateRangePicker", () => {
       expect(labels).toEqual([
         "Yesterday",
         "Today",
+        "Last 24 Hours",
         "Last 7 Days",
         "This Week",
         "Last 30 Days",

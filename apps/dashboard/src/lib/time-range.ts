@@ -2,6 +2,8 @@ import type { Range } from "./dashboard-state";
 import { localDay } from "./time-zone";
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+const HOURS_PER_DAY = 24;
 const DAYS_PER_WEEK = 7;
 const MONDAY_OFFSET = 6;
 
@@ -21,15 +23,28 @@ const dayAfterYearAgo = (day: string): string => {
   return shifted(base.toISOString().slice(0, 10), 1);
 };
 
-export const rangeToParams = (
-  range: Range,
-  now: Date,
-  zone = "UTC",
-): Readonly<Record<"date_from" | "date_to", string>> => {
+export type RangeParams = {
+  readonly date_from: string;
+  readonly date_to: string;
+  readonly from_at?: string;
+};
+
+const last24Hours = (now: Date, zone: string): RangeParams => {
+  const start = new Date(Math.floor(now.getTime() / HOUR_MS) * HOUR_MS - (HOURS_PER_DAY - 1) * HOUR_MS);
+  return {
+    date_from: localDay(start, zone),
+    date_to: localDay(now, zone),
+    from_at: `${start.toISOString().slice(0, 19)}Z`,
+  };
+};
+
+export const rangeToParams = (range: Range, now: Date, zone = "UTC"): RangeParams => {
   if ("from" in range) return { date_from: range.from, date_to: range.to };
+  if ("preset" in range && range.preset === "last_24_hours") return last24Hours(now, zone);
   const today = localDay(now, zone);
   if ("days" in range) return { date_from: daysBefore(today, range.days - 1), date_to: today };
   const first = {
+    last_24_hours: today,
     yesterday: daysBefore(today, 1),
     this_week: weekStart(today),
     this_month: `${today.slice(0, 7)}-01`,

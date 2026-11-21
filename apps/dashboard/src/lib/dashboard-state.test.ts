@@ -185,6 +185,10 @@ describe("time zone in the URL", () => {
       expect(parse("range=this_week").range).toEqual({ preset: "this_week" });
     });
 
+    it("reads the last 24 hours by name", () => {
+      expect(parse("range=last_24_hours").range).toEqual({ preset: "last_24_hours" });
+    });
+
     it("ignores a shortcut it does not know", () => {
       expect(parse("range=forever").range).toEqual({ days: 7 });
     });

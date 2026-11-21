@@ -3,7 +3,7 @@ import { isValidTimeZone } from "./time-zone";
 
 export const DEFAULT_DAYS = 7;
 
-export const PRESETS = ["yesterday", "this_week", "this_month", "this_year", "last_12_months", "all_time"] as const;
+export const PRESETS = ["last_24_hours", "yesterday", "this_week", "this_month", "this_year", "last_12_months", "all_time"] as const;
 export type Preset = (typeof PRESETS)[number];
 
 type Shortcut = { readonly label: string; readonly range: Range };
@@ -16,6 +16,7 @@ export type Range =
 export const SHORTCUTS: readonly Shortcut[] = [
   { label: "Yesterday", range: { preset: "yesterday" } },
   { label: "Today", range: { days: 1 } },
+  { label: "Last 24 Hours", range: { preset: "last_24_hours" } },
   { label: "Last 7 Days", range: { days: 7 } },
   { label: "This Week", range: { preset: "this_week" } },
   { label: "Last 30 Days", range: { days: 30 } },
