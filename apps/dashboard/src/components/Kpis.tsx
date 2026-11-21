@@ -21,6 +21,8 @@ import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { useSeries } from "@/lib/use-series";
 
+import { SegmentedControl } from "@/ds/SegmentedControl";
+
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
 
@@ -86,7 +88,7 @@ const comparisons = (
     key: "last_week",
     label: exact ? "Same hours last week" : "Same day last week",
   },
-  { key: "off", label: "Off" },
+  { key: "off", label: "None" },
 ];
 
 const isExactWindow = (params: QueryParams): boolean =>
@@ -224,55 +226,38 @@ export const Kpis = ({
             ))}
           </div>
           <div className="chart-options">
-            <div
-              className="chart-metric"
-              role="group"
-              aria-label="Chart granularity"
-            >
-              {GRAINS.map((option) => (
-                <button
-                  key={option.key}
-                  aria-pressed={grain === option.key}
-                  disabled={
-                    option.key === "hour"
-                      ? !hourAvailable(params)
-                      : isExactWindow(params)
-                  }
-                  onClick={() => onChange({ ...state, grain: option.key })}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              label="Chart granularity"
+              value={grain}
+              options={GRAINS.map((option) => ({
+                value: option.key,
+                label: option.label,
+                disabled:
+                  option.key === "hour"
+                    ? !hourAvailable(params)
+                    : isExactWindow(params),
+              }))}
+              onChange={(next) => onChange({ ...state, grain: next })}
+            />
             {isAllTime(state) ? null : (
-              <div
-                className="chart-metric"
-                role="group"
-                aria-label="Compare to"
-              >
-                {comparisons(isExactWindow(params))
+              <SegmentedControl
+                label="Compare to"
+                value={comparisonKey(state)}
+                options={comparisons(isExactWindow(params))
                   .filter(
                     (option) =>
                       option.key !== "last_week" ||
                       isSingleDay(params) ||
                       isExactWindow(params),
                   )
-                  .map((option) => (
-                    <button
-                      key={option.key}
-                      aria-pressed={comparisonKey(state) === option.key}
-                      onClick={() =>
-                        onChange({
-                          ...state,
-                          compare:
-                            option.key === "previous" ? undefined : option.key,
-                        })
-                      }
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-              </div>
+                  .map((option) => ({ value: option.key, label: option.label }))}
+                onChange={(next) =>
+                  onChange({
+                    ...state,
+                    compare: next === "previous" ? undefined : next,
+                  })
+                }
+              />
             )}
           </div>
         </div>

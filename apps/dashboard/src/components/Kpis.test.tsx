@@ -290,7 +290,7 @@ describe("Kpis", () => {
       const group = await screen.findByRole("group", { name: "Compare to" });
       expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
         "Previous period",
-        "Off",
+        "None",
       ]);
       expect(within(group).getByRole("button", { name: "Previous period" }).getAttribute("aria-pressed")).toBe("true");
     });
@@ -302,7 +302,7 @@ describe("Kpis", () => {
       expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
         "Previous period",
         "Same day last week",
-        "Off",
+        "None",
       ]);
     });
 
@@ -316,7 +316,7 @@ describe("Kpis", () => {
       const user = userEvent.setup();
 
       const group = await screen.findByRole("group", { name: "Compare to" });
-      expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
+      expect(within(group).getByRole("button", { name: "None" }).getAttribute("aria-pressed")).toBe("true");
       await user.click(within(group).getByRole("button", { name: "Previous period" }));
 
       expect(picked).toEqual([state]);
@@ -367,7 +367,7 @@ describe("Kpis", () => {
       expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
         "Previous period",
         "Same hours last week",
-        "Off",
+        "None",
       ]);
     });
   });
