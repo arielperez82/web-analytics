@@ -13,6 +13,7 @@ import {
 import { visitorClassSql } from "./payload-columns";
 import { dashboardToken } from "./tokens";
 import { tzParam, tzSql } from "./time-zone";
+import { currentWindowSql, previousWindowSql, windowParams } from "./window";
 
 // ============================================================================
 // Core Endpoints
@@ -97,7 +98,7 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         {% if defined(location) or defined(device) or defined(browser) %}
         SELECT
             toDate(toTimeZone(timestamp, ${tzSql})) AS date,
-            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            if(timestamp >= (SELECT current_start_at FROM date_calculations), 'current', 'previous') AS period,
             ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors_state,
             uniqCombined64State(session_id) AS sessions_state,
@@ -118,7 +119,7 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         {% else %}
         SELECT
             toDate(toTimeZone(bucket, ${tzSql})) AS date,
-            if(date >= (SELECT current_start FROM date_calculations), 'current', 'previous') AS period,
+            if(bucket >= (SELECT current_start_at FROM date_calculations), 'current', 'previous') AS period,
             visitor_class,
             uniqCombined64MergeState(visitors) AS visitors_state,
             uniqCombined64MergeState(visits) AS sessions_state,
@@ -158,9 +159,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
             current_start - period_days AS previous_start,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -210,6 +209,7 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
     ...tzParam,
+    ...windowParams,
   },
   output: {
     known_visitors: t.uint64(),
@@ -248,9 +248,7 @@ export const engagement = defineEndpoint("engagement", {
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
             current_start - period_days AS previous_start,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -349,6 +347,7 @@ export const engagement = defineEndpoint("engagement", {
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
     ...crossFilterParams,
     ...tzParam,
+    ...windowParams,
   },
   output: {
     pageviews: t.uint64(),
@@ -838,10 +837,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             previous_start,
             previous_end,
             period_days,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -939,6 +935,7 @@ export const topBrowsers = defineEndpoint("top_browsers", {
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
     ...tzParam,
+    ...windowParams,
   },
   output: {
     browser: t.string(),
@@ -979,10 +976,7 @@ export const topDevices = defineEndpoint("top_devices", {
             previous_start,
             previous_end,
             period_days,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -1077,6 +1071,7 @@ export const topDevices = defineEndpoint("top_devices", {
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
     ...tzParam,
+    ...windowParams,
   },
   output: {
     device: t.string(),
@@ -1117,10 +1112,7 @@ export const topLocations = defineEndpoint("top_locations", {
             previous_start,
             previous_end,
             period_days,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -1215,6 +1207,7 @@ export const topLocations = defineEndpoint("top_locations", {
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
     ...tzParam,
+    ...windowParams,
   },
   output: {
     location: t.string(),
@@ -1254,10 +1247,7 @@ export const topPages = defineEndpoint("top_pages", {
             previous_start,
             previous_end,
             period_days,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -1358,6 +1348,7 @@ export const topPages = defineEndpoint("top_pages", {
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
     ...tzParam,
+    ...windowParams,
   },
   output: {
     pathname: t.string(),
@@ -1398,10 +1389,7 @@ export const topSources = defineEndpoint("top_sources", {
             previous_start,
             previous_end,
             period_days,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            toDateTime(previous_start, ${tzSql}) AS previous_start_at,
-            toDateTime(previous_end + 1, ${tzSql}) AS previous_end_at
+${previousWindowSql}
       `,
     }),
     node({
@@ -1496,6 +1484,7 @@ export const topSources = defineEndpoint("top_sources", {
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(50).describe("Limit for pagination"),
     ...tzParam,
+    ...windowParams,
   },
   output: {
     referrer: t.string(),
@@ -1523,8 +1512,7 @@ const channelDateNode = () =>
         SELECT
             current_start,
             current_end,
-            toDateTime(current_start, ${tzSql}) AS current_start_at,
-            toDateTime(current_end + 1, ${tzSql}) AS current_end_at
+${currentWindowSql}
       `,
   });
 
@@ -1632,6 +1620,7 @@ const channelParams = {
   domain: p.string().optional().describe("Filter by domain"),
   include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   ...tzParam,
+  ...windowParams,
 };
 
 /**
@@ -1804,13 +1793,11 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
           WITH
               {% if defined(date_from) and defined(date_to) %}
                   toDate({{ String(date_from) }}) as current_start,
-                  toDate({{ String(date_to) }}) as current_end
+                  toDate({{ String(date_to) }}) as current_end,
               {% else %}
                   toDate(timestampAdd(today(), interval -7 day)) as current_start,
-                  toDate(today()) as current_end
-              {% end %},
-              toDateTime(current_start, ${tzSql}) as current_start_at,
-              toDateTime(current_end + 1, ${tzSql}) as current_end_at
+                  toDate(today()) as current_end,
+              {% end %}${currentWindowSql}
           SELECT
               session_id,
               ${pick}(${normalizedPath}, timestamp) as pathname
@@ -1846,6 +1833,7 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
       skip: p.int32().optional(0).describe("Skip for pagination"),
       limit: p.int32().optional(50).describe("Limit for pagination"),
       ...tzParam,
+      ...windowParams,
     },
     output: {
       pathname: t.string(),

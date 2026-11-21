@@ -148,4 +148,22 @@ describe("rangeToParams", () => {
       });
     });
   });
+
+  describe("the last 24 hours", () => {
+    it("starts on the hour, 23 hours before the current one, and names the days it touches", () => {
+      expect(rangeToParams({ preset: "last_24_hours" }, now)).toEqual({
+        date_from: "2026-11-06",
+        date_to: "2026-11-07",
+        from_at: "2026-11-06T16:00:00Z",
+      });
+    });
+
+    it("reads the days in the viewer's zone but starts on a UTC hour", () => {
+      expect(rangeToParams({ preset: "last_24_hours" }, now, "Pacific/Auckland")).toEqual({
+        date_from: "2026-11-07",
+        date_to: "2026-11-08",
+        from_at: "2026-11-06T16:00:00Z",
+      });
+    });
+  });
 });

@@ -8,7 +8,7 @@ type Params = Readonly<Record<string, string | undefined>>;
 
 type Loaded = { readonly status: number; readonly body: unknown };
 
-const OWN_PARAMS: readonly string[] = ["grain", "compare_from", "compare_to"];
+const OWN_PARAMS: readonly string[] = ["grain", "compare_from", "compare_to", "compare_from_at"];
 
 const SERIES = {
   day: { endpoint: "daily_series", key: "date" },
@@ -29,8 +29,12 @@ export const loadSeries = async (
   const zone = query.get("tz") ?? "UTC";
   const range = withoutOwn(query);
   const [compareFrom, compareTo] = [query.get("compare_from"), query.get("compare_to")];
-  const comparison =
-    compareFrom && compareTo ? { ...range, date_from: compareFrom, date_to: compareTo } : undefined;
+  const compareFromAt = query.get("compare_from_at");
+  const comparison = compareFromAt
+    ? { ...range, from_at: compareFromAt }
+    : compareFrom && compareTo
+      ? { ...range, date_from: compareFrom, date_to: compareTo }
+      : undefined;
 
   const call = (params: Params) =>
     proxyEndpoint(

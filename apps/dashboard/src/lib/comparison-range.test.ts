@@ -83,4 +83,25 @@ describe("comparisonRange", () => {
       ).toEqual({ date_from: "2026-11-10", date_to: "2026-11-10" });
     });
   });
+
+  describe("the last 24 hours", () => {
+    const hours = { preset: "last_24_hours" } as const;
+    const wednesdayAfternoon = new Date("2026-11-18T15:30:00Z");
+
+    it("compares with the 24 hours before it", () => {
+      expect(previous(hours, wednesdayAfternoon)).toEqual({
+        date_from: "2026-11-16",
+        date_to: "2026-11-17",
+        from_at: "2026-11-16T16:00:00Z",
+      });
+    });
+
+    it("compares with the same hours a week earlier when asked", () => {
+      expect(comparisonRange({ range: hours, now: wednesdayAfternoon, zone: "UTC", mode: "last_week" })).toEqual({
+        date_from: "2026-11-10",
+        date_to: "2026-11-11",
+        from_at: "2026-11-10T16:00:00Z",
+      });
+    });
+  });
 });

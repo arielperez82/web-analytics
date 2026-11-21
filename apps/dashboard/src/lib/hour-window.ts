@@ -2,6 +2,8 @@ import { hourBucket } from "./grain";
 
 const DAY_MS = 86_400_000;
 
+type Params = Readonly<Record<string, string | undefined>>;
+
 type DayRange = { readonly date_from?: string; readonly date_to?: string };
 
 const asInstant = (utc: string): Date => new Date(`${utc.replace(" ", "T")}Z`);
@@ -54,9 +56,13 @@ export const zonedHour = (utcHour: string, zone: string): string => {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 
-export const hourlyRequest = (
-  params: Readonly<Record<string, string | undefined>>,
-): Readonly<Record<string, string | undefined>> => {
-  const { date_from, date_to, tz, ...rest } = params;
+const exactDay = (from_at: string): { readonly from_at: string; readonly to_at: string } => ({
+  from_at,
+  to_at: asIso(new Date(new Date(from_at).getTime() + DAY_MS)),
+});
+
+export const hourlyRequest = (params: Params): Params => {
+  const { date_from, date_to, from_at, tz, ...rest } = params;
+  if (from_at !== undefined) return { ...rest, ...exactDay(from_at), bucket_hours: "1" };
   return { ...rest, ...hourWindow({ date_from, date_to }, tz ?? "UTC"), bucket_hours: String(hourBucket({ date_from, date_to }) ?? 1) };
 };

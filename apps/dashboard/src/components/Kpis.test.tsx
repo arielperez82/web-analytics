@@ -55,7 +55,7 @@ const hours: readonly ApiRow[] = [
 const renderKpis = (
   overrides: {
     params?: Record<string, string>;
-    comparison?: { compare_from: string; compare_to: string };
+    comparison?: { compare_from: string; compare_to: string; compare_from_at?: string };
     onChange?: (next: DashboardState) => void;
     points?: readonly ApiRow[];
     state?: DashboardState;
@@ -327,6 +327,48 @@ describe("Kpis", () => {
 
       await screen.findByRole("group", { name: "Chart series" });
       expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
+    });
+  });
+
+  describe("the last 24 hours", () => {
+    const last24 = { date_from: "2026-11-09", date_to: "2026-11-10", from_at: "2026-11-09T16:00:00Z" };
+    const last24Comparison = { compare_from: "2026-11-08", compare_to: "2026-11-09", compare_from_at: "2026-11-08T16:00:00Z" };
+    const range = { ...state, range: { preset: "last_24_hours" } } as DashboardState;
+
+    it("sends the exact start and the start of the comparison to the series route, by the hour", async () => {
+      const api = renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
+
+      await waitFor(() => expect(api.requestsTo("series")).toHaveLength(1));
+      const query = api.requestsTo("series")[0];
+      expect(query?.get("from_at")).toBe("2026-11-09T16:00:00Z");
+      expect(query?.get("compare_from_at")).toBe("2026-11-08T16:00:00Z");
+      expect(query?.get("grain")).toBe("hour");
+    });
+
+    it("cannot be shown by the day", async () => {
+      renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
+
+      const grain = await screen.findByRole("group", { name: "Chart granularity" });
+      expect((within(grain).getByRole("button", { name: "Day" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(within(grain).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("is named in the legend by its length, not by days", async () => {
+      renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
+
+      expect(await screen.findByText("This period · Last 24 hours")).toBeTruthy();
+      expect(screen.getByText("Previous period · the 24 hours before")).toBeTruthy();
+    });
+
+    it("offers the same hours last week", async () => {
+      renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
+
+      const group = await screen.findByRole("group", { name: "Compare to" });
+      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
+        "Previous period",
+        "Same hours last week",
+        "Off",
+      ]);
     });
   });
 });

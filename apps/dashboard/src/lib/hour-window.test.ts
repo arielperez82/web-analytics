@@ -45,4 +45,10 @@ describe("hourlyRequest", () => {
     expect(hourlyRequest({ date_from: "2026-11-10", date_to: "2026-11-10" }).bucket_hours).toBe("1");
     expect(hourlyRequest({ date_from: "2026-10-18", date_to: "2026-11-16" }).bucket_hours).toBe("4");
   });
+
+  it("asks for the 24 hours from an exact start, and nothing about days", () => {
+    expect(
+      hourlyRequest({ date_from: "2026-11-06", date_to: "2026-11-07", from_at: "2026-11-06T16:00:00Z", tz: "UTC" }),
+    ).toEqual({ from_at: "2026-11-06T16:00:00Z", to_at: "2026-11-07T16:00:00Z", bucket_hours: "1" });
+  });
 });

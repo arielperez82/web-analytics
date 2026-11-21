@@ -12,6 +12,7 @@ import {
 } from "@tinybirdco/sdk";
 import { dashboardToken } from "./tokens";
 import { tzParam, tzSql } from "./time-zone";
+import { exactRangeSql, windowParams } from "./window";
 
 /**
  * Web vitals events - parsed web_vital events with metadata
@@ -202,7 +203,9 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             domain,
             tenant_id
         FROM web_vitals_events
-        WHERE {% if defined(date_from) and defined(date_to) %}
+        WHERE {% if defined(from_at) %}
+                ${exactRangeSql}
+            {% elif defined(date_from) and defined(date_to) %}
                 timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
                 AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
@@ -268,6 +271,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
   ],
   params: {
     ...tzParam,
+    ...windowParams,
     days: p.int32().optional(1).describe("Number of days to analyze"),
     date_from: p
       .date()
@@ -629,7 +633,9 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             score,
             domain
         FROM web_vitals_events
-        WHERE {% if defined(date_from) and defined(date_to) %}
+        WHERE {% if defined(from_at) %}
+                ${exactRangeSql}
+            {% elif defined(date_from) and defined(date_to) %}
                 timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
                 AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
@@ -748,6 +754,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
   ],
   params: {
     ...tzParam,
+    ...windowParams,
     days: p.int32().optional(1).describe("Number of days to analyze"),
     date_from: p
       .date()

@@ -97,6 +97,21 @@ describe("loadSeries", () => {
     });
   });
 
+  it("loads 24 hours from an exact start and the 24 hours it is compared with", async () => {
+    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", value: 2 }]);
+    await load(
+      "grain=hour&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare_from_at=2026-11-16T16:00:00Z",
+      deps,
+    );
+    expect(
+      urls.map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at"), u.searchParams.has("date_from")]),
+    ).toEqual([
+      ["2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z", false],
+      ["2026-11-16T16:00:00Z", "2026-11-17T16:00:00Z", false],
+    ]);
+    for (const url of urls) expect(url.searchParams.has("compare_from_at")).toBe(false);
+  });
+
   it("fails as a whole when either call fails", async () => {
     const { deps } = fakeDeps((url) => (url.searchParams.get("date_from") === "2026-11-09" ? undefined : byStart(url)));
     const result = await load(

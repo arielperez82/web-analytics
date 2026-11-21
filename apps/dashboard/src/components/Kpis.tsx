@@ -3,7 +3,12 @@
 import { useState } from "react";
 
 import { xLabels, yTicks } from "@/lib/chart-axis";
-import { type Compare, type DashboardState, drillDay, type Grain } from "@/lib/dashboard-state";
+import {
+  type Compare,
+  type DashboardState,
+  drillDay,
+  type Grain,
+} from "@/lib/dashboard-state";
 import {
   APPROXIMATE_COUNT_NOTE,
   formatNumber,
@@ -17,7 +22,7 @@ import { useEndpoint } from "@/lib/use-endpoint";
 import { useSeries } from "@/lib/use-series";
 
 import { LineChart } from "./LineChart";
-import { Panel, type Row,Status } from "./ui";
+import { Panel, type Row, Status } from "./ui";
 
 type Metric = "sessions" | "known" | "anonymous" | "pageviews";
 
@@ -33,7 +38,8 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
   { key: "hour", label: "Hour" },
 ];
 
-const field = (row: Row | undefined, key: string): number => Number(row?.[key] ?? 0);
+const field = (row: Row | undefined, key: string): number =>
+  Number(row?.[key] ?? 0);
 
 const Card = ({
   label,
@@ -55,7 +61,10 @@ const Card = ({
     <strong>
       {value}
       {approximate ? (
-        <abbr title={APPROXIMATE_COUNT_NOTE} aria-label={APPROXIMATE_COUNT_NOTE}>
+        <abbr
+          title={APPROXIMATE_COUNT_NOTE}
+          aria-label={APPROXIMATE_COUNT_NOTE}
+        >
           *
         </abbr>
       ) : null}
@@ -66,17 +75,51 @@ const Card = ({
   </div>
 );
 
-const COMPARISONS: readonly { readonly key: Compare | "previous"; readonly label: string }[] = [
+const comparisons = (
+  exact: boolean,
+): readonly {
+  readonly key: Compare | "previous";
+  readonly label: string;
+}[] => [
   { key: "previous", label: "Previous period" },
-  { key: "last_week", label: "Same day last week" },
+  {
+    key: "last_week",
+    label: exact ? "Same hours last week" : "Same day last week",
+  },
   { key: "off", label: "Off" },
 ];
 
-const isSingleDay = (params: QueryParams): boolean => params.date_from === params.date_to;
+const isExactWindow = (params: QueryParams): boolean =>
+  params.from_at !== undefined;
 
-const comparisonKey = (state: DashboardState): Compare | "previous" => state.compare ?? "previous";
+const isSingleDay = (params: QueryParams): boolean =>
+  params.date_from === params.date_to;
 
-const isAllTime = (state: DashboardState): boolean => "preset" in state.range && state.range.preset === "all_time";
+const thisPeriod = (params: QueryParams): string =>
+  isExactWindow(params)
+    ? "This period · Last 24 hours"
+    : `This period · ${String(params.date_from)} – ${String(params.date_to)}`;
+
+const comparedPeriod = (
+  {
+    state,
+    params,
+  }: { readonly state: DashboardState; readonly params: QueryParams },
+  comparison: { readonly compare_from: string; readonly compare_to: string },
+): string => {
+  const lastWeek = state.compare === "last_week";
+  if (isExactWindow(params))
+    return lastWeek
+      ? "Same hours last week · a week earlier"
+      : "Previous period · the 24 hours before";
+  return `${lastWeek ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`;
+};
+
+const comparisonKey = (state: DashboardState): Compare | "previous" =>
+  state.compare ?? "previous";
+
+const isAllTime = (state: DashboardState): boolean =>
+  "preset" in state.range && state.range.preset === "all_time";
 
 export const Kpis = ({
   state,
@@ -86,7 +129,11 @@ export const Kpis = ({
 }: {
   state: DashboardState;
   params: QueryParams;
-  comparison?: { readonly compare_from: string; readonly compare_to: string };
+  comparison?: {
+    readonly compare_from: string;
+    readonly compare_to: string;
+    readonly compare_from_at?: string;
+  };
   onChange: (next: DashboardState) => void;
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");
@@ -97,17 +144,25 @@ export const Kpis = ({
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
-  const { points, loading, error } = useSeries({ ...params, ...comparison, grain, metric });
+  const { points, loading, error } = useSeries({
+    ...params,
+    ...comparison,
+    grain,
+    metric,
+  });
   const rows = points ?? [];
   const selected = "from" in state.range ? state.range.from : undefined;
-  const label = METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
+  const label =
+    METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
   return (
     <>
       <div className="cards">
         <Card
           label="Known visitors"
           value={formatNumber(field(counts, "known_visitors"))}
-          growth={formatSignedPercent(field(counts, "known_visitors_growth_percent"))}
+          growth={formatSignedPercent(
+            field(counts, "known_visitors_growth_percent"),
+          )}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
           caption="Unique people, counted once across the range"
           approximate
@@ -115,7 +170,9 @@ export const Kpis = ({
         <Card
           label="Anonymous visitors"
           value={formatNumber(field(counts, "anonymous_visitors"))}
-          growth={formatSignedPercent(field(counts, "anonymous_visitors_growth_percent"))}
+          growth={formatSignedPercent(
+            field(counts, "anonymous_visitors_growth_percent"),
+          )}
           caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
@@ -128,20 +185,32 @@ export const Kpis = ({
         <Card
           label="Pageviews"
           value={formatNumber(field(engagement, "pageviews"))}
-          growth={formatSignedPercent(field(engagement, "pageviews_growth_percent"))}
+          growth={formatSignedPercent(
+            field(engagement, "pageviews_growth_percent"),
+          )}
         />
         <Card
           label="Bounce rate"
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
-          growth={formatSignedPercent(field(engagement, "bounce_rate_growth_percent"))}
+          growth={formatSignedPercent(
+            field(engagement, "bounce_rate_growth_percent"),
+          )}
         />
         <Card
           label="Avg session"
           value={formatSeconds(field(engagement, "avg_session_sec"))}
-          growth={formatSignedPercent(field(engagement, "avg_session_sec_growth_percent"))}
+          growth={formatSignedPercent(
+            field(engagement, "avg_session_sec_growth_percent"),
+          )}
         />
       </div>
-      <Panel title={hourly ? `${label} per ${perHour}` : `${label} per day · click a point to drill in`}>
+      <Panel
+        title={
+          hourly
+            ? `${label} per ${perHour}`
+            : `${label} per day · click a point to drill in`
+        }
+      >
         <div className="chart-controls">
           <div className="chart-metric" role="group" aria-label="Chart series">
             {METRICS.map((option) => (
@@ -155,36 +224,67 @@ export const Kpis = ({
             ))}
           </div>
           <div className="chart-options">
-          <div className="chart-metric" role="group" aria-label="Chart granularity">
-            {GRAINS.map((option) => (
-              <button
-                key={option.key}
-                aria-pressed={grain === option.key}
-                disabled={option.key === "hour" && !hourAvailable(params)}
-                onClick={() => onChange({ ...state, grain: option.key })}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {isAllTime(state) ? null : (
-            <div className="chart-metric" role="group" aria-label="Compare to">
-              {COMPARISONS.filter((option) => option.key !== "last_week" || isSingleDay(params)).map((option) => (
+            <div
+              className="chart-metric"
+              role="group"
+              aria-label="Chart granularity"
+            >
+              {GRAINS.map((option) => (
                 <button
                   key={option.key}
-                  aria-pressed={comparisonKey(state) === option.key}
-                  onClick={() => onChange({ ...state, compare: option.key === "previous" ? undefined : option.key })}
+                  aria-pressed={grain === option.key}
+                  disabled={
+                    option.key === "hour"
+                      ? !hourAvailable(params)
+                      : isExactWindow(params)
+                  }
+                  onClick={() => onChange({ ...state, grain: option.key })}
                 >
                   {option.label}
                 </button>
               ))}
             </div>
-          )}
+            {isAllTime(state) ? null : (
+              <div
+                className="chart-metric"
+                role="group"
+                aria-label="Compare to"
+              >
+                {comparisons(isExactWindow(params))
+                  .filter(
+                    (option) =>
+                      option.key !== "last_week" ||
+                      isSingleDay(params) ||
+                      isExactWindow(params),
+                  )
+                  .map((option) => (
+                    <button
+                      key={option.key}
+                      aria-pressed={comparisonKey(state) === option.key}
+                      onClick={() =>
+                        onChange({
+                          ...state,
+                          compare:
+                            option.key === "previous" ? undefined : option.key,
+                        })
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
-            {yTicks(rows.flatMap((row) => (row.previous === null ? [row.current] : [row.current, row.previous]))).map((tick) => (
+            {yTicks(
+              rows.flatMap((row) =>
+                row.previous === null
+                  ? [row.current]
+                  : [row.current, row.previous],
+              ),
+            ).map((tick) => (
               <span key={tick.percent} style={{ bottom: `${tick.percent}%` }}>
                 {formatNumber(tick.value)}
               </span>
@@ -193,7 +293,11 @@ export const Kpis = ({
           <div className="chart-body">
             <div className="chart" role="group" aria-label={`${label} chart`}>
               <div className="chart-status">
-                <Status loading={loading} error={error} empty={rows.length === 0} />
+                <Status
+                  loading={loading}
+                  error={error}
+                  empty={rows.length === 0}
+                />
               </div>
               <LineChart
                 points={rows}
@@ -203,19 +307,26 @@ export const Kpis = ({
               />
             </div>
             <div className="x-axis" role="group" aria-label="Chart x axis">
-              {xLabels(rows.map((row) => row.label), unit).map((text, index) => (
+              {xLabels(
+                rows.map((row) => row.label),
+                unit,
+              ).map((text, index) => (
                 <span key={index}>{text}</span>
               ))}
             </div>
           </div>
         </div>
         <ul className="legend" aria-label="Chart legend">
-          <li className="current">{`This period · ${String(params.date_from)} – ${String(params.date_to)}`}</li>
+          <li className="current">{thisPeriod(params)}</li>
           {comparison === undefined ? null : (
-            <li className="previous">{`${state.compare === "last_week" ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`}</li>
+            <li className="previous">
+              {comparedPeriod({ state, params }, comparison)}
+            </li>
           )}
         </ul>
-        <small className="footnote">Lines are per-{unit} counts and can add up to more than the card.</small>
+        <small className="footnote">
+          Lines are per-{unit} counts and can add up to more than the card.
+        </small>
       </Panel>
     </>
   );
