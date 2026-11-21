@@ -1,13 +1,16 @@
 import type { Range } from "./dashboard-state";
 import { daysBefore, rangeToParams, shifted } from "./time-range";
+import { localDay } from "./time-zone";
 
 export type CompareMode = "previous" | "last_week";
 
-export type DayRange = { readonly date_from: string; readonly date_to: string };
+export type DayRange = { readonly date_from: string; readonly date_to: string; readonly from_at?: string };
 
 type CalendarPreset = "this_week" | "this_month" | "this_year";
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+const HOURS_PER_DAY = 24;
 const DAYS_PER_WEEK = 7;
 const DECEMBER = 12;
 const YEAR_DIGITS = 4;
@@ -45,6 +48,12 @@ const previousYear = ({ date_to }: DayRange): DayRange => {
   return { date_from: dayOf(year - 1, 1, 1), date_to: dayOf(year - 1, month, day) };
 };
 
+const hoursBefore = ({ from_at = "" }: DayRange, hours: number, zone: string): DayRange => {
+  const start = new Date(new Date(from_at).getTime() - hours * HOUR_MS);
+  const end = new Date(start.getTime() + HOURS_PER_DAY * HOUR_MS - 1);
+  return { date_from: localDay(start, zone), date_to: localDay(end, zone), from_at: `${start.toISOString().slice(0, 19)}Z` };
+};
+
 const sameSpanOfLastCycle: Readonly<Record<CalendarPreset, (current: DayRange) => DayRange>> = {
   this_week: lastWeek,
   this_month: previousMonth,
@@ -67,6 +76,8 @@ export const comparisonRange = ({
 }): DayRange | undefined => {
   if ("preset" in range && range.preset === "all_time") return undefined;
   const current = rangeToParams(range, now, zone);
+  if (current.from_at !== undefined)
+    return hoursBefore(current, mode === "last_week" ? HOURS_PER_DAY * DAYS_PER_WEEK : HOURS_PER_DAY, zone);
   if (mode === "last_week") return lastWeek(current);
   return isCalendarPreset(range) ? sameSpanOfLastCycle[range.preset](current) : precedingEqualLength(current);
 };

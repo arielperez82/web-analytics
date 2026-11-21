@@ -47,7 +47,13 @@ export const useDashboardState = () => {
       zone,
       mode: state.compare ?? "previous",
     });
-    return range === undefined ? undefined : { compare_from: range.date_from, compare_to: range.date_to };
+    return range === undefined
+      ? undefined
+      : {
+          compare_from: range.date_from,
+          compare_to: range.date_to,
+          ...(range.from_at === undefined ? {} : { compare_from_at: range.from_at }),
+        };
   }, [state, zone]);
   return { state, update, params, comparison, zone };
 };

@@ -60,6 +60,14 @@ describe("useDashboardState", () => {
       expect(comparisonOf("days=1&compare=last_week")).toEqual({ compare_from: "2026-11-11", compare_to: "2026-11-11" });
     });
 
+    it("starts at an exact hour for the last 24 hours", () => {
+      expect(comparisonOf("range=last_24_hours", "2026-11-18T12:30:00Z")).toEqual({
+        compare_from: "2026-11-16",
+        compare_to: "2026-11-17",
+        compare_from_at: "2026-11-16T13:00:00Z",
+      });
+    });
+
     it("is nothing when switched off", () => {
       expect(comparisonOf("days=7&compare=off")).toBeUndefined();
     });
