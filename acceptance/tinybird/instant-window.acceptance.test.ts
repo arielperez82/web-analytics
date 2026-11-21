@@ -129,4 +129,35 @@ describe.concurrent('a window of exact instants', () => {
     );
     expect(Number(counts?.sessions)).toBe(1);
   });
+
+  it('compares an open-ended window with the same whole hours before it', async () => {
+    const scope = createScope();
+    const startOfHour = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+    const from_at = new Date(startOfHour - 23 * HOUR_MS).toISOString();
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/recent',
+        now: new Date(startOfHour + 2 * ONE_MINUTE_MS),
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/start-of-previous',
+        now: new Date(startOfHour - 47 * HOUR_MS + 2 * ONE_MINUTE_MS),
+      }),
+    ]);
+    const params = { tenant_id: scope.tenantId, domain: scope.domain, from_at };
+    const [counts] = await waitForRow(
+      () => pipeRows<Row>(env, 'visitor_counts', params),
+      found =>
+        Number(found[0]?.sessions) === 1 &&
+        Number(found[0]?.previous_sessions) === 1
+    );
+    const [engagement] = await waitForRow(
+      () => pipeRows<Row>(env, 'engagement', params),
+      found => Number(found[0]?.pageviews) === 1
+    );
+    expect(Number(counts?.previous_sessions)).toBe(1);
+    expect(Number(engagement?.previous_pageviews)).toBe(1);
+  });
 });
