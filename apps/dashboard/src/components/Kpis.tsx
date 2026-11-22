@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 
 import { Badge } from "@/ds/Badge";
 import { SegmentedControl } from "@/ds/SegmentedControl";
+import { Sparkline } from "@/ds/Sparkline";
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import {
   type Compare,
@@ -22,7 +23,7 @@ import {
 import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
-import { useSeries } from "@/lib/use-series";
+import { type SeriesPoint, useSeries } from "@/lib/use-series";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
@@ -53,6 +54,7 @@ type CardContent = {
   readonly approximate?: boolean;
   readonly caption?: string;
   readonly note?: string;
+  readonly trend?: readonly SeriesPoint[];
 };
 
 const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
@@ -67,6 +69,7 @@ const CardBody = ({
   approximate = false,
   caption,
   note,
+  trend,
   ids,
 }: CardContent & { readonly ids: Record<"label" | "value" | "growth" | "caption" | "note", string> }) => (
   <>
@@ -89,6 +92,7 @@ const CardBody = ({
     )}
     {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
     {note === undefined ? null : <small id={ids.note}>{note}</small>}
+    {trend === undefined ? null : <Sparkline points={trend} />}
   </>
 );
 
@@ -216,6 +220,13 @@ export const Kpis = ({
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
+  const useTrend = (key: Metric) => useSeries({ ...params, grain, metric: key }).points;
+  const trends = {
+    known: useTrend("known"),
+    anonymous: useTrend("anonymous"),
+    sessions: useTrend("sessions"),
+    pageviews: useTrend("pageviews"),
+  };
   const { points, loading, error, refreshing, retry } = useSeries({
     ...params,
     ...comparison,
@@ -246,6 +257,7 @@ export const Kpis = ({
       onChange({ ...state, grain: key });
   };
   const pick = (key: Metric) => ({
+    trend: trends[key],
     selected: metric === key,
     onSelect: () => setMetric(key),
   });
