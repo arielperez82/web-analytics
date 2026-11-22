@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 
+import { Kbd } from "@/ds/Kbd";
 import { FILTER_TITLE, type FilterKey, type Filters } from "@/lib/filters";
 import { type Report,REPORTS } from "@/lib/reports";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
+import { useShortcuts } from "@/lib/use-shortcuts";
 
 import type { Row } from "./ui";
 
@@ -40,7 +42,7 @@ const FilterSelect = ({
     ]),
   );
   const choose = (value: string) => {
-    const { [filterKey]: _dropped, ...others } = filters;
+    const others = Object.fromEntries(Object.entries(filters).filter(([key]) => key !== filterKey));
     onChange(value === "" ? others : { ...others, [filterKey]: value });
   };
   return (
@@ -70,11 +72,12 @@ export const FilterMenu = ({
   onIncludeBotsChange: (include: boolean) => void;
 }) => {
   const [open, setOpen] = useState(false);
+  useShortcuts({ f: () => setOpen((was) => !was) });
   const count = Object.keys(filters).length + (includeBots ? 1 : 0);
   return (
     <div className="range">
       <button aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Filters{count > 0 && <> <b>{count}</b></>} ▾
+        Filters{count > 0 && <> <b>{count}</b></>} ▾ <Kbd>F</Kbd>
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Filters">

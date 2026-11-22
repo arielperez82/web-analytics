@@ -135,3 +135,23 @@ describe("FilterMenu", () => {
     expect(within(screen.getByRole("button", { name: /^Filters/ })).getByText("2")).toBeTruthy();
   });
 });
+
+describe("FilterMenu keyboard shortcut", () => {
+  it("F opens the menu and a second F closes it, like its button", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.keyboard("f");
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeTruthy();
+    await user.keyboard("f");
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull();
+  });
+
+  it("shows its key on the button without renaming it", () => {
+    renderMenu();
+
+    const button = screen.getByRole("button", { name: /^Filters/ });
+    expect(within(button).getByText("F").getAttribute("aria-hidden")).toBe("true");
+  });
+});

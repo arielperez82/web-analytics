@@ -456,4 +456,46 @@ describe("Kpis", () => {
       ]);
     });
   });
+
+  describe("keyboard shortcuts", () => {
+    const keyed = async (key: string, overrides: Parameters<typeof renderKpis>[0] = {}) => {
+      const changes: DashboardState[] = [];
+      renderKpis({ ...overrides, onChange: (next) => changes.push(next) });
+      await screen.findByRole("group", { name: "Chart granularity" });
+      await userEvent.keyboard(key);
+      return changes;
+    };
+
+    it("H switches the chart to hours and D back to days, as the pills do", async () => {
+      expect(await keyed("h")).toEqual([{ ...state, grain: "hour" }]);
+      cleanup();
+      expect(await keyed("d", { state: { ...state, grain: "hour" } })).toEqual([{ ...state, grain: "day" }]);
+    });
+
+    it("D does nothing where the Day pill is disabled", async () => {
+      const exact = { date_from: "2026-11-15", date_to: "2026-11-16", from_at: "2026-11-15T10:00:00Z" };
+
+      expect(await keyed("d", { params: exact, state: { ...state, grain: "hour" } })).toEqual([]);
+    });
+
+    it("C steps through the comparisons on offer and wraps round", async () => {
+      expect(await keyed("c")).toEqual([{ ...state, compare: "off" }]);
+      cleanup();
+      expect(await keyed("c", { state: { ...state, compare: "off" } })).toEqual([{ ...state, compare: undefined }]);
+    });
+
+    it("C reaches last week's figures where that comparison is offered", async () => {
+      const single = { ...params, date_to: params.date_from };
+
+      expect(await keyed("c", { params: single })).toEqual([{ ...state, compare: "last_week" }]);
+    });
+
+    it("shows the keys beside the pills they trigger", async () => {
+      renderKpis();
+
+      const granularity = within(await screen.findByRole("group", { name: "Chart granularity" }));
+      expect(granularity.getByText("D")).toBeTruthy();
+      expect(granularity.getByText("H")).toBeTruthy();
+    });
+  });
 });

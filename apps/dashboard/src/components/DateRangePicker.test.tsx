@@ -198,4 +198,34 @@ describe("DateRangePicker", () => {
       expect(dialog()).toBeTruthy();
     });
   });
+
+  describe("keyboard shortcut", () => {
+    it("L opens Other and a second L closes it, like its button", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+
+      await user.keyboard("l");
+      expect(dialog()).toBeTruthy();
+      await user.keyboard("l");
+
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+    });
+
+    it("is not triggered by typing a date", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+
+      await user.click(within(dialog()).getByLabelText("From"));
+      await user.keyboard("l");
+
+      expect(dialog()).toBeTruthy();
+    });
+
+    it("shows its key on the button", () => {
+      renderPicker();
+
+      expect(within(other()).getByText("L").getAttribute("aria-hidden")).toBe("true");
+    });
+  });
 });

@@ -30,4 +30,7 @@
 .sidebar-toggle{align-self:flex-start;width:36px;padding:0}
 .sidebar[data-collapsed=false] .sidebar-toggle svg{transform:rotate(180deg)}
 .side-tip{position:absolute;z-index:30;left:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;white-space:nowrap;pointer-events:none}
+.ds-kbd{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border:1px solid var(--line-control);border-radius:5px;background:var(--surface-hover);color:var(--text-muted);font:600 11px/16px system-ui,sans-serif;text-align:center}
+.chart-options>.ds-kbd{align-self:center;margin-left:-4px}
+.range{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { REPORTS, reportBySlug } from "./reports";
+import { reportBySlug,REPORTS } from "./reports";
 
 describe("reportBySlug", () => {
   it("finds a report by its slug", () => {

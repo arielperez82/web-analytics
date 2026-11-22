@@ -2,12 +2,14 @@
 
 import { useRef, useState } from "react";
 
+import { Kbd } from "@/ds/Kbd";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
 import { useDismiss } from "@/lib/use-dismiss";
+import { useShortcuts } from "@/lib/use-shortcuts";
 
 import { TimeZonePicker } from "./TimeZonePicker";
 
@@ -66,6 +68,11 @@ export const DateRangePicker = ({
     onChange(next);
     setOpen(false);
   };
+  const toggle = () => {
+    setDraft({ from: current.date_from, to: current.date_to });
+    setOpen(!open);
+  };
+  useShortcuts({ l: toggle });
   const quickLabel = quickLabelOf(range);
   return (
     <div className="range" ref={container}>
@@ -81,15 +88,13 @@ export const DateRangePicker = ({
       <button
         ref={trigger}
         type="button"
+        className="ds-btn"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-pressed={quickLabel === undefined}
-        onClick={() => {
-          setDraft({ from: current.date_from, to: current.date_to });
-          setOpen(!open);
-        }}
+        onClick={toggle}
       >
-        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾
+        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾ <Kbd>L</Kbd>
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Date range">
