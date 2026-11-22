@@ -167,11 +167,11 @@ test('clicking a day on the chart shows that day hour by hour', async ({
     api.requestsTo('series').filter(q => q.get('grain') === 'hour')
   ).toHaveLength(0);
 
-  await page.getByTitle('2026-11-10: 10').click();
+  await page.getByLabel('2026-11-10: 10').click();
 
   await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
-  await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
+  await expect(page.getByLabel('2026-11-10 09:00:00: 7')).toBeVisible();
   const query = api.requestsTo('series').at(-1);
   expect(query?.get('grain')).toBe('hour');
   expect(query?.get('date_from')).toBe('2026-11-10');

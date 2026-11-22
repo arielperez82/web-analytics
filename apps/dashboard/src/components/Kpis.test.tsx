@@ -228,7 +228,7 @@ describe("Kpis", () => {
     const user = userEvent.setup();
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
-    await user.click(await within(chart).findByTitle("2026-11-11: 12"));
+    await user.click(await within(chart).findByLabelText("2026-11-11: 12"));
 
     expect(picked).toEqual([{ ...state, range: { from: "2026-11-11", to: "2026-11-11" }, grain: "hour" }]);
   });
@@ -237,7 +237,7 @@ describe("Kpis", () => {
     renderKpis({ comparison });
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
-    expect(await within(chart).findByTitle("2026-11-10: 40 · 2026-11-03: 20")).toBeTruthy();
+    expect(await within(chart).findByLabelText("2026-11-10: 40 · 2026-11-03: 20")).toBeTruthy();
   });
 
   it("shows the hours of a single-day range from the hourly series", async () => {
@@ -245,7 +245,7 @@ describe("Kpis", () => {
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
-    expect(within(chart).getByTitle("2026-11-10 09:00:00: 7 · 2026-11-09 09:00:00: 3")).toBeTruthy();
+    expect(within(chart).getByLabelText("2026-11-10 09:00:00: 7 · 2026-11-09 09:00:00: 3")).toBeTruthy();
     expect(api.requestsTo("series")[0]?.get("grain")).toBe("hour");
     expect(await screen.findByText(/per hour/)).toBeTruthy();
   });
@@ -255,7 +255,7 @@ describe("Kpis", () => {
 
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
-    expect(within(chart).getAllByRole("button").every((bar) => (bar as HTMLButtonElement).disabled)).toBe(true);
+    expect(within(chart).getAllByRole("button").every((bar) => bar.getAttribute("aria-disabled") === "true")).toBe(true);
   });
 
   it("steps down to four-hour buckets when the viewer asks for hours over a month", async () => {

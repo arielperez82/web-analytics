@@ -215,6 +215,11 @@ export const Kpis = ({
     metric,
   });
   const rows = points ?? [];
+  const ticks = yTicks(
+    rows.flatMap((row) =>
+      row.previous === null ? [row.current] : [row.current, row.previous],
+    ),
+  );
   const selected = "from" in state.range ? state.range.from : undefined;
   const label =
     METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
@@ -312,13 +317,7 @@ export const Kpis = ({
         </div>
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
-            {yTicks(
-              rows.flatMap((row) =>
-                row.previous === null
-                  ? [row.current]
-                  : [row.current, row.previous],
-              ),
-            ).map((tick) => (
+            {ticks.map((tick) => (
               <span key={tick.percent} style={{ bottom: `${tick.percent}%` }}>
                 {formatNumber(tick.value)}
               </span>
@@ -335,6 +334,7 @@ export const Kpis = ({
               </div>
               <LineChart
                 points={rows}
+                gridlines={ticks.map((tick) => tick.percent)}
                 selected={selected}
                 drillable={!hourly}
                 onDrill={(day) => onChange(drillDay(state, day))}

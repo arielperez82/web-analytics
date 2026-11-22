@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { FILTER_TITLE, type FilterKey, type Filters } from "@/lib/filters";
-import { REPORTS, type Report } from "@/lib/reports";
+import { type Report,REPORTS } from "@/lib/reports";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 
