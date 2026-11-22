@@ -1,8 +1,8 @@
 "use client";
 
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import type { ReactNode } from "react";
 
 import { DEFAULT_DAYS, hrefFor, tenantLabel } from "@/lib/dashboard-state";

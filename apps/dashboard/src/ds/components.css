@@ -1,0 +1,22 @@
+.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:36px;padding:0 12px;border-radius:9px;border:1px solid var(--line-control);background:var(--surface);color:var(--text);font-size:13px;line-height:18px;font-weight:500;cursor:pointer}
+.ds-btn:hover:not(:disabled):not([aria-pressed=true]){background:var(--surface-hover)}
+.ds-btn[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.ds-btn:disabled{opacity:.5;cursor:not-allowed}
+.ds-seg{display:inline-flex;gap:8px;flex-wrap:wrap}
+.card-select{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.card-select:hover:not([aria-pressed=true]){background:var(--surface-hover)}
+.card-select[aria-pressed=true]{border-color:var(--accent);color:inherit;box-shadow:inset 0 0 0 1px var(--accent),0 0 0 3px var(--accent-soft)}
+.ds-badge{position:relative;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:12.5px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums;background:var(--surface-hover);color:var(--text-muted)}
+.ds-badge[data-tone=good]{background:var(--good-bg);color:var(--good-fg)}
+.ds-badge[data-tone=warn]{background:var(--warn-bg);color:var(--warn-fg)}
+.ds-badge[data-tone=bad]{background:var(--bad-bg);color:var(--bad-fg)}
+.ds-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.delta{display:flex;align-items:center;gap:6px}
+.gridline{stroke:var(--chart-grid);stroke-width:1;vector-effect:non-scaling-stroke}
+.area{fill:var(--accent);opacity:.12;stroke:none}
+.marker{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);transform:translate(-50%,50%);pointer-events:none;z-index:2}
+.tip{position:absolute;z-index:30;pointer-events:none;display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;line-height:16px;white-space:nowrap;transform:translateX(-50%)}
+.tip[data-edge=start]{transform:none}
+.tip[data-edge=end]{transform:translateX(-100%)}
+.tip small{color:var(--tip-muted);font-size:12px}
+.tip strong{font-size:14px;font-variant-numeric:tabular-nums}

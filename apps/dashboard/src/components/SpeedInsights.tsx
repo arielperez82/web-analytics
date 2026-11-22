@@ -5,7 +5,7 @@ import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { orderVitals } from "@/lib/vitals-order";
 
-import { fmt, Panel, Status, type Row } from "./ui";
+import { fmt, Panel, type Row,Status } from "./ui";
 
 export const SpeedInsights = ({ params }: { params: QueryParams }) => {
   const scope = { domain: params.domain, date_from: params.date_from, date_to: params.date_to, tz: params.tz };

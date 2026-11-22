@@ -75,9 +75,14 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  await expect(page.getByText('+20% vs previous period')).toBeVisible();
-  await expect(page.getByText('+7.89% vs previous period')).toBeVisible();
-  await expect(page.getByText('-3.85% vs previous period')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('+20%');
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('Up');
+  await expect(page.getByText('+7.89%')).toBeVisible();
+  await expect(page.getByText('-3.85%')).toBeVisible();
   await expect(page.getByText('1,234')).toBeVisible();
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
@@ -117,7 +122,12 @@ const BOT_AWARE = [
 test('bots are left out until the viewer includes them', async ({ page }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  await expect(page.getByText('+20% vs previous period')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('+20%');
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('Up');
   for (const endpoint of BOT_AWARE) {
     expect(api.requestsTo(endpoint).at(-1)?.has('include_bots')).toBe(false);
   }
@@ -167,11 +177,13 @@ test('clicking a day on the chart shows that day hour by hour', async ({
     api.requestsTo('series').filter(q => q.get('grain') === 'hour')
   ).toHaveLength(0);
 
-  await page.getByTitle('2026-11-10: 10').click();
+  await page.getByRole('button', { name: /^2026-11-10: 10( ·|$)/ }).click();
 
   await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
-  await expect(page.getByTitle('2026-11-10 09:00:00: 7')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /^2026-11-10 09:00:00: 7( ·|$)/ })
+  ).toBeVisible();
   const query = api.requestsTo('series').at(-1);
   expect(query?.get('grain')).toBe('hour');
   expect(query?.get('date_from')).toBe('2026-11-10');
@@ -319,15 +331,12 @@ test('hours are not offered for ninety days', async ({ page }) => {
   ).toBeDisabled();
 });
 
-test('the granularity and comparison toggles sit right of the metric keys', async ({
+test('the granularity and comparison toggles sit together at the right of the chart', async ({
   page,
 }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  const keys = await page
-    .getByRole('group', { name: 'Chart series' })
-    .boundingBox();
   const grain = await page
     .getByRole('group', { name: 'Chart granularity' })
     .boundingBox();
@@ -337,7 +346,6 @@ test('the granularity and comparison toggles sit right of the metric keys', asyn
   const panel = await page
     .getByRole('group', { name: 'Sessions chart' })
     .boundingBox();
-  expect(grain?.x).toBeGreaterThan((keys?.x ?? Infinity) + (keys?.width ?? 0));
   expect(compare?.x).toBeGreaterThan(
     (grain?.x ?? Infinity) + (grain?.width ?? 0)
   );
@@ -442,7 +450,7 @@ test('the chart is compared with the period before it until the viewer switches 
 
   await page
     .getByRole('group', { name: 'Compare to' })
-    .getByRole('button', { name: 'Off' })
+    .getByRole('button', { name: 'None' })
     .click();
 
   await expect(page).toHaveURL(/compare=off/);
