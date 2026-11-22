@@ -373,7 +373,7 @@ test('a shortcut stays in the link, and the API only ever sees dates', async ({
   const api = await stubApi(page, routes);
   await signIn(page);
 
-  await page.getByRole('button', { name: /Last 7 Days/ }).click();
+  await page.getByRole('button', { name: /^Other · / }).click();
   await page.getByRole('button', { name: 'This Week' }).click();
 
   await expect(page).toHaveURL(/range=this_week/);
@@ -465,7 +465,6 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
   const api = await stubApi(page, routes);
   await signIn(page);
 
-  await page.getByRole('button', { name: /Last 7 Days/ }).click();
   await page.getByRole('button', { name: 'Last 24 Hours' }).click();
 
   await expect(page).toHaveURL(/range=last_24_hours/);

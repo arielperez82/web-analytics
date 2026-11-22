@@ -223,6 +223,20 @@ export const Kpis = ({
   const selected = "from" in state.range ? state.range.from : undefined;
   const label =
     METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
+  const grainOptions = GRAINS.map((option) => ({
+    value: option.key,
+    label: option.label,
+    disabled: option.key === "hour" ? !hourAvailable(params) : isExactWindow(params),
+  }));
+  const compareOptions = comparisons(isExactWindow(params))
+    .filter((option) => option.key !== "last_week" || isSingleDay(params) || isExactWindow(params))
+    .map((option) => ({ value: option.key, label: option.label }));
+  const setCompare = (next: Compare | "previous") =>
+    onChange({ ...state, compare: next === "previous" ? undefined : next });
+  const setGrain = (key: Grain) => {
+    if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
+      onChange({ ...state, grain: key });
+  };
   const pick = (key: Metric) => ({
     selected: metric === key,
     onSelect: () => setMetric(key),
@@ -283,34 +297,15 @@ export const Kpis = ({
             <SegmentedControl
               label="Chart granularity"
               value={grain}
-              options={GRAINS.map((option) => ({
-                value: option.key,
-                label: option.label,
-                disabled:
-                  option.key === "hour"
-                    ? !hourAvailable(params)
-                    : isExactWindow(params),
-              }))}
-              onChange={(next) => onChange({ ...state, grain: next })}
+              options={grainOptions}
+              onChange={setGrain}
             />
             {isAllTime(state) ? null : (
               <SegmentedControl
                 label="Compare to"
                 value={comparisonKey(state)}
-                options={comparisons(isExactWindow(params))
-                  .filter(
-                    (option) =>
-                      option.key !== "last_week" ||
-                      isSingleDay(params) ||
-                      isExactWindow(params),
-                  )
-                  .map((option) => ({ value: option.key, label: option.label }))}
-                onChange={(next) =>
-                  onChange({
-                    ...state,
-                    compare: next === "previous" ? undefined : next,
-                  })
-                }
+                options={compareOptions}
+                onChange={setCompare}
               />
             )}
           </div>

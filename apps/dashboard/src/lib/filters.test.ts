@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FILTER_LABEL_KEYS, activeFilters, toggleFilter } from "./filters";
+import { activeFilters, FILTER_LABEL_KEYS, toggleFilter } from "./filters";
 
 describe("toggleFilter", () => {
   it("sets a filter that is not active", () => {

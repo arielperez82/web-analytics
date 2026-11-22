@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 import { FILTER_TITLE, type FilterKey, type Filters } from "@/lib/filters";
 import { type Report,REPORTS } from "@/lib/reports";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
+import { usePopover } from "@/lib/use-popover";
 
 import type { Row } from "./ui";
 
@@ -40,7 +39,7 @@ const FilterSelect = ({
     ]),
   );
   const choose = (value: string) => {
-    const { [filterKey]: _dropped, ...others } = filters;
+    const others = Object.fromEntries(Object.entries(filters).filter(([key]) => key !== filterKey));
     onChange(value === "" ? others : { ...others, [filterKey]: value });
   };
   return (
@@ -69,14 +68,14 @@ export const FilterMenu = ({
   includeBots: boolean;
   onIncludeBotsChange: (include: boolean) => void;
 }) => {
-  const [open, setOpen] = useState(false);
+  const popover = usePopover();
   const count = Object.keys(filters).length + (includeBots ? 1 : 0);
   return (
-    <div className="range">
-      <button aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div className="range" ref={popover.container}>
+      <button ref={popover.trigger} aria-haspopup="dialog" aria-expanded={popover.open} onClick={popover.toggle}>
         Filters{count > 0 && <> <b>{count}</b></>} ▾
       </button>
-      {open && (
+      {popover.open && (
         <div className="popover" role="dialog" aria-label="Filters">
           {FILTER_REPORTS.map((report) => (
             <FilterSelect key={report.slug} report={report} filters={filters} params={params} onChange={onChange} />

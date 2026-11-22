@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
-import type { Provider } from "next-auth/providers/index";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import type { Provider } from "next-auth/providers/index";
 
 import { isAllowedEmail, loadAccessPolicy } from "./access";
 
