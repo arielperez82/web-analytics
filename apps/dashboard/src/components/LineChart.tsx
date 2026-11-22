@@ -3,32 +3,14 @@
 import { type KeyboardEvent, useState } from "react";
 
 import { lineHeights } from "@/lib/chart-axis";
+import { FULL, pathOf, xOf } from "@/lib/chart-path";
 import { formatNumber } from "@/lib/format";
 import type { SeriesPoint } from "@/lib/use-series";
-
-const FULL = 100;
 
 const describe = ({ label, current, previousLabel, previous }: SeriesPoint): string =>
   previous === null
     ? `${label}: ${formatNumber(current)}`
     : `${label}: ${formatNumber(current)} · ${String(previousLabel)}: ${formatNumber(previous)}`;
-
-const command = ({ joined, alone, here }: { joined: boolean; alone: boolean; here: string }): string => {
-  if (alone) return `M${here} L${here}`;
-  return `${joined ? "L" : "M"}${here}`;
-};
-
-const xOf = (index: number, count: number): number => ((index + 0.5) / count) * FULL;
-
-const pathOf = (heights: readonly (number | null)[]): string =>
-  heights
-    .flatMap((height, index) => {
-      if (height === null) return [];
-      const joined = heights[index - 1] != null;
-      const alone = !joined && heights[index + 1] == null;
-      return [command({ joined, alone, here: `${xOf(index, heights.length)},${FULL - height}` })];
-    })
-    .join(" ");
 
 const areaOf = (heights: readonly number[]): string | undefined =>
   heights.length < 2
