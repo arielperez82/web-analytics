@@ -1,66 +1,88 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
+
+import type { DashboardState } from "@/lib/dashboard-state";
 
 import { DateRangePicker } from "./DateRangePicker";
 
 afterEach(cleanup);
 
-const renderPicker = (overrides: Partial<Parameters<typeof DateRangePicker>[0]> = {}) =>
-  render(
+type Range = DashboardState["range"];
+
+const renderPicker = (overrides: Partial<Parameters<typeof DateRangePicker>[0]> = {}) => {
+  const picked: Range[] = [];
+  const zones: string[] = [];
+  const view = render(
     <DateRangePicker
       range={{ days: 7 }}
       zone="Europe/Madrid"
-      onChange={() => undefined}
-      onZoneChange={() => undefined}
+      onChange={(next) => picked.push(next)}
+      onZoneChange={(next) => zones.push(next)}
       {...overrides}
     />,
   );
+  return { ...view, picked, zones };
+};
+
+const other = () => screen.getByRole("button", { name: /Europe\/Madrid/ });
+const dialog = () => screen.getByRole("dialog", { name: "Date range" });
 
 describe("DateRangePicker", () => {
-  it("names the time zone on the button that opens it", () => {
-    renderPicker();
-
-    expect(screen.getByRole("button", { name: /Last 7 Days/ }).textContent).toContain("Europe/Madrid");
-  });
-
-  it("keeps the time zone inside the calendar, out of sight until it opens", () => {
-    renderPicker();
-    expect(screen.queryByLabelText("Time zone")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /Last 7 Days/ }));
-
-    expect((screen.getByLabelText("Time zone") as HTMLSelectElement).value).toBe("Europe/Madrid");
-  });
-
-  it("reports the zone the viewer picks and keeps the calendar open", () => {
-    const onZoneChange = vi.fn();
-    renderPicker({ onZoneChange });
-    fireEvent.click(screen.getByRole("button", { name: /Last 7 Days/ }));
-
-    fireEvent.change(screen.getByLabelText("Time zone"), { target: { value: "America/New_York" } });
-
-    expect(onZoneChange).toHaveBeenCalledWith("America/New_York");
-    expect(screen.getByRole("dialog", { name: "Date range" })).toBeTruthy();
-  });
-
-  describe("shortcuts", () => {
-    const open = () => fireEvent.click(screen.getByRole("button", { name: /Last 7 Days/ }));
-
-    it("lists them in calendar order", () => {
+  describe("quick ranges", () => {
+    it("shows the four most used as buttons, in order", () => {
       renderPicker();
-      open();
 
-      const labels = Array.from(screen.getByRole("dialog", { name: "Date range" }).querySelectorAll(".presets button")).map(
-        (button) => button.textContent,
-      );
-      expect(labels).toEqual([
-        "Yesterday",
+      const group = within(screen.getByRole("group", { name: "Quick ranges" }));
+      expect(group.getAllByRole("button").map((button) => button.textContent)).toEqual([
         "Today",
         "Last 24 Hours",
         "Last 7 Days",
-        "This Week",
         "Last 30 Days",
+      ]);
+    });
+
+    it("marks the one in use", () => {
+      renderPicker({ range: { days: 30 } });
+
+      expect(screen.getByRole("button", { name: "Last 30 Days", pressed: true })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Last 7 Days", pressed: false })).toBeTruthy();
+    });
+
+    it.each([
+      ["Today", { days: 1 }],
+      ["Last 24 Hours", { preset: "last_24_hours" }],
+      ["Last 7 Days", { days: 7 }],
+      ["Last 30 Days", { days: 30 }],
+    ])("reports %s when picked", (label, expected) => {
+      const { picked } = renderPicker({ range: { preset: "this_week" } });
+
+      fireEvent.click(screen.getByRole("button", { name: label }));
+
+      expect(picked).toEqual([expected]);
+    });
+  });
+
+  describe("Other", () => {
+    it("keeps the rest out of sight until it is opened", () => {
+      renderPicker();
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+
+      fireEvent.click(other());
+
+      expect(dialog()).toBeTruthy();
+      expect(other().getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("lists the remaining shortcuts in calendar order", () => {
+      renderPicker();
+      fireEvent.click(other());
+
+      const labels = Array.from(dialog().querySelectorAll(".presets button")).map((button) => button.textContent);
+      expect(labels).toEqual([
+        "Yesterday",
+        "This Week",
         "This Month",
         "Last 90 Days",
         "This Year",
@@ -70,23 +92,110 @@ describe("DateRangePicker", () => {
     });
 
     it("reports the shortcut the viewer picks and closes", () => {
-      const onChange = vi.fn();
-      renderPicker({ onChange });
-      open();
+      const { picked } = renderPicker();
+      fireEvent.click(other());
 
-      fireEvent.click(screen.getByRole("button", { name: "This Week" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "This Week" }));
 
-      expect(onChange).toHaveBeenCalledWith({ preset: "this_week" });
+      expect(picked).toEqual([{ preset: "this_week" }]);
       expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
     });
 
-    it("marks the shortcut in use and names it on the button", () => {
+    it("names the shortcut in use on its button and marks it inside", () => {
       renderPicker({ range: { preset: "this_month" } });
 
-      expect(screen.getByRole("button", { name: /This Month/ }).textContent).toContain("This Month");
-      fireEvent.click(screen.getByRole("button", { name: /This Month/ }));
-      expect(screen.getByRole("button", { name: "This Month", pressed: true })).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Last 7 Days", pressed: false })).toBeTruthy();
+      expect(other().textContent).toContain("This Month");
+      fireEvent.click(other());
+      expect(within(dialog()).getByRole("button", { name: "This Month", pressed: true })).toBeTruthy();
+      expect(within(dialog()).getByRole("button", { name: "This Week", pressed: false })).toBeTruthy();
+    });
+
+    it("names a custom range on its button", () => {
+      renderPicker({ range: { from: "2026-11-01", to: "2026-11-05" } });
+
+      expect(other().textContent).toContain("2026-11-01 → 2026-11-05");
+    });
+
+    it("names the time zone on its button", () => {
+      renderPicker();
+
+      expect(other().textContent).toContain("Europe/Madrid");
+    });
+
+    it("closes on Escape and gives focus back to its button", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+      expect(document.activeElement).toBe(other());
+    });
+
+    it("closes on a click outside and gives focus back to its button", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+
+      await user.click(document.body);
+
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+      expect(document.activeElement).toBe(other());
+    });
+
+    it("stays open for a click inside", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+
+      await user.click(within(dialog()).getByText("From"));
+
+      expect(dialog()).toBeTruthy();
+    });
+  });
+
+  describe("custom range", () => {
+    it("reports the From and To the viewer sets", () => {
+      const { picked } = renderPicker();
+      fireEvent.click(other());
+
+      fireEvent.change(within(dialog()).getByLabelText("From"), { target: { value: "2020-03-02" } });
+      fireEvent.change(within(dialog()).getByLabelText("To"), { target: { value: "2020-03-09" } });
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Apply" }));
+
+      expect(picked).toEqual([{ from: "2020-03-02", to: "2020-03-09" }]);
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+    });
+
+    it("cannot be applied while a date is not a real day", () => {
+      renderPicker();
+      fireEvent.click(other());
+
+      fireEvent.change(within(dialog()).getByLabelText("From"), { target: { value: "" } });
+
+      expect(within(dialog()).getByRole("button", { name: "Apply" }).hasAttribute("disabled")).toBe(true);
+    });
+  });
+
+  describe("time zone", () => {
+    it("is kept inside Other, out of sight until it opens", () => {
+      renderPicker();
+      expect(screen.queryByLabelText("Time zone")).toBeNull();
+
+      fireEvent.click(other());
+
+      expect((screen.getByLabelText("Time zone") as HTMLSelectElement).value).toBe("Europe/Madrid");
+    });
+
+    it("reports the zone the viewer picks and keeps Other open", () => {
+      const { zones } = renderPicker();
+      fireEvent.click(other());
+
+      fireEvent.change(screen.getByLabelText("Time zone"), { target: { value: "America/New_York" } });
+
+      expect(zones).toEqual(["America/New_York"]);
+      expect(dialog()).toBeTruthy();
     });
   });
 });

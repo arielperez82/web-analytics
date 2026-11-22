@@ -1,23 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
+import { SegmentedControl } from "@/ds/SegmentedControl";
 import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
+import { useDismiss } from "@/lib/use-dismiss";
 
 import { TimeZonePicker } from "./TimeZonePicker";
 
 const sameRange = (a: DashboardState["range"], b: DashboardState["range"]): boolean =>
   "days" in a ? "days" in b && a.days === b.days : "preset" in a && "preset" in b && a.preset === b.preset;
 
-const describe = (range: DashboardState["range"]): string =>
-  "from" in range
-    ? range.from === range.to
-      ? range.from
-      : `${range.from} → ${range.to}`
-    : (SHORTCUTS.find((shortcut) => sameRange(shortcut.range, range))?.label ?? "");
+const QUICK = ["Today", "Last 24 Hours", "Last 7 Days", "Last 30 Days"];
+
+const quick = SHORTCUTS.filter(({ label }) => QUICK.includes(label));
+const rest = SHORTCUTS.filter(({ label }) => !QUICK.includes(label));
+
+const describe = (range: DashboardState["range"]): string => {
+  if (!("from" in range)) return SHORTCUTS.find((shortcut) => sameRange(shortcut.range, range))?.label ?? "";
+  return range.from === range.to ? range.from : `${range.from} → ${range.to}`;
+};
+
+const quickLabelOf = (range: DashboardState["range"]): string | undefined =>
+  quick.find((shortcut) => sameRange(shortcut.range, range))?.label;
 
 export const DateRangePicker = ({
   range,
@@ -34,29 +42,60 @@ export const DateRangePicker = ({
   const today = localDay(now, zone);
   const current = rangeToParams(range, now, zone);
   const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  const restoreFocusIfLost = () => {
+    if (document.activeElement === document.body) trigger.current?.focus();
+  };
+  useDismiss({
+    open,
+    within: container,
+    onEscape: close,
+    onOutside: () => {
+      setOpen(false);
+      document.addEventListener("click", restoreFocusIfLost, { once: true });
+    },
+  });
   const [draft, setDraft] = useState({ from: current.date_from, to: current.date_to });
   const normalized = normalizeRange(draft.from, draft.to, today);
   const choose = (next: DashboardState["range"]) => {
     onChange(next);
     setOpen(false);
   };
+  const quickLabel = quickLabelOf(range);
   return (
-    <div className="range">
+    <div className="range" ref={container}>
+      <SegmentedControl
+        label="Quick ranges"
+        value={quickLabel ?? ""}
+        options={quick.map(({ label }) => ({ value: label, label }))}
+        onChange={(label) => {
+          const next = quick.find((shortcut) => shortcut.label === label);
+          if (next !== undefined) choose(next.range);
+        }}
+      />
       <button
+        ref={trigger}
+        type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-pressed={quickLabel === undefined}
         onClick={() => {
           setDraft({ from: current.date_from, to: current.date_to });
           setOpen(!open);
         }}
       >
-        {describe(range)} · {zone} ▾
+        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Date range">
           <div className="presets">
-            {SHORTCUTS.map(({ label, range: shortcut }) => (
-              <button key={label} aria-pressed={sameRange(shortcut, range)} onClick={() => choose(shortcut)}>
+            {rest.map(({ label, range: shortcut }) => (
+              <button key={label} type="button" aria-pressed={sameRange(shortcut, range)} onClick={() => choose(shortcut)}>
                 {label}
               </button>
             ))}
@@ -84,7 +123,7 @@ export const DateRangePicker = ({
                 onChange={(e) => setDraft({ ...draft, to: e.target.value })}
               />
             </label>
-            <button disabled={!normalized} onClick={() => normalized && choose(normalized)}>
+            <button type="button" disabled={!normalized} onClick={() => normalized && choose(normalized)}>
               Apply
             </button>
           </div>
