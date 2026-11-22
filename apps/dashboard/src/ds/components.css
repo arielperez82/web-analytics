@@ -33,3 +33,9 @@
 .side-tip{position:absolute;z-index:30;left:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;white-space:nowrap;pointer-events:none}
 .range{position:relative;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
+.state{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.state p{margin:0}
+.skeleton{min-height:96px;border-radius:9px;background:var(--surface-hover);animation:ds-pulse 1.4s ease-in-out infinite}
+.chart-status .skeleton{width:100%;height:100%}
+@keyframes ds-pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
