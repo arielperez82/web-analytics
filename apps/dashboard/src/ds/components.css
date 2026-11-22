@@ -20,3 +20,14 @@
 .tip[data-edge=end]{transform:translateX(-100%)}
 .tip small{color:var(--tip-muted);font-size:12px}
 .tip strong{font-size:14px;font-variant-numeric:tabular-nums}
+.sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface);transition:width .15s}
+.sidebar[data-collapsed=true]{width:72px}
+.sidebar ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.sidebar li{position:relative}
+.sidebar a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:9px;color:var(--text);text-decoration:none;font-weight:500}
+.sidebar a:hover:not([aria-current=page]){background:var(--surface-hover)}
+.sidebar a[aria-current=page]{background:var(--accent-soft);color:var(--accent-text)}
+.sidebar-toggle{align-self:flex-start;width:36px;padding:0}
+.sidebar[data-collapsed=false] .sidebar-toggle svg{transform:rotate(180deg)}
+.side-tip{position:absolute;z-index:30;left:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;white-space:nowrap;pointer-events:none}
+
