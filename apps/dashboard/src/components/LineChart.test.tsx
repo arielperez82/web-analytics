@@ -30,10 +30,25 @@ const renderChart = (overrides: Partial<Parameters<typeof LineChart>[0]> = {}) =
 const point = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) });
 
 describe("LineChart", () => {
-  it("draws a gridline at each requested height", () => {
+  it("draws a gridline at each requested height, measured up from the bottom", () => {
+    const { container } = renderChart({ gridlines: [80, 25] });
+
+    const lines = Array.from(container.querySelectorAll("line[data-gridline]"));
+    expect(lines.map((line) => line.getAttribute("y1"))).toEqual(["20", "75"]);
+  });
+
+  it("joins neighbouring points and leaves a gap where the comparison is missing", () => {
     const { container } = renderChart();
 
-    expect(container.querySelectorAll("line[data-gridline]")).toHaveLength(3);
+    expect(container.querySelector("[data-line=current]")?.getAttribute("d")).toMatch(/^M\S+ L\S+ L\S+$/);
+    expect(container.querySelector("[data-line=previous]")?.getAttribute("d")).toMatch(/^M(\S+) L\1 M(\S+) L\2$/);
+  });
+
+  it("draws a lone point as a dot and gives it no area", () => {
+    const { container } = renderChart({ points: points.slice(0, 1) });
+
+    expect(container.querySelector("[data-line=current]")?.getAttribute("d")).toMatch(/^M(\S+) L\1$/);
+    expect(container.querySelector("path[data-area]")).toBeNull();
   });
 
   it("fills the area under the current line", () => {
@@ -133,5 +148,93 @@ describe("LineChart", () => {
     expect(screen.getByRole("tooltip")).toBeTruthy();
     expect(point("2026-11-10").getAttribute("aria-disabled")).toBe("true");
     expect(onDrill).not.toHaveBeenCalled();
+  });
+
+  it("keeps the tooltip inside the chart at the edges and centred in between", async () => {
+    const user = userEvent.setup();
+    renderChart();
+    const placement = async (name: string) => {
+      await user.hover(point(name));
+      const tip = screen.getByRole("tooltip");
+      await user.unhover(point(name));
+      return { edge: tip.getAttribute("data-edge"), left: parseFloat(tip.style.left) };
+    };
+
+    const [first, middle, last] = [await placement("2026-11-10"), await placement("2026-11-11"), await placement("2026-11-12")];
+
+    expect([first.edge, middle.edge, last.edge]).toEqual(["start", "middle", "end"]);
+    expect(first.left).toBeCloseTo(16.67, 1);
+    expect(middle.left).toBeCloseTo(50, 1);
+    expect(last.left).toBeCloseTo(83.33, 1);
+  });
+
+  it("keeps showing the focused point when the pointer passes over another and leaves", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.tab();
+    await user.hover(point("2026-11-12"));
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-12")).toBeTruthy();
+    await user.unhover(point("2026-11-12"));
+
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-10")).toBeTruthy();
+  });
+
+  it("hides the tooltip when focus leaves", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("drops the tooltip when the hovered point is no longer in the data", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderChart();
+    await user.hover(point("2026-11-12"));
+
+    rerender(
+      <LineChart points={points.slice(0, 1)} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />,
+    );
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("stays on the first point when the left arrow has nowhere to go", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.tab();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-10")).toBeTruthy();
+  });
+
+  it("marks points as not disabled when drilling is on", () => {
+    renderChart();
+
+    expect(point("2026-11-10").getAttribute("aria-disabled")).toBe("false");
+  });
+
+  it("does not carry the tooltip over to different data of the same length", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderChart();
+    await user.hover(point("2026-11-12"));
+
+    rerender(
+      <LineChart
+        points={points.map((p) => ({ ...p, label: `${p.label}-b` }))}
+        selected={undefined}
+        drillable
+        gridlines={[]}
+        onDrill={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });

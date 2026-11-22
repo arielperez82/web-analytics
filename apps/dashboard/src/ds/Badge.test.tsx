@@ -34,9 +34,28 @@ describe("Badge", () => {
   });
 
   it("shows no arrow or word when none is given", () => {
-    render(<Badge tone="neutral">New</Badge>);
+    const { container } = render(<Badge tone="neutral">New</Badge>);
 
-    expect(screen.queryByText("▲")).toBeNull();
-    expect(screen.queryByText("▼")).toBeNull();
+    expect(container.textContent).toBe("New");
+  });
+
+  it("draws a dash for no change, also kept out of the reading order", () => {
+    render(
+      <Badge tone="neutral" arrow="flat" word="No change">
+        0%
+      </Badge>,
+    );
+
+    expect(screen.getByText("–").getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("keeps the direction word for screen readers only", () => {
+    render(
+      <Badge tone="good" arrow="up" word="Up">
+        +20%
+      </Badge>,
+    );
+
+    expect(screen.getByText("Up").className).toContain("ds-sr");
   });
 });

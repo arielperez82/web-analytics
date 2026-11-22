@@ -84,7 +84,9 @@ describe("design tokens", () => {
   });
 
   it("follows the system dark preference when no theme is chosen", () => {
-    expect(css).toContain("@media (prefers-color-scheme:dark)");
+    const media = css.indexOf("@media (prefers-color-scheme:dark)");
+    expect(media).toBeGreaterThanOrEqual(0);
+    expect(css.indexOf(":root:not([data-theme])")).toBeGreaterThan(media);
     expect(declarationsOf(":root:not([data-theme])")).toEqual(themes.dark);
   });
 

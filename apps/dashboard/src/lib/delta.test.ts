@@ -15,4 +15,8 @@ describe("deltaOf", () => {
   it.each([true, false])("treats no change as neutral whichever direction is better (%s)", (higherIsBetter) => {
     expect(deltaOf({ percent: 0, higherIsBetter })).toEqual({ arrow: "flat", tone: "neutral", word: "No change" });
   });
+
+  it.each([0.004, -0.004, Number.NaN])("treats %s as no change, since it shows as 0% or not at all", (percent) => {
+    expect(deltaOf({ percent, higherIsBetter: true })).toEqual({ arrow: "flat", tone: "neutral", word: "No change" });
+  });
 });

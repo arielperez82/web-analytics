@@ -118,6 +118,8 @@ describe("Kpis", () => {
     expect((await change("Known visitors", "+20%")).getAttribute("data-tone")).toBe("good");
     expect((await change("Anonymous visitors", "-2.86%")).getAttribute("data-tone")).toBe("bad");
     expect((await change("Bounce rate", "-3.85%")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Sessions", "+7.89%")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Pageviews", "+23.4%")).getAttribute("data-tone")).toBe("good");
     expect((await change("Avg session", "0%")).getAttribute("data-tone")).toBe("neutral");
     expect(within(await card("Bounce rate")).getByText("Down")).toBeTruthy();
     expect(within(await card("Avg session")).getByText("No change")).toBeTruthy();
@@ -129,6 +131,24 @@ describe("Kpis", () => {
     expect(await screen.findByRole("group", { name: "Key figures" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sessions" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Pageviews" })).toBeTruthy();
+  });
+
+  it("describes a card by its figures, change and notes, and only those it has", async () => {
+    renderKpis();
+    const describedBy = async (name: string) => {
+      const ids = (await screen.findByRole("button", { name })).getAttribute("aria-describedby") ?? "";
+      return ids.split(" ").map((id) => document.getElementById(id)?.textContent ?? "").join(" | ");
+    };
+
+    const known = await describedBy("Known visitors");
+    const sessions = await describedBy("Sessions");
+
+    expect(known).toContain("+20%");
+    expect(known).toContain("Unique people, counted once across the range");
+    expect(known).toContain("41.5% of sessions from people who accepted tracking");
+    expect(sessions).toContain("+7.89%");
+    expect(sessions).not.toContain("Unique people");
+    expect(sessions.split(" | ")).toHaveLength(2);
   });
 
   it("lets the keyboard pick a card", async () => {

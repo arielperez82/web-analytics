@@ -30,8 +30,8 @@ const pathOf = (heights: readonly (number | null)[]): string =>
     })
     .join(" ");
 
-const areaOf = (heights: readonly (number | null)[]): string | undefined =>
-  heights.length < 2 || heights.some((height) => height === null)
+const areaOf = (heights: readonly number[]): string | undefined =>
+  heights.length < 2
     ? undefined
     : `${pathOf(heights)} L${xOf(heights.length - 1, heights.length)},${FULL} L${xOf(0, heights.length)},${FULL} Z`;
 
@@ -67,11 +67,13 @@ export const LineChart = ({
   onDrill: (label: string) => void;
 }) => {
   const heights = lineHeights(points);
-  const [active, setActive] = useState<number | null>(null);
-  const activePoint = active === null ? undefined : points[active];
-  const activeHeight = active === null ? null : (heights.current[active] ?? null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [focused, setFocused] = useState<string | null>(null);
+  const active = points.findIndex((point) => point.label === (hovered ?? focused));
+  const activePoint = points[active];
+  const activeHeight = heights.current[active];
   const area = areaOf(heights.current);
-  const left = active === null ? "0%" : `${xOf(active, points.length)}%`;
+  const left = `${xOf(active, points.length)}%`;
   return (
     <>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -82,7 +84,7 @@ export const LineChart = ({
         <path data-line="previous" className="line previous" d={pathOf(heights.previous)} />
         <path data-line="current" className="line current" d={pathOf(heights.current)} />
       </svg>
-      {points.map((point, index) => (
+      {points.map((point) => (
         <button
           key={point.label}
           className="col"
@@ -90,23 +92,21 @@ export const LineChart = ({
           aria-pressed={selected === point.label}
           aria-label={describe(point)}
           onClick={() => drillable && onDrill(point.label)}
-          onMouseEnter={() => setActive(index)}
-          onMouseLeave={() => setActive(null)}
-          onFocus={() => setActive(index)}
-          onBlur={() => setActive(null)}
+          onMouseEnter={() => setHovered(point.label)}
+          onMouseLeave={() => setHovered(null)}
+          onFocus={() => setFocused(point.label)}
+          onBlur={() => setFocused(null)}
           onKeyDown={onKey}
         />
       ))}
-      {activePoint === undefined ? null : (
+      {activePoint === undefined || activeHeight === undefined ? null : (
         <>
-          {activeHeight === null ? null : (
-            <span data-marker aria-hidden="true" className="marker" style={{ left, bottom: `${activeHeight}%` }} />
-          )}
+          <span data-marker aria-hidden="true" className="marker" style={{ left, bottom: `${activeHeight}%` }} />
           <div
             role="tooltip"
             className="tip"
-            data-edge={edgeOf(active ?? 0, points.length)}
-            style={{ left, bottom: `min(calc(${activeHeight ?? 0}% + 14px), calc(100% - 70px))` }}
+            data-edge={edgeOf(active, points.length)}
+            style={{ left, bottom: `min(calc(${activeHeight}% + 14px), calc(100% - 70px))` }}
           >
             <small>{activePoint.label}</small>
             <strong>{formatNumber(activePoint.current)}</strong>

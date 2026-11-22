@@ -75,7 +75,12 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  await expect(page.getByText('+20%')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('+20%');
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('Up');
   await expect(page.getByText('+7.89%')).toBeVisible();
   await expect(page.getByText('-3.85%')).toBeVisible();
   await expect(page.getByText('1,234')).toBeVisible();
@@ -117,7 +122,12 @@ const BOT_AWARE = [
 test('bots are left out until the viewer includes them', async ({ page }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  await expect(page.getByText('+20%')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('+20%');
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toContainText('Up');
   for (const endpoint of BOT_AWARE) {
     expect(api.requestsTo(endpoint).at(-1)?.has('include_bots')).toBe(false);
   }
@@ -167,11 +177,13 @@ test('clicking a day on the chart shows that day hour by hour', async ({
     api.requestsTo('series').filter(q => q.get('grain') === 'hour')
   ).toHaveLength(0);
 
-  await page.getByLabel('2026-11-10: 10').click();
+  await page.getByRole('button', { name: /^2026-11-10: 10( ·|$)/ }).click();
 
   await expect(page).toHaveURL(/from=2026-11-10&to=2026-11-10/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
-  await expect(page.getByLabel('2026-11-10 09:00:00: 7')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /^2026-11-10 09:00:00: 7( ·|$)/ })
+  ).toBeVisible();
   const query = api.requestsTo('series').at(-1);
   expect(query?.get('grain')).toBe('hour');
   expect(query?.get('date_from')).toBe('2026-11-10');
