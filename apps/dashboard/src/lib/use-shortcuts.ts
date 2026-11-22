@@ -1,16 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-const TYPING = "input, textarea, select, [contenteditable]";
+const OWNS_KEYS = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"]';
 
-const typingIn = (target: EventTarget | null): boolean => target instanceof Element && target.closest(TYPING) !== null;
+const keysBelongToTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest(OWNS_KEYS) !== null;
 
 export const useShortcuts = (bindings: Readonly<Record<string, () => void>>): void => {
+  const latest = useRef(bindings);
+  useEffect(() => {
+    latest.current = bindings;
+  });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey || typingIn(event.target)) return;
-      bindings[event.key.toLowerCase()]?.();
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.isComposing || event.defaultPrevented) return;
+      if (keysBelongToTarget(event.target)) return;
+      latest.current[event.key.toLowerCase()]?.();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [bindings]);
+  }, []);
 };

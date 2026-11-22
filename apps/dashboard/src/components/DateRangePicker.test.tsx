@@ -116,16 +116,26 @@ describe("DateRangePicker", () => {
       expect(other().textContent).toContain("2026-11-01 → 2026-11-05");
     });
 
+    it("says Other while a quick range is in use, and names the range otherwise", () => {
+      const quick = renderPicker();
+      expect(other().textContent).toMatch(/^Other ·/);
+      quick.unmount();
+
+      renderPicker({ range: { preset: "this_month" } });
+      expect(other().textContent).toMatch(/^This Month ·/);
+    });
+
     it("names the time zone on its button", () => {
       renderPicker();
 
       expect(other().textContent).toContain("Europe/Madrid");
     });
 
-    it("closes on Escape and gives focus back to its button", async () => {
+    it("closes on Escape from inside and gives focus back to its button", async () => {
       const user = userEvent.setup();
       renderPicker();
       await user.click(other());
+      await user.click(within(dialog()).getByLabelText("From"));
 
       await user.keyboard("{Escape}");
 
@@ -142,6 +152,55 @@ describe("DateRangePicker", () => {
 
       expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
       expect(document.activeElement).toBe(other());
+    });
+
+    it("leaves focus where the viewer clicked when that is another control", async () => {
+      const user = userEvent.setup();
+      render(
+        <>
+          <DateRangePicker range={{ days: 7 }} zone="Europe/Madrid" onChange={() => undefined} onZoneChange={() => undefined} />
+          <button>Elsewhere</button>
+        </>,
+      );
+      await user.click(other());
+
+      await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Elsewhere" }));
+    });
+
+    it("gives focus back after a shortcut is picked", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+
+      await user.click(within(dialog()).getByRole("button", { name: "This Week" }));
+
+      expect(document.activeElement).toBe(other());
+    });
+
+    it("closes when its own button is pressed again", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+
+      await user.click(other());
+      await user.click(other());
+
+      expect(screen.queryByRole("dialog", { name: "Date range" })).toBeNull();
+    });
+
+    it("starts each visit from the dates in use", async () => {
+      const user = userEvent.setup();
+      renderPicker();
+      await user.click(other());
+      const from = (within(dialog()).getByLabelText("From") as HTMLInputElement).value;
+      fireEvent.change(within(dialog()).getByLabelText("From"), { target: { value: "2020-01-01" } });
+      await user.keyboard("{Escape}");
+
+      await user.click(other());
+
+      expect((within(dialog()).getByLabelText("From") as HTMLInputElement).value).toBe(from);
     });
 
     it("stays open for a click inside", async () => {

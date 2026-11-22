@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -17,6 +17,12 @@ const Harness = ({ keys, pressed }: { readonly keys: readonly string[]; readonly
         <option>a</option>
       </select>
       <div contentEditable suppressContentEditableWarning aria-label="rich" />
+      <div contentEditable={false} suppressContentEditableWarning aria-label="plain">
+        plain
+      </div>
+      <div role="dialog" aria-label="menu">
+        <button>in menu</button>
+      </div>
     </div>
   );
 };
@@ -78,5 +84,50 @@ describe("useShortcuts", () => {
     await user.keyboard("d");
 
     expect(pressed).toEqual([]);
+  });
+
+  it("still works where content is explicitly not editable", async () => {
+    const { pressed, user, getByLabelText } = setup();
+
+    await user.click(getByLabelText("plain"));
+    await user.keyboard("d");
+
+    expect(pressed).toEqual(["d"]);
+  });
+
+  it("ignores a key that is held down", () => {
+    const { pressed } = setup();
+
+    fireEvent.keyDown(document.body, { key: "d", repeat: true });
+
+    expect(pressed).toEqual([]);
+  });
+
+  it("ignores keys typed while an input method is composing", () => {
+    const { pressed } = setup();
+
+    fireEvent.keyDown(document.body, { key: "d", isComposing: true });
+
+    expect(pressed).toEqual([]);
+  });
+
+  it("stays out of the way while focus is inside an open menu", async () => {
+    const { pressed, user, getByText } = setup();
+
+    await user.click(getByText("in menu"));
+    await user.keyboard("d");
+
+    expect(pressed).toEqual([]);
+  });
+
+  it("follows the latest actions without being re-attached", async () => {
+    const pressed: string[] = [];
+    const { rerender } = render(<Harness keys={["d"]} pressed={pressed} />);
+    rerender(<Harness keys={["l"]} pressed={pressed} />);
+    const user = userEvent.setup();
+
+    await user.keyboard("dl");
+
+    expect(pressed).toEqual(["l"]);
   });
 });

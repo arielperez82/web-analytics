@@ -242,7 +242,8 @@ export const Kpis = ({
     if (next !== undefined && !isAllTime(state)) setCompare(next);
   };
   const setGrain = (key: Grain) => {
-    if (grainOptions.find((option) => option.value === key)?.disabled === false) onChange({ ...state, grain: key });
+    if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
+      onChange({ ...state, grain: key });
   };
   useShortcuts({ d: () => setGrain("day"), h: () => setGrain("hour"), c: cycleCompare });
   const pick = (key: Metric) => ({

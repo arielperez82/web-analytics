@@ -30,4 +30,20 @@ describe("shortcut hints", () => {
     expect(screen.getByRole("button", { name: "Day" })).toBeTruthy();
     expect(screen.getByText("D").getAttribute("aria-hidden")).toBe("true");
   });
+
+  it("draws no key for an option without a hint or while it is disabled", () => {
+    const { container } = render(
+      <SegmentedControl
+        label="Chart granularity"
+        value="day"
+        options={[
+          { value: "day", label: "Day" },
+          { value: "hour", label: "Hour", hint: "H", disabled: true },
+        ]}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(container.querySelector("kbd")).toBeNull();
+  });
 });

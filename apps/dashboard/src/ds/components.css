@@ -1,6 +1,6 @@
 .ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:36px;padding:0 12px;border-radius:9px;border:1px solid var(--line-control);background:var(--surface);color:var(--text);font-size:13px;line-height:18px;font-weight:500;cursor:pointer}
-.ds-btn:hover:not(:disabled):not([aria-pressed=true]){background:var(--surface-hover)}
-.ds-btn[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.ds-btn:hover:not(:disabled):not([aria-pressed=true]):not([data-active=true]){background:var(--surface-hover)}
+.ds-btn[aria-pressed=true],.ds-btn[data-active=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
 .ds-btn:disabled{opacity:.5;cursor:not-allowed}
 .ds-seg{display:inline-flex;gap:8px;flex-wrap:wrap}
 .card-select{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
@@ -20,7 +20,8 @@
 .tip[data-edge=end]{transform:translateX(-100%)}
 .tip small{color:var(--tip-muted);font-size:12px}
 .tip strong{font-size:14px;font-variant-numeric:tabular-nums}
-.sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface);transition:width .15s}
+.sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface)}
+.sidebar[data-animate=true]{transition:width .15s}
 .sidebar[data-collapsed=true]{width:72px}
 .sidebar ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .sidebar li{position:relative}
@@ -32,5 +33,5 @@
 .side-tip{position:absolute;z-index:30;left:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;white-space:nowrap;pointer-events:none}
 .ds-kbd{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border:1px solid var(--line-control);border-radius:5px;background:var(--surface-hover);color:var(--text-muted);font:600 11px/16px system-ui,sans-serif;text-align:center}
 .chart-options>.ds-kbd{align-self:center;margin-left:-4px}
-.range{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.range{position:relative;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 

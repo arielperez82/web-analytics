@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { Kbd } from "@/ds/Kbd";
 import { SegmentedControl } from "@/ds/SegmentedControl";
@@ -8,7 +8,7 @@ import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
-import { useDismiss } from "@/lib/use-dismiss";
+import { usePopover } from "@/lib/use-popover";
 import { useShortcuts } from "@/lib/use-shortcuts";
 
 import { TimeZonePicker } from "./TimeZonePicker";
@@ -43,64 +43,46 @@ export const DateRangePicker = ({
   const now = new Date();
   const today = localDay(now, zone);
   const current = rangeToParams(range, now, zone);
-  const [open, setOpen] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const close = () => {
-    setOpen(false);
-    trigger.current?.focus();
-  };
-  const restoreFocusIfLost = () => {
-    if (document.activeElement === document.body) trigger.current?.focus();
-  };
-  useDismiss({
-    open,
-    within: container,
-    onEscape: close,
-    onOutside: () => {
-      setOpen(false);
-      document.addEventListener("click", restoreFocusIfLost, { once: true });
-    },
-  });
+  const popover = usePopover();
   const [draft, setDraft] = useState({ from: current.date_from, to: current.date_to });
   const normalized = normalizeRange(draft.from, draft.to, today);
-  const choose = (next: DashboardState["range"]) => {
+  const pickFromMenu = (next: DashboardState["range"]) => {
     onChange(next);
-    setOpen(false);
+    popover.close();
   };
   const toggle = () => {
     setDraft({ from: current.date_from, to: current.date_to });
-    setOpen(!open);
+    popover.toggle();
   };
   useShortcuts({ l: toggle });
   const quickLabel = quickLabelOf(range);
   return (
-    <div className="range" ref={container}>
+    <div className="range" ref={popover.container}>
       <SegmentedControl
         label="Quick ranges"
         value={quickLabel ?? ""}
         options={quick.map(({ label }) => ({ value: label, label }))}
         onChange={(label) => {
           const next = quick.find((shortcut) => shortcut.label === label);
-          if (next !== undefined) choose(next.range);
+          if (next !== undefined) onChange(next.range);
         }}
       />
       <button
-        ref={trigger}
+        ref={popover.trigger}
         type="button"
         className="ds-btn"
         aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-pressed={quickLabel === undefined}
+        aria-expanded={popover.open}
+        data-active={quickLabel === undefined}
         onClick={toggle}
       >
         {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾ <Kbd>L</Kbd>
       </button>
-      {open && (
+      {popover.open && (
         <div className="popover" role="dialog" aria-label="Date range">
           <div className="presets">
             {rest.map(({ label, range: shortcut }) => (
-              <button key={label} type="button" aria-pressed={sameRange(shortcut, range)} onClick={() => choose(shortcut)}>
+              <button key={label} type="button" aria-pressed={sameRange(shortcut, range)} onClick={() => pickFromMenu(shortcut)}>
                 {label}
               </button>
             ))}
@@ -128,7 +110,7 @@ export const DateRangePicker = ({
                 onChange={(e) => setDraft({ ...draft, to: e.target.value })}
               />
             </label>
-            <button type="button" disabled={!normalized} onClick={() => normalized && choose(normalized)}>
+            <button type="button" disabled={!normalized} onClick={() => normalized && pickFromMenu(normalized)}>
               Apply
             </button>
           </div>

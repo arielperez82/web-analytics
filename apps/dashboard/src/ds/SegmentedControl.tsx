@@ -28,7 +28,7 @@ export const SegmentedControl = <Value extends string>({
         onClick={() => onChange(option.value)}
       >
         {option.label}
-        {option.hint === undefined ? null : <Kbd>{option.hint}</Kbd>}
+        {option.hint === undefined || option.disabled ? null : <Kbd>{option.hint}</Kbd>}
       </Button>
     ))}
   </div>

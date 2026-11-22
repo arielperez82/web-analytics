@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const ICONS = {
   chart: "M4 20V10M10 20V4M16 20v-8M22 20H2",
@@ -31,15 +31,20 @@ const Icon = ({ name }: { readonly name: IconName }) => (
 export const SidebarNav = ({ items, collapsed, onToggle }: SidebarNavProps) => {
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  const [animate, setAnimate] = useState(false);
+  const pointer = useRef(false);
   const shown = collapsed ? (hovered ?? focused) : null;
   return (
-    <nav className="sidebar" aria-label="Main" data-collapsed={collapsed}>
+    <nav className="sidebar" aria-label="Main" data-collapsed={collapsed} data-animate={animate}>
       <button
         type="button"
         className="ds-btn sidebar-toggle"
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-label="Sidebar"
         aria-expanded={!collapsed}
-        onClick={onToggle}
+        onClick={() => {
+          setAnimate(true);
+          onToggle();
+        }}
       >
         <Icon name="chevrons" />
       </button>
@@ -51,7 +56,13 @@ export const SidebarNav = ({ items, collapsed, onToggle }: SidebarNavProps) => {
               aria-current={active ? "page" : undefined}
               onMouseEnter={() => setHovered(label)}
               onMouseLeave={() => setHovered(null)}
-              onFocus={() => setFocused(label)}
+              onPointerDown={() => {
+                pointer.current = true;
+              }}
+              onFocus={() => {
+                if (!pointer.current) setFocused(label);
+                pointer.current = false;
+              }}
               onBlur={() => setFocused(null)}
             >
               <Icon name={icon} />

@@ -478,16 +478,32 @@ describe("Kpis", () => {
       expect(await keyed("d", { params: exact, state: { ...state, grain: "hour" } })).toEqual([]);
     });
 
-    it("C steps through the comparisons on offer and wraps round", async () => {
-      expect(await keyed("c")).toEqual([{ ...state, compare: "off" }]);
-      cleanup();
-      expect(await keyed("c", { state: { ...state, compare: "off" } })).toEqual([{ ...state, compare: undefined }]);
-    });
-
-    it("C reaches last week's figures where that comparison is offered", async () => {
+    it.each([
+      ["previous period to none", undefined, undefined, "off"],
+      ["none back to the previous period", "off", undefined, undefined],
+      ["none back to the previous period when last week is on offer", "off", "single", undefined],
+      ["the previous period to last week when that is on offer", undefined, "single", "last_week"],
+    ] as const)("C steps from %s", async (_name, from, shape, to) => {
       const single = { ...params, date_to: params.date_from };
 
-      expect(await keyed("c", { params: single })).toEqual([{ ...state, compare: "last_week" }]);
+      expect(await keyed("c", { params: shape === "single" ? single : params, state: { ...state, compare: from } })).toEqual([
+        { ...state, compare: to },
+      ]);
+    });
+
+    it("C and its hint do nothing for All Time, which has nothing to compare with", async () => {
+      expect(await keyed("c", { state: { range: { preset: "all_time" }, filters: {} } })).toEqual([]);
+      expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
+    });
+
+    it("H does nothing where the range is too long for hours", async () => {
+      expect(await keyed("h", { params: { ...params, date_from: "2026-08-18" } })).toEqual([]);
+    });
+
+    it("D and H leave the chart alone when it is already that way", async () => {
+      expect(await keyed("d")).toEqual([]);
+      cleanup();
+      expect(await keyed("h", { state: { ...state, grain: "hour" } })).toEqual([]);
     });
 
     it("shows the keys beside the pills they trigger", async () => {
