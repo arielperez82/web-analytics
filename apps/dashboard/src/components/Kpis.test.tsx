@@ -97,16 +97,48 @@ describe("Kpis", () => {
 
     const known = within(await card("Known visitors"));
     await waitFor(() => expect(known.getByText("120")).toBeTruthy());
-    expect(known.getByText("+20% vs previous period")).toBeTruthy();
+    expect(known.getByText("+20%")).toBeTruthy();
+    expect(known.getByText("Up")).toBeTruthy();
+    expect(known.getByText("vs previous period")).toBeTruthy();
     expect(known.getByText("41.5% of sessions from people who accepted tracking")).toBeTruthy();
     expect(within(await card("Anonymous visitors")).getByText("340")).toBeTruthy();
     expect(within(await card("Sessions")).getByText("410")).toBeTruthy();
-    expect(within(await card("Sessions")).getByText("+7.89% vs previous period")).toBeTruthy();
+    expect(within(await card("Sessions")).getByText("+7.89%")).toBeTruthy();
     expect(within(await card("Pageviews")).getByText("1,234")).toBeTruthy();
     expect(within(await card("Bounce rate")).getByText("37.5%")).toBeTruthy();
-    expect(within(await card("Bounce rate")).getByText("-3.85% vs previous period")).toBeTruthy();
+    expect(within(await card("Bounce rate")).getByText("-3.85%")).toBeTruthy();
     expect(within(await card("Avg session")).getByText("95s")).toBeTruthy();
-    expect(within(await card("Avg session")).getByText("0% vs previous period")).toBeTruthy();
+    expect(within(await card("Avg session")).getByText("0%")).toBeTruthy();
+  });
+
+  it("marks each change with a direction word and a tone that depends on which way is better", async () => {
+    renderKpis();
+    const change = async (name: string, text: string) => within(await card(name)).getByText(text);
+
+    expect((await change("Known visitors", "+20%")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Anonymous visitors", "-2.86%")).getAttribute("data-tone")).toBe("bad");
+    expect((await change("Bounce rate", "-3.85%")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Avg session", "0%")).getAttribute("data-tone")).toBe("neutral");
+    expect(within(await card("Bounce rate")).getByText("Down")).toBeTruthy();
+    expect(within(await card("Avg session")).getByText("No change")).toBeTruthy();
+  });
+
+  it("names each metric card by its label alone and groups them as the key figures", async () => {
+    renderKpis();
+
+    expect(await screen.findByRole("group", { name: "Key figures" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sessions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pageviews" })).toBeTruthy();
+  });
+
+  it("lets the keyboard pick a card", async () => {
+    renderKpis();
+    const user = userEvent.setup();
+
+    (await screen.findByRole("button", { name: "Pageviews" })).focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("button", { name: "Pageviews" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("says known visitors are unique and anonymous visitors are not unique across days", async () => {
@@ -334,6 +366,25 @@ describe("Kpis", () => {
       await user.click(within(group).getByRole("button", { name: "Previous period" }));
 
       expect(picked).toEqual([state]);
+    });
+
+    it("asks to switch the comparison off, or to last week, when those are picked", async () => {
+      const picked: DashboardState[] = [];
+      renderKpis({
+        params: { ...params, date_to: "2026-11-10" },
+        comparison,
+        onChange: (next) => picked.push(next),
+      });
+      const user = userEvent.setup();
+
+      const group = await screen.findByRole("group", { name: "Compare to" });
+      await user.click(within(group).getByRole("button", { name: "None" }));
+      await user.click(within(group).getByRole("button", { name: "Same day last week" }));
+
+      expect(picked).toEqual([
+        { ...state, compare: "off" },
+        { ...state, compare: "last_week" },
+      ]);
     });
 
     it("offers nothing to compare all time with", async () => {

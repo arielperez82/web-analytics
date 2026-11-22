@@ -5,13 +5,12 @@ export type ButtonProps = {
   readonly onClick?: () => void;
   readonly pressed?: boolean;
   readonly disabled?: boolean;
-  readonly variant?: "primary";
 };
 
-export const Button = ({ children, onClick, pressed, disabled, variant }: ButtonProps) => (
+export const Button = ({ children, onClick, pressed, disabled }: ButtonProps) => (
   <button
     type="button"
-    className={variant === "primary" ? "ds-btn ds-btn-primary" : "ds-btn"}
+    className="ds-btn"
     aria-pressed={pressed}
     disabled={disabled}
     onClick={onClick}

@@ -75,9 +75,9 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  await expect(page.getByText('+20% vs previous period')).toBeVisible();
-  await expect(page.getByText('+7.89% vs previous period')).toBeVisible();
-  await expect(page.getByText('-3.85% vs previous period')).toBeVisible();
+  await expect(page.getByText('+20%')).toBeVisible();
+  await expect(page.getByText('+7.89%')).toBeVisible();
+  await expect(page.getByText('-3.85%')).toBeVisible();
   await expect(page.getByText('1,234')).toBeVisible();
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
@@ -117,7 +117,7 @@ const BOT_AWARE = [
 test('bots are left out until the viewer includes them', async ({ page }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  await expect(page.getByText('+20% vs previous period')).toBeVisible();
+  await expect(page.getByText('+20%')).toBeVisible();
   for (const endpoint of BOT_AWARE) {
     expect(api.requestsTo(endpoint).at(-1)?.has('include_bots')).toBe(false);
   }

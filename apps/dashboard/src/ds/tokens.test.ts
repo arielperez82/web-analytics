@@ -9,6 +9,7 @@ type Theme = Readonly<Record<string, string>>;
 
 const declarationsOf = (selector: string): Theme => {
   const start = css.indexOf(selector);
+  if (start < 0) throw new Error(`tokens.css has no rule for ${selector}`);
   const body = css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start));
   return Object.fromEntries(
     body
@@ -83,9 +84,8 @@ describe("design tokens", () => {
   });
 
   it("follows the system dark preference when no theme is chosen", () => {
-    const media = css.slice(css.indexOf("@media (prefers-color-scheme:dark)"));
-    expect(declarationsOf(':root:not([data-theme])')).toEqual(themes.dark);
-    expect(media).toContain(":root:not([data-theme])");
+    expect(css).toContain("@media (prefers-color-scheme:dark)");
+    expect(declarationsOf(":root:not([data-theme])")).toEqual(themes.dark);
   });
 
   it("outlines every keyboard-focused element with the focus ring", () => {

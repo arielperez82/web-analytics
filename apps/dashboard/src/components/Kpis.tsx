@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
+import { Badge } from "@/ds/Badge";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import {
@@ -10,6 +11,7 @@ import {
   drillDay,
   type Grain,
 } from "@/lib/dashboard-state";
+import { type Delta, deltaOf } from "@/lib/delta";
 import {
   APPROXIMATE_COUNT_NOTE,
   formatNumber,
@@ -42,56 +44,97 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
 const field = (row: Row | undefined, key: string): number =>
   Number(row?.[key] ?? 0);
 
-const Card = ({
+type Growth = { readonly text: string; readonly delta: Delta };
+
+type CardContent = {
+  readonly label: string;
+  readonly value: string;
+  readonly growth?: Growth;
+  readonly approximate?: boolean;
+  readonly caption?: string;
+  readonly note?: string;
+};
+
+const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
+  text: formatSignedPercent(percent),
+  delta: deltaOf({ percent, higherIsBetter }),
+});
+
+const CardBody = ({
   label,
   value,
   growth,
   approximate = false,
   caption,
   note,
+  ids,
+}: CardContent & { readonly ids: Record<"label" | "value" | "growth" | "caption" | "note", string> }) => (
+  <>
+    <span id={ids.label}>{label}</span>
+    <strong id={ids.value}>
+      {value}
+      {approximate ? (
+        <abbr title={APPROXIMATE_COUNT_NOTE} aria-label={APPROXIMATE_COUNT_NOTE}>
+          *
+        </abbr>
+      ) : null}
+    </strong>
+    {growth === undefined ? null : (
+      <small id={ids.growth} className="delta">
+        <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
+          {growth.text}
+        </Badge>
+        vs previous period
+      </small>
+    )}
+    {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
+    {note === undefined ? null : <small id={ids.note}>{note}</small>}
+  </>
+);
+
+const useCardIds = (content: CardContent) => {
+  const base = useId();
+  const ids = {
+    label: `${base}-label`,
+    value: `${base}-value`,
+    growth: `${base}-growth`,
+    caption: `${base}-caption`,
+    note: `${base}-note`,
+  };
+  const described = [
+    ids.value,
+    ...(content.growth === undefined ? [] : [ids.growth]),
+    ...(content.caption === undefined ? [] : [ids.caption]),
+    ...(content.note === undefined ? [] : [ids.note]),
+  ].join(" ");
+  return { ids, described };
+};
+
+const StaticCard = (content: CardContent) => {
+  const { ids } = useCardIds(content);
+  return (
+    <div className="card">
+      <CardBody {...content} ids={ids} />
+    </div>
+  );
+};
+
+const SelectableCard = ({
   selected,
   onSelect,
-}: {
-  label: string;
-  value: string;
-  growth?: string;
-  approximate?: boolean;
-  caption?: string;
-  note?: string;
-  selected?: boolean;
-  onSelect?: () => void;
-}) => {
-  const body = (
-    <>
-      <span>{label}</span>
-      <strong>
-        {value}
-        {approximate ? (
-          <abbr
-            title={APPROXIMATE_COUNT_NOTE}
-            aria-label={APPROXIMATE_COUNT_NOTE}
-          >
-            *
-          </abbr>
-        ) : null}
-      </strong>
-      {growth === undefined ? null : (
-        <small>{growth} vs previous period</small>
-      )}
-      {caption === undefined ? null : <small>{caption}</small>}
-      {note === undefined ? null : <small>{note}</small>}
-    </>
-  );
-  return onSelect === undefined ? (
-    <div className="card">{body}</div>
-  ) : (
+  ...content
+}: CardContent & { readonly selected: boolean; readonly onSelect: () => void }) => {
+  const { ids, described } = useCardIds(content);
+  return (
     <button
       type="button"
       className="card card-select"
-      aria-pressed={selected === true}
+      aria-pressed={selected}
+      aria-labelledby={ids.label}
+      aria-describedby={described}
       onClick={onSelect}
     >
-      {body}
+      <CardBody {...content} ids={ids} />
     </button>
   );
 };
@@ -181,56 +224,46 @@ export const Kpis = ({
   });
   return (
     <>
-      <div className="cards">
-        <Card
+      <div className="cards" role="group" aria-label="Key figures">
+        <SelectableCard
           label="Known visitors"
           {...pick("known")}
           value={formatNumber(field(counts, "known_visitors"))}
-          growth={formatSignedPercent(
-            field(counts, "known_visitors_growth_percent"),
-          )}
+          growth={growthOf(field(counts, "known_visitors_growth_percent"), true)}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
           caption="Unique people, counted once across the range"
           approximate
         />
-        <Card
+        <SelectableCard
           label="Anonymous visitors"
           {...pick("anonymous")}
           value={formatNumber(field(counts, "anonymous_visitors"))}
-          growth={formatSignedPercent(
-            field(counts, "anonymous_visitors_growth_percent"),
-          )}
+          growth={growthOf(field(counts, "anonymous_visitors_growth_percent"), true)}
           caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
-        <Card
+        <SelectableCard
           label="Sessions"
           {...pick("sessions")}
           value={formatNumber(field(counts, "sessions"))}
-          growth={formatSignedPercent(field(counts, "sessions_growth_percent"))}
+          growth={growthOf(field(counts, "sessions_growth_percent"), true)}
           approximate
         />
-        <Card
+        <SelectableCard
           label="Pageviews"
           {...pick("pageviews")}
           value={formatNumber(field(engagement, "pageviews"))}
-          growth={formatSignedPercent(
-            field(engagement, "pageviews_growth_percent"),
-          )}
+          growth={growthOf(field(engagement, "pageviews_growth_percent"), true)}
         />
-        <Card
+        <StaticCard
           label="Bounce rate"
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
-          growth={formatSignedPercent(
-            field(engagement, "bounce_rate_growth_percent"),
-          )}
+          growth={growthOf(field(engagement, "bounce_rate_growth_percent"), false)}
         />
-        <Card
+        <StaticCard
           label="Avg session"
           value={formatSeconds(field(engagement, "avg_session_sec"))}
-          growth={formatSignedPercent(
-            field(engagement, "avg_session_sec_growth_percent"),
-          )}
+          growth={growthOf(field(engagement, "avg_session_sec_growth_percent"), true)}
         />
       </div>
       <Panel
