@@ -11,11 +11,21 @@ export const ConversionsPanel = ({ goal, params }: { goal: Goal; params: QueryPa
   const goalParams = isEventGoal(goal)
     ? { ...params, goal_event: goal.event }
     : { ...params, goal_path: goal.path };
-  const { data, loading, error } = useEndpoint<Row>("conversions", goalParams);
-  const summary = useEndpoint<Row>("conversion_summary", goalParams).data?.[0];
+  const feed = useEndpoint<Row>("conversions", goalParams);
+  const summaryFeed = useEndpoint<Row>("conversion_summary", goalParams);
+  const { data } = feed;
+  const summary = summaryFeed.data?.[0];
+  const failed = feed.error === undefined ? summaryFeed : feed;
   return (
     <Panel title={`${goal.name} · ${isEventGoal(goal) ? goal.event : goal.path}`}>
-      <Status loading={loading} error={error} empty={data?.length === 0} />
+      <Status
+        loading={feed.loading}
+        refreshing={feed.refreshing}
+        error={failed.error}
+        stale={data !== undefined}
+        empty={data?.length === 0}
+        onRetry={failed.retry}
+      />
       {data && data.length > 0 && (
         <>
           <p>

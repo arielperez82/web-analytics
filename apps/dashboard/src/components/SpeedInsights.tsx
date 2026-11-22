@@ -16,7 +16,7 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
   return (
     <>
       <Panel title="Core Web Vitals">
-        <Status loading={vitals.loading} error={vitals.error} empty={ordered.length === 0} />
+        <Status loading={vitals.loading} refreshing={vitals.refreshing} error={vitals.error} stale={vitals.data !== undefined} empty={ordered.length === 0} onRetry={vitals.retry} />
         <div className="cards">
           {ordered.map((row) => (
             <div key={`${row.domain}-${row.metric_name}`} className={`card ${statusClass(row.status)}`}>
@@ -28,7 +28,7 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
         </div>
       </Panel>
       <Panel title="Slowest routes (worst first)">
-        <Status loading={routes.loading} error={routes.error} empty={routes.data?.length === 0} />
+        <Status loading={routes.loading} refreshing={routes.refreshing} error={routes.error} stale={routes.data !== undefined} empty={routes.data?.length === 0} onRetry={routes.retry} />
         <table>
           <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th></tr></thead>
           <tbody>

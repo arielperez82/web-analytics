@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardState } from "@/lib/dashboard-state";
 import { type ApiRow,installFakeApi, removeFakeApi } from "@/test/fake-api";
@@ -454,6 +454,54 @@ describe("Kpis", () => {
         "Same hours last week",
         "None",
       ]);
+    });
+  });
+  describe("when the API fails", () => {
+    const failOnce = (endpoint: string) => {
+      const calls: string[] = [];
+      const real = globalThis.fetch;
+      vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
+        const name = /\/api\/(?:endpoints\/)?([^?]+)/.exec(input)?.[1] ?? "";
+        calls.push(name);
+        return name === endpoint && calls.filter((call) => call === endpoint).length === 1
+          ? Promise.resolve(new Response(JSON.stringify({ error: "warehouse down" }), { status: 500 }))
+          : real(input, init);
+      });
+    };
+
+    it("says so beside the chart, keeps the cards, and Retry brings the series back", async () => {
+      installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
+      failOnce("series");
+      render(<Kpis state={state} params={params} onChange={() => undefined} />);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain("warehouse down");
+      expect(screen.getByRole("group", { name: "Key figures" })).toBeTruthy();
+      expect(screen.queryByText(/No data for this range/)).toBeNull();
+      await userEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(await screen.findByRole("group", { name: "Sessions chart" })).toBeTruthy();
+      expect(document.querySelector(".line.current")).not.toBeNull();
+    });
+
+    it("retries only the figures that failed", async () => {
+      const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
+      failOnce("visitor_counts");
+      render(<Kpis state={state} params={params} onChange={() => undefined} />);
+
+      await userEvent.click(await within(await screen.findByRole("alert")).findByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(api.requestsTo("engagement")).toHaveLength(1);
+    });
+
+    it("flags failing key figures instead of showing zeros quietly", async () => {
+      installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
+      failOnce("visitor_counts");
+      render(<Kpis state={state} params={params} onChange={() => undefined} />);
+
+      expect((await screen.findByRole("alert")).textContent).toContain("warehouse down");
     });
   });
 });

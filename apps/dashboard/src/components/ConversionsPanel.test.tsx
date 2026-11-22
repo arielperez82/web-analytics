@@ -80,7 +80,7 @@ describe("ConversionsPanel", () => {
   it("says there is no data instead of a headline when no channel converted", async () => {
     renderPanel({ conversions: [] });
 
-    expect(await screen.findByText("No data")).toBeTruthy();
+    expect(await screen.findByText("No data for this range. Try a wider range or fewer filters.")).toBeTruthy();
     expect(screen.queryByText(/sessions\s+converted/)).toBeNull();
   });
 

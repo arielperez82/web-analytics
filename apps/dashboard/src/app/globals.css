@@ -1,7 +1,6 @@
 @import "../ds/tokens.css";
 @import "../ds/components.css";
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}
-.layout{display:flex;align-items:flex-start}
 .app{flex:1;min-width:0;max-width:1216px;margin:0 auto;padding:0 16px 48px}
 header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 0}
 header h1{font-size:18px;margin:0 8px 0 0}.spacer{flex:1}.live{color:var(--good);font-size:13px}
@@ -15,7 +14,7 @@ button{cursor:pointer}button[aria-pressed=true]{border-color:var(--accent);color
 .status-excellent em,.status-good em{color:var(--good)}.status-needs-improvement em{color:var(--warn)}.status-poor em{color:var(--bad)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px}
 .panel h2{font-size:13px;margin:0 0 8px;color:var(--muted);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}.grid .panel{margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:16px}.grid .panel{margin:0}
 table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;text-align:left}th{color:var(--muted);font-weight:500;font-size:12px}
 .num{text-align:right;font-variant-numeric:tabular-nums}.muted{color:var(--muted)}.footnote{display:block;margin-top:8px;font-size:11px;color:var(--muted);opacity:.7}.error{color:var(--bad)}
 td.label{position:relative;width:70%}.bar{position:absolute;inset:2px auto 2px 0;background:var(--bar);border-radius:3px}.text{position:relative;padding-left:6px;word-break:break-all}

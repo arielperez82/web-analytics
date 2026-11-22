@@ -201,14 +201,22 @@ export const Kpis = ({
   onChange: (next: DashboardState) => void;
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");
-  const counts = useEndpoint<Row>("visitor_counts", params).data?.[0];
-  const engagement = useEndpoint<Row>("engagement", params).data?.[0];
+  const countsFeed = useEndpoint<Row>("visitor_counts", params);
+  const engagementFeed = useEndpoint<Row>("engagement", params);
+  const counts = countsFeed.data?.[0];
+  const engagement = engagementFeed.data?.[0];
+  const figuresError = countsFeed.error ?? engagementFeed.error;
+  const figuresStale = countsFeed.data !== undefined || engagementFeed.data !== undefined;
+  const retryFigures = () => {
+    if (countsFeed.error !== undefined) countsFeed.retry();
+    if (engagementFeed.error !== undefined) engagementFeed.retry();
+  };
   const grain = effectiveGrain({ grain: state.grain, params });
   const hourly = grain === "hour";
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
-  const { points, loading, error } = useSeries({
+  const { points, loading, error, refreshing, retry } = useSeries({
     ...params,
     ...comparison,
     grain,
@@ -243,6 +251,7 @@ export const Kpis = ({
   });
   return (
     <>
+      <Status loading={false} error={figuresError} stale={figuresStale} empty={false} onRetry={retryFigures} />
       <div className="cards" role="group" aria-label="Key figures">
         <SelectableCard
           label="Known visitors"
@@ -310,6 +319,7 @@ export const Kpis = ({
             )}
           </div>
         </div>
+        <Status loading={false} error={error} stale={points !== undefined} empty={false} onRetry={retry} />
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
             {ticks.map((tick) => (
@@ -323,8 +333,8 @@ export const Kpis = ({
               <div className="chart-status">
                 <Status
                   loading={loading}
-                  error={error}
-                  empty={rows.length === 0}
+                  refreshing={refreshing}
+                  empty={rows.length === 0 && error === undefined}
                 />
               </div>
               <LineChart

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Button } from "@/ds/Button";
 import { formatNumber } from "@/lib/format";
 
 export type Row = Record<string, string | number | null>;
@@ -14,5 +15,47 @@ export const Panel = ({ title, children }: { title: ReactNode; children: ReactNo
   </section>
 );
 
-export const Status = ({ loading, error, empty }: { loading: boolean; error?: string; empty: boolean }) =>
-  error ? <p className="error">{error}</p> : loading ? <p className="muted">Loading…</p> : empty ? <p className="muted">No data</p> : null;
+export const EMPTY_MESSAGE = "No data for this range. Try a wider range or fewer filters.";
+
+export const Status = ({
+  loading,
+  error,
+  empty,
+  stale = false,
+  refreshing = false,
+  onRetry,
+}: {
+  loading: boolean;
+  error?: string;
+  empty: boolean;
+  stale?: boolean;
+  refreshing?: boolean;
+  onRetry?: () => void;
+}) => {
+  if (error !== undefined)
+    return (
+      <div className="state" role="alert">
+        <p className="error">
+          Could not load this: {error}
+          {stale ? " Showing the last figures that loaded." : ""}
+        </p>
+        {onRetry === undefined ? null : <Button onClick={onRetry}>Retry</Button>}
+      </div>
+    );
+  if (loading)
+    return (
+      <>
+        <div className="skeleton" aria-hidden="true" />
+        <span className="ds-sr" role="status">
+          Loading
+        </span>
+      </>
+    );
+  if (refreshing)
+    return (
+      <span className="ds-sr" role="status">
+        Updating
+      </span>
+    );
+  return empty ? <p className="muted">{EMPTY_MESSAGE}</p> : null;
+};

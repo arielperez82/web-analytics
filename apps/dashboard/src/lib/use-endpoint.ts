@@ -6,16 +6,20 @@ type State<T> = {
   readonly data: readonly T[] | undefined;
   readonly error: string | undefined;
   readonly loading: boolean;
+  readonly refreshing: boolean;
+  readonly retry: () => void;
 };
 
 export const useEndpoint = <T,>(
   name: string,
   params: Readonly<Record<string, string | undefined>>,
 ): State<T> => {
-  const [state, setState] = useState<State<T>>({
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<Omit<State<T>, "retry">>({
     data: undefined,
     error: undefined,
     loading: true,
+    refreshing: false,
   });
   const query = new URLSearchParams(
     Object.entries(params).flatMap(([key, value]) =>
@@ -25,23 +29,24 @@ export const useEndpoint = <T,>(
 
   useEffect(() => {
     const controller = new AbortController();
-    setState((previous) => ({ ...previous, loading: true, error: undefined }));
+    setState((previous) => ({ ...previous, loading: previous.data === undefined, refreshing: previous.data !== undefined, error: undefined }));
     fetch(`/api/endpoints/${name}?${query}`, { signal: controller.signal })
       .then(async (response) => {
         const body = (await response.json()) as { data?: T[]; error?: string };
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
-        setState({ data: body.data ?? [], error: undefined, loading: false });
+        setState({ data: body.data ?? [], error: undefined, loading: false, refreshing: false });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setState({
-          data: undefined,
+        setState((previous) => ({
+          data: previous.data,
           error: error instanceof Error ? error.message : "Request failed",
           loading: false,
-        });
+          refreshing: false,
+        }));
       });
     return () => controller.abort();
-  }, [name, query]);
+  }, [name, query, attempt]);
 
-  return state;
+  return { ...state, retry: () => setAttempt((count) => count + 1) };
 };

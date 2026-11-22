@@ -20,7 +20,8 @@
 .tip[data-edge=end]{transform:translateX(-100%)}
 .tip small{color:var(--tip-muted);font-size:12px}
 .tip strong{font-size:14px;font-variant-numeric:tabular-nums}
-.sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface)}
+.layout{display:flex;align-items:flex-start}
+.sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;min-height:100dvh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface)}
 .sidebar[data-animate=true]{transition:width .15s}
 .sidebar[data-collapsed=true]{width:72px}
 .sidebar ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
@@ -33,3 +34,19 @@
 .side-tip{position:absolute;z-index:30;left:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;white-space:nowrap;pointer-events:none}
 .range{position:relative;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
+.state{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.state p{margin:0}
+.skeleton{min-height:96px;border-radius:9px;background:var(--surface-hover);animation:ds-pulse 1.4s ease-in-out infinite}
+.chart-status .skeleton{width:100%;height:100%}
+@keyframes ds-pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
+@media (max-width:640px){
+.layout{flex-direction:column;align-items:stretch}
+.sidebar,.sidebar[data-collapsed=true]{position:static;width:100%;min-height:0;flex-direction:row;align-items:center;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+.sidebar ul{flex-direction:row}
+.sidebar-toggle,.side-tip{display:none}
+}
+@media (max-width:640px),(pointer:coarse){
+.ds-btn,.sidebar a,.see-all,.panel h2 a,label:has(input[type=checkbox]),button,select,input:not([type=checkbox]):not([type=radio]){min-height:44px}
+}
+@media (max-width:640px),(pointer:coarse){.see-all,.panel h2 a,label:has(input[type=checkbox]){display:inline-flex;align-items:center}}

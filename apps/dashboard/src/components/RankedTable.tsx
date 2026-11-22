@@ -26,7 +26,7 @@ export const RankedTable = ({
   onMore?: () => void;
 }) => {
   const comparePrevious = detail && report.previousPeriod !== false;
-  const { data, loading, error } = useEndpoint<Row>(report.endpoint, {
+  const { data, loading, error, refreshing, retry } = useEndpoint<Row>(report.endpoint, {
     ...params,
     limit: String(limit),
     include_previous_period: comparePrevious ? "true" : undefined,
@@ -34,7 +34,14 @@ export const RankedTable = ({
   const rows = data ?? [];
   return (
     <Panel title={report.heading}>
-      <Status loading={loading} error={error} empty={data?.length === 0} />
+      <Status
+        loading={loading}
+        refreshing={refreshing}
+        error={error}
+        stale={data !== undefined}
+        empty={data?.length === 0}
+        onRetry={retry}
+      />
       <table>
         {detail && (
           <thead>
