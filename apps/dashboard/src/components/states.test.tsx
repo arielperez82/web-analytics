@@ -37,7 +37,7 @@ describe("loading, empty and error states", () => {
   it("shows a skeleton while the first answer is on its way", async () => {
     renderTable(() => new Promise<Response>(() => undefined));
 
-    expect(await screen.findByRole("status", { name: "Loading" })).toBeTruthy();
+    expect(await screen.findByText("Loading")).toBeTruthy();
     expect(screen.queryByText("Loading…")).toBeNull();
   });
 
@@ -45,7 +45,7 @@ describe("loading, empty and error states", () => {
     renderTable(ok(spain));
 
     await screen.findByText("ES");
-    expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
+    expect(screen.queryByText("Loading")).toBeNull();
   });
 
   it("says what is missing and what to do when there is nothing to show", async () => {
@@ -54,13 +54,26 @@ describe("loading, empty and error states", () => {
     expect(await screen.findByText("No data for this range. Try a wider range or fewer filters.")).toBeTruthy();
   });
 
-  it("keeps the last good rows beside the error, which offers Retry", async () => {
+  it("keeps the old rows, with no skeleton, while a new answer is on its way", async () => {
+    const view = renderTable(ok(spain), () => new Promise<Response>(() => undefined));
+    await screen.findByText("ES");
+
+    view.rerender({ ...params, date_from: "2026-11-01" });
+
+    expect(await screen.findByText("Updating")).toBeTruthy();
+    expect(screen.getByText("ES")).toBeTruthy();
+    expect(screen.queryByText("Loading")).toBeNull();
+  });
+
+  it("keeps the last good rows beside the error, says they are old, and offers Retry", async () => {
     const view = renderTable(ok(spain), failing);
     await screen.findByText("ES");
 
     view.rerender({ ...params, date_from: "2026-11-01" });
 
-    expect((await screen.findByRole("alert")).textContent).toContain("warehouse down");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("warehouse down");
+    expect(alert.textContent).toContain("Showing the last figures that loaded.");
     expect(screen.getByText("ES")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
@@ -77,8 +90,9 @@ describe("loading, empty and error states", () => {
     expect(view.fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it("offers Retry when the very first answer fails", async () => {
+  it("offers Retry when the very first answer fails, without claiming old figures", async () => {
     renderTable(failing, ok(spain));
+    expect((await screen.findByRole("alert")).textContent).not.toContain("last figures");
 
     await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
 

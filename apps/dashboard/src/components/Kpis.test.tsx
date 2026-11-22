@@ -477,9 +477,23 @@ describe("Kpis", () => {
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).toContain("warehouse down");
       expect(screen.getByRole("group", { name: "Key figures" })).toBeTruthy();
+      expect(screen.queryByText(/No data for this range/)).toBeNull();
       await userEvent.click(within(alert).getByRole("button", { name: "Retry" }));
 
       await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(await screen.findByRole("group", { name: "Sessions chart" })).toBeTruthy();
+      expect(document.querySelector(".line.current")).not.toBeNull();
+    });
+
+    it("retries only the figures that failed", async () => {
+      const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
+      failOnce("visitor_counts");
+      render(<Kpis state={state} params={params} onChange={() => undefined} />);
+
+      await userEvent.click(await within(await screen.findByRole("alert")).findByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(api.requestsTo("engagement")).toHaveLength(1);
     });
 
     it("flags failing key figures instead of showing zeros quietly", async () => {

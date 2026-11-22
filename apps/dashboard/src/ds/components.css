@@ -20,6 +20,7 @@
 .tip[data-edge=end]{transform:translateX(-100%)}
 .tip small{color:var(--tip-muted);font-size:12px}
 .tip strong{font-size:14px;font-variant-numeric:tabular-nums}
+.layout{display:flex;align-items:flex-start}
 .sidebar{position:sticky;top:0;align-self:flex-start;display:flex;flex-direction:column;gap:12px;width:232px;min-height:100vh;min-height:100dvh;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface)}
 .sidebar[data-animate=true]{transition:width .15s}
 .sidebar[data-collapsed=true]{width:72px}
@@ -46,6 +47,6 @@
 .sidebar-toggle,.side-tip{display:none}
 }
 @media (max-width:640px),(pointer:coarse){
-.ds-btn,.sidebar a,.see-all,.panel h2 a,button,select,input:not([type=checkbox]):not([type=radio]){min-height:44px}
+.ds-btn,.sidebar a,.see-all,.panel h2 a,label:has(input[type=checkbox]),button,select,input:not([type=checkbox]):not([type=radio]){min-height:44px}
 }
-@media (max-width:640px),(pointer:coarse){.see-all,.panel h2 a{display:inline-flex;align-items:center}}
+@media (max-width:640px),(pointer:coarse){.see-all,.panel h2 a,label:has(input[type=checkbox]){display:inline-flex;align-items:center}}

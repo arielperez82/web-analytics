@@ -1,7 +1,6 @@
 @import "../ds/tokens.css";
 @import "../ds/components.css";
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif}
-.layout{display:flex;align-items:flex-start}
 .app{flex:1;min-width:0;max-width:1216px;margin:0 auto;padding:0 16px 48px}
 header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 0}
 header h1{font-size:18px;margin:0 8px 0 0}.spacer{flex:1}.live{color:var(--good);font-size:13px}

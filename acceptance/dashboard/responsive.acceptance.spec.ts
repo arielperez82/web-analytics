@@ -23,7 +23,7 @@ test.use({ viewport: { width: 375, height: 700 }, hasTouch: true });
 test('at phone width the page does not scroll sideways', async ({ page }) => {
   await stubApi(page, withData);
   await signIn(page);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByText('Spain')).toBeVisible();
 
   const overflow = await page.evaluate<number>(
     'document.documentElement.scrollWidth - document.documentElement.clientWidth'
@@ -53,10 +53,12 @@ test('on a touch screen every button and link is 44px tall', async ({
 }) => {
   await stubApi(page, withData);
   await signIn(page);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByText('Spain')).toBeVisible();
 
   const controls = await page
-    .locator('button, a[href], select, input:not([type=checkbox])')
+    .locator(
+      'button:not([aria-label*="Next.js"]), a[href], select, input:not([type=checkbox])'
+    )
     .all();
   const boxes = await Promise.all(
     controls.map(async control => ({
@@ -64,6 +66,7 @@ test('on a touch screen every button and link is 44px tall', async ({
       box: await control.boundingBox(),
     }))
   );
+  expect(boxes.length).toBeGreaterThan(10);
   const short = boxes
     .filter(({ box }) => box !== null && box.height > 0 && box.height < 44)
     .map(({ name }) => name);

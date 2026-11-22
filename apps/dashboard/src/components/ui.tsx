@@ -21,20 +21,41 @@ export const Status = ({
   loading,
   error,
   empty,
+  stale = false,
+  refreshing = false,
   onRetry,
 }: {
   loading: boolean;
   error?: string;
   empty: boolean;
+  stale?: boolean;
+  refreshing?: boolean;
   onRetry?: () => void;
 }) => {
   if (error !== undefined)
     return (
       <div className="state" role="alert">
-        <p className="error">Could not load this: {error}</p>
+        <p className="error">
+          Could not load this: {error}
+          {stale ? " Showing the last figures that loaded." : ""}
+        </p>
         {onRetry === undefined ? null : <Button onClick={onRetry}>Retry</Button>}
       </div>
     );
-  if (loading) return <div className="skeleton" role="status" aria-label="Loading" />;
+  if (loading)
+    return (
+      <>
+        <div className="skeleton" aria-hidden="true" />
+        <span className="ds-sr" role="status">
+          Loading
+        </span>
+      </>
+    );
+  if (refreshing)
+    return (
+      <span className="ds-sr" role="status">
+        Updating
+      </span>
+    );
   return empty ? <p className="muted">{EMPTY_MESSAGE}</p> : null;
 };

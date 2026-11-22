@@ -216,7 +216,7 @@ test('changing a filter does not move the layout below the chart', async ({
   await signIn(page);
   const panel = page.getByRole('heading', { name: /Sessions per day/ });
   await expect(panel).toBeVisible();
-  await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0);
+  await expect(page.getByText('Loading', { exact: true })).toHaveCount(0);
   const main = page.locator('main');
   const heightBefore = (await main.boundingBox())?.height;
   expect(heightBefore).toBeGreaterThan(0);
@@ -232,7 +232,10 @@ test('changing a filter does not move the layout below the chart', async ({
   const held = page.waitForRequest('**/api/series*');
   await pickFilter(page, 'Country', 'ES');
   await held;
-  await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0);
+  await expect(
+    page.getByText('Updating', { exact: true }).first()
+  ).toBeAttached();
+  await expect(page.getByText('Loading', { exact: true })).toHaveCount(0);
   const heightWhileLoading = (await main.boundingBox())?.height;
   release();
 
