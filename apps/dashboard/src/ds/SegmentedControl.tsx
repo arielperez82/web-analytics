@@ -1,11 +1,9 @@
 import { Button } from "./Button";
-import { Kbd } from "./Kbd";
 
 export type SegmentedOption<Value extends string> = {
   readonly value: Value;
   readonly label: string;
   readonly disabled?: boolean;
-  readonly hint?: string;
 };
 
 export const SegmentedControl = <Value extends string>({
@@ -28,7 +26,6 @@ export const SegmentedControl = <Value extends string>({
         onClick={() => onChange(option.value)}
       >
         {option.label}
-        {option.hint === undefined || option.disabled ? null : <Kbd>{option.hint}</Kbd>}
       </Button>
     ))}
   </div>

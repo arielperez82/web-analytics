@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 
-import { Kbd } from "@/ds/Kbd";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
 import { usePopover } from "@/lib/use-popover";
-import { useShortcuts } from "@/lib/use-shortcuts";
 
 import { TimeZonePicker } from "./TimeZonePicker";
 
@@ -54,7 +52,6 @@ export const DateRangePicker = ({
     setDraft({ from: current.date_from, to: current.date_to });
     popover.toggle();
   };
-  useShortcuts({ l: toggle });
   const quickLabel = quickLabelOf(range);
   return (
     <div className="range" ref={popover.container}>
@@ -76,7 +73,7 @@ export const DateRangePicker = ({
         data-active={quickLabel === undefined}
         onClick={toggle}
       >
-        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾ <Kbd>L</Kbd>
+        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾
       </button>
       {popover.open && (
         <div className="popover" role="dialog" aria-label="Date range">

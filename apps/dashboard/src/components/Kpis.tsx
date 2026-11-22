@@ -3,7 +3,6 @@
 import { useId, useState } from "react";
 
 import { Badge } from "@/ds/Badge";
-import { Kbd } from "@/ds/Kbd";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import {
@@ -24,7 +23,6 @@ import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { useSeries } from "@/lib/use-series";
-import { useShortcuts } from "@/lib/use-shortcuts";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
@@ -38,9 +36,9 @@ const METRICS: readonly { readonly key: Metric; readonly label: string }[] = [
   { key: "pageviews", label: "Pageviews" },
 ];
 
-const GRAINS: readonly { readonly key: Grain; readonly label: string; readonly hint: string }[] = [
-  { key: "day", label: "Day", hint: "D" },
-  { key: "hour", label: "Hour", hint: "H" },
+const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
+  { key: "day", label: "Day" },
+  { key: "hour", label: "Hour" },
 ];
 
 const field = (row: Row | undefined, key: string): number =>
@@ -228,7 +226,6 @@ export const Kpis = ({
   const grainOptions = GRAINS.map((option) => ({
     value: option.key,
     label: option.label,
-    hint: option.hint,
     disabled: option.key === "hour" ? !hourAvailable(params) : isExactWindow(params),
   }));
   const compareOptions = comparisons(isExactWindow(params))
@@ -236,16 +233,10 @@ export const Kpis = ({
     .map((option) => ({ value: option.key, label: option.label }));
   const setCompare = (next: Compare | "previous") =>
     onChange({ ...state, compare: next === "previous" ? undefined : next });
-  const cycleCompare = () => {
-    const keys = compareOptions.map((option) => option.value);
-    const next = keys[(keys.indexOf(comparisonKey(state)) + 1) % keys.length];
-    if (next !== undefined && !isAllTime(state)) setCompare(next);
-  };
   const setGrain = (key: Grain) => {
     if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
       onChange({ ...state, grain: key });
   };
-  useShortcuts({ d: () => setGrain("day"), h: () => setGrain("hour"), c: cycleCompare });
   const pick = (key: Metric) => ({
     selected: metric === key,
     onSelect: () => setMetric(key),
@@ -310,15 +301,12 @@ export const Kpis = ({
               onChange={setGrain}
             />
             {isAllTime(state) ? null : (
-              <>
-                <SegmentedControl
-                  label="Compare to"
-                  value={comparisonKey(state)}
-                  options={compareOptions}
-                  onChange={setCompare}
-                />
-                <Kbd>C</Kbd>
-              </>
+              <SegmentedControl
+                label="Compare to"
+                value={comparisonKey(state)}
+                options={compareOptions}
+                onChange={setCompare}
+              />
             )}
           </div>
         </div>

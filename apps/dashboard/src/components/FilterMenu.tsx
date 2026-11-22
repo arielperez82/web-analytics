@@ -1,12 +1,10 @@
 "use client";
 
-import { Kbd } from "@/ds/Kbd";
 import { FILTER_TITLE, type FilterKey, type Filters } from "@/lib/filters";
 import { type Report,REPORTS } from "@/lib/reports";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { usePopover } from "@/lib/use-popover";
-import { useShortcuts } from "@/lib/use-shortcuts";
 
 import type { Row } from "./ui";
 
@@ -71,12 +69,11 @@ export const FilterMenu = ({
   onIncludeBotsChange: (include: boolean) => void;
 }) => {
   const popover = usePopover();
-  useShortcuts({ f: popover.toggle });
   const count = Object.keys(filters).length + (includeBots ? 1 : 0);
   return (
     <div className="range" ref={popover.container}>
       <button ref={popover.trigger} aria-haspopup="dialog" aria-expanded={popover.open} onClick={popover.toggle}>
-        Filters{count > 0 && <> <b>{count}</b></>} ▾ <Kbd>F</Kbd>
+        Filters{count > 0 && <> <b>{count}</b></>} ▾
       </button>
       {popover.open && (
         <div className="popover" role="dialog" aria-label="Filters">
