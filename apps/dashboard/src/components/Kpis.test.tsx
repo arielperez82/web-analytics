@@ -242,26 +242,27 @@ describe("Kpis", () => {
     await screen.findByRole("group", { name: "Chart granularity" });
     expect(screen.queryByRole("group", { name: "Chart series" })).toBeNull();
     const picks = screen
-      .getAllByRole("button", { pressed: false })
-      .concat(screen.getAllByRole("button", { pressed: true }))
-      .map((button) => button.querySelector("span")?.textContent)
-      .filter((text) => text !== undefined);
-    expect(picks).toEqual(expect.arrayContaining(["Sessions", "Known visitors", "Anonymous visitors", "Pageviews"]));
+      .getAllByRole("button", { name: /^(Known visitors|Anonymous visitors|Sessions|Pageviews)/ })
+      .map((button) => button.querySelector("span")?.textContent);
+    expect(picks).toEqual(["Known visitors", "Anonymous visitors", "Sessions", "Pageviews"]);
     expect(screen.queryByRole("button", { name: /^Bounce rate/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Avg session/ })).toBeNull();
   });
 
-  it("marks the card whose metric the chart shows", async () => {
-    renderKpis();
-    const user = userEvent.setup();
-    const pressed = (name: RegExp) => screen.getByRole("button", { name }).getAttribute("aria-pressed");
+  it.each(["Known visitors", "Anonymous visitors", "Sessions", "Pageviews"])(
+    "marks only the %s card when the chart shows it",
+    async (name) => {
+      renderKpis();
+      const user = userEvent.setup();
+      const cards = ["Known visitors", "Anonymous visitors", "Sessions", "Pageviews"];
 
-    expect(pressed(/^Sessions/)).toBe("true");
-    await user.click(await screen.findByRole("button", { name: /^Pageviews/ }));
+      await user.click(await screen.findByRole("button", { name: new RegExp(`^${name}`) }));
 
-    expect(pressed(/^Pageviews/)).toBe("true");
-    expect(pressed(/^Sessions/)).toBe("false");
-  });
+      expect(
+        cards.map((card) => screen.getByRole("button", { name: new RegExp(`^${card}`) }).getAttribute("aria-pressed")),
+      ).toEqual(cards.map((card) => String(card === name)));
+    },
+  );
 
   it("asks to switch the grain when Hour or Day is clicked", async () => {
     const picked: DashboardState[] = [];

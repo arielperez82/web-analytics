@@ -319,15 +319,12 @@ test('hours are not offered for ninety days', async ({ page }) => {
   ).toBeDisabled();
 });
 
-test('the granularity and comparison toggles sit right of the metric keys', async ({
+test('the granularity and comparison toggles sit together at the right of the chart', async ({
   page,
 }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  const keys = await page
-    .getByRole('group', { name: 'Chart series' })
-    .boundingBox();
   const grain = await page
     .getByRole('group', { name: 'Chart granularity' })
     .boundingBox();
@@ -337,7 +334,6 @@ test('the granularity and comparison toggles sit right of the metric keys', asyn
   const panel = await page
     .getByRole('group', { name: 'Sessions chart' })
     .boundingBox();
-  expect(grain?.x).toBeGreaterThan((keys?.x ?? Infinity) + (keys?.width ?? 0));
   expect(compare?.x).toBeGreaterThan(
     (grain?.x ?? Infinity) + (grain?.width ?? 0)
   );
@@ -442,7 +438,7 @@ test('the chart is compared with the period before it until the viewer switches 
 
   await page
     .getByRole('group', { name: 'Compare to' })
-    .getByRole('button', { name: 'Off' })
+    .getByRole('button', { name: 'None' })
     .click();
 
   await expect(page).toHaveURL(/compare=off/);
