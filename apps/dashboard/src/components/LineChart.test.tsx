@@ -117,6 +117,33 @@ describe("LineChart", () => {
     expect(within(screen.getByRole("tooltip")).getByText("2026-11-10")).toBeTruthy();
   });
 
+  it("dismisses the tooltip on Escape without moving focus, and brings it back on the next move", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.tab();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(document.activeElement).toBe(point("2026-11-10"));
+
+    await user.keyboard("{ArrowRight}");
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-11")).toBeTruthy();
+  });
+
+  it("dismisses a hover tooltip on Escape until the pointer moves to another point", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.hover(point("2026-11-11"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    await user.hover(point("2026-11-12"));
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-12")).toBeTruthy();
+  });
+
   it("stays on the last point when the arrow keys run out of points", async () => {
     const user = userEvent.setup();
     renderChart();

@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 
 import { lineHeights } from "@/lib/chart-axis";
 import { FULL, pathOf, xOf } from "@/lib/chart-path";
@@ -51,7 +51,21 @@ export const LineChart = ({
   const heights = lineHeights(points);
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const active = points.findIndex((point) => point.label === (hovered ?? focused));
+  const [dismissed, setDismissed] = useState(false);
+  const active = dismissed ? -1 : points.findIndex((point) => point.label === (hovered ?? focused));
+  const showing = active !== -1;
+  useEffect(() => {
+    if (!showing) return;
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setDismissed(true);
+    };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [showing]);
+  const enter = (label: string, show: (label: string) => void) => {
+    setDismissed(false);
+    show(label);
+  };
   const activePoint = points[active];
   const activeHeight = heights.current[active];
   const area = areaOf(heights.current);
@@ -74,9 +88,9 @@ export const LineChart = ({
           aria-pressed={selected === point.label}
           aria-label={describe(point)}
           onClick={() => drillable && onDrill(point.label)}
-          onMouseEnter={() => setHovered(point.label)}
+          onMouseEnter={() => enter(point.label, setHovered)}
           onMouseLeave={() => setHovered(null)}
-          onFocus={() => setFocused(point.label)}
+          onFocus={() => enter(point.label, setFocused)}
           onBlur={() => setFocused(null)}
           onKeyDown={onKey}
         />
