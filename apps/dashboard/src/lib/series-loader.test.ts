@@ -46,7 +46,7 @@ describe("loadSeries", () => {
       ["/v0/pipes/daily_series.json", "2026-11-16", "2026-11-17"],
       ["/v0/pipes/daily_series.json", "2026-11-09", "2026-11-10"],
     ]);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       status: 200,
       body: {
         grain: "day",
@@ -126,5 +126,47 @@ describe("loadSeries", () => {
     const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps, false);
     expect(result.status).toBe(401);
     expect(urls).toHaveLength(0);
+  });
+
+  it("answers for every metric from the one call per period", async () => {
+    const day = (date: string, scale: number) => ({
+      date,
+      value: scale,
+      sessions: scale,
+      known: scale + 1,
+      anonymous: scale + 2,
+      pageviews: scale + 3,
+    });
+    const { deps, urls } = fakeDeps((url) =>
+      url.searchParams.get("date_from") === "2026-11-16"
+        ? [day("2026-11-16", 10), day("2026-11-17", 20)]
+        : [day("2026-11-09", 1), day("2026-11-10", 2)],
+    );
+
+    const result = await load(
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10",
+      deps,
+    );
+
+    expect(urls).toHaveLength(2);
+    expect(result.body).toMatchObject({
+      series: {
+        sessions: [
+          { label: "2026-11-16", current: 10, previousLabel: "2026-11-09", previous: 1 },
+          { label: "2026-11-17", current: 20, previousLabel: "2026-11-10", previous: 2 },
+        ],
+        known: [{ current: 11, previous: 2 }, { current: 21, previous: 3 }],
+        anonymous: [{ current: 12, previous: 3 }, { current: 22, previous: 4 }],
+        pageviews: [{ current: 13, previous: 4 }, { current: 23, previous: 5 }],
+      },
+    });
+  });
+
+  it("still answers a single metric as points", async () => {
+    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 9, sessions: 1, known: 2, anonymous: 3, pageviews: 9 }]);
+
+    const result = await load("date_from=2026-11-16&date_to=2026-11-16&metric=pageviews", deps);
+
+    expect(result.body).toMatchObject({ points: [{ current: 9 }], series: { pageviews: [{ current: 9 }], known: [{ current: 2 }] } });
   });
 });

@@ -18,6 +18,8 @@ const SERIES = {
 const withoutOwn = (query: URLSearchParams): Params =>
   Object.fromEntries([...query.entries()].filter(([key]) => !OWN_PARAMS.includes(key)));
 
+const METRICS = ["sessions", "known", "anonymous", "pageviews"] as const;
+
 const rowsOf = (body: unknown): readonly SeriesRow[] => (body as { data?: readonly SeriesRow[] }).data ?? [];
 
 export const loadSeries = async (
@@ -57,15 +59,21 @@ export const loadSeries = async (
   const labelled = (rows: readonly SeriesRow[]): readonly SeriesRow[] =>
     grain === "hour" ? rows.map((row) => ({ ...row, hour: zonedHour(String(row.hour), zone) })) : rows;
 
+  const currentRows = labelled(rowsOf(current.body));
+  const previousRows = previous ? labelled(rowsOf(previous.body)) : undefined;
+  const align = (value: (row: SeriesRow) => SeriesRow["value"]) =>
+    alignSeries({
+      key,
+      current: currentRows.map((row) => ({ ...row, value: value(row) })),
+      previous: previousRows?.map((row) => ({ ...row, value: value(row) })),
+    });
+
   return {
     status: 200,
     body: {
       grain,
-      points: alignSeries({
-        key,
-        current: labelled(rowsOf(current.body)),
-        previous: previous ? labelled(rowsOf(previous.body)) : undefined,
-      }),
+      points: align((row) => row.value),
+      series: Object.fromEntries(METRICS.map((metric) => [metric, align((row) => row[metric] as SeriesRow["value"])])),
     },
   };
 };
