@@ -310,6 +310,7 @@ test('the chart granularity is chosen apart from what it counts', async ({
   const asked = api.requestsTo('series').length;
   await page.getByRole('button', { name: 'Pageviews' }).click();
   await expect(page.getByText('Pageviews per hour')).toBeVisible();
+  await page.waitForLoadState('networkidle');
   expect(api.requestsTo('series')).toHaveLength(asked);
 });
 

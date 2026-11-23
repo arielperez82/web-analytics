@@ -109,10 +109,11 @@ describe.concurrent('hourly series', () => {
     await ingestEvents(env, [
       hitAt(scope, 'v-1', 3, 9),
       hitAt(scope, 'v-1', 3, 9),
+      hitAt(scope, 'v-2', 3, 9),
       hitAt(scope, 'd-1', 3, 9, { idMode: 'daily_direct' }),
     ]);
 
-    await series(scope, 3, { metric: 'pageviews' });
+    expect(values(await series(scope, 4, { metric: 'pageviews' }))[9]).toBe(4);
     const rows = await pipeRows<Row>(env, 'hourly_series', {
       tenant_id: scope.tenantId,
       domain: scope.domain,
@@ -129,7 +130,7 @@ describe.concurrent('hourly series', () => {
       ])
     ).toEqual([
       [0, 0, 0, 0],
-      [3, 1, 1, 3],
+      [4, 2, 1, 4],
       [0, 0, 0, 0],
     ]);
   });

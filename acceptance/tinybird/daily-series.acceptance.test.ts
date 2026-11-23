@@ -135,10 +135,13 @@ describe.concurrent('daily series', () => {
     await ingestEvents(env, [
       hit(scope, 'v-1', 2),
       hit(scope, 'v-1', 2),
+      hit(scope, 'v-2', 2),
       hit(scope, 'd-1', 2, { idMode: 'daily_direct' }),
     ]);
 
-    await series(scope, 3, { metric: 'pageviews' });
+    expect(values(await series(scope, 4, { metric: 'pageviews' }))).toEqual([
+      0, 4, 0, 0,
+    ]);
     const rows = await pipeRows<Row>(env, 'daily_series', {
       tenant_id: scope.tenantId,
       domain: scope.domain,
@@ -155,7 +158,7 @@ describe.concurrent('daily series', () => {
       ])
     ).toEqual([
       [0, 0, 0, 0],
-      [3, 1, 1, 3],
+      [4, 2, 1, 4],
       [0, 0, 0, 0],
       [0, 0, 0, 0],
     ]);
