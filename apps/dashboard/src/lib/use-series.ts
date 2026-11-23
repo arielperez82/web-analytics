@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import type { Metric } from "./metrics";
+import { type Metric, METRICS } from "./metrics";
 
 export type SeriesPoint = {
   readonly label: string;
@@ -14,6 +14,9 @@ export type SeriesPoint = {
 export type { Metric };
 
 export type MetricSeries = Readonly<Record<Metric, readonly SeriesPoint[]>>;
+
+const isMetricSeries = (value: unknown): value is MetricSeries =>
+  typeof value === "object" && value !== null && METRICS.every((metric) => Array.isArray((value as Record<string, unknown>)[metric]));
 
 type State = {
   readonly series: MetricSeries | undefined;
@@ -35,8 +38,9 @@ export const useSeries = (params: Readonly<Record<string, string | undefined>>):
     setState((previous) => ({ ...previous, loading: previous.series === undefined, refreshing: previous.series !== undefined, error: undefined }));
     fetch(`/api/series?${query}`, { signal: controller.signal })
       .then(async (response) => {
-        const body = (await response.json()) as { series?: MetricSeries; error?: string };
+        const body = (await response.json()) as { series?: unknown; error?: string };
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+        if (!isMetricSeries(body.series)) throw new Error("The series answer had no data");
         setState({ series: body.series, error: undefined, loading: false, refreshing: false });
       })
       .catch((error: unknown) => {
