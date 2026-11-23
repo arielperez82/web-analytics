@@ -13,10 +13,10 @@ export type SeriesPoint = {
 
 export type { Metric };
 
-export type MetricSeries = Readonly<Record<Metric, readonly SeriesPoint[]>>;
+export type MetricSeries = Readonly<Partial<Record<Metric, readonly SeriesPoint[]>>>;
 
 const isMetricSeries = (value: unknown): value is MetricSeries =>
-  typeof value === "object" && value !== null && METRICS.every((metric) => Array.isArray((value as Record<string, unknown>)[metric]));
+  typeof value === "object" && value !== null && METRICS.some((metric) => Array.isArray((value as Record<string, unknown>)[metric]));
 
 type State = {
   readonly series: MetricSeries | undefined;

@@ -225,6 +225,7 @@ export const Kpis = ({
   const { series, loading, error, refreshing, retry } = useSeries({ ...params, ...comparison, grain });
   const points = series?.[metric];
   const rows = points ?? [];
+  const unavailable = series !== undefined && points === undefined;
   const ticks = yTicks(
     rows.flatMap((row) =>
       row.previous === null ? [row.current] : [row.current, row.previous],
@@ -233,6 +234,7 @@ export const Kpis = ({
   const selected = "from" in state.range ? state.range.from : undefined;
   const label =
     METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
+  const chartError = error ?? (unavailable ? `${label} is not available from the server yet` : undefined);
   const grainOptions = GRAINS.map((option) => ({
     value: option.key,
     label: option.label,
@@ -322,7 +324,7 @@ export const Kpis = ({
             )}
           </div>
         </div>
-        <Status loading={false} error={error} stale={points !== undefined} empty={false} onRetry={retry} />
+        <Status loading={false} error={chartError} stale={points !== undefined} empty={false} onRetry={retry} />
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
             {ticks.map((tick) => (
@@ -337,7 +339,7 @@ export const Kpis = ({
                 <Status
                   loading={loading}
                   refreshing={refreshing}
-                  empty={rows.length === 0 && error === undefined}
+                  empty={rows.length === 0 && chartError === undefined}
                 />
               </div>
               <LineChart

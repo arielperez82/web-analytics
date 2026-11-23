@@ -34,12 +34,21 @@ describe("useSeries", () => {
     expect(screen.getByText("no series")).toBeTruthy();
   });
 
-  it("reports an answer that lacks one metric as an error", async () => {
-    answerWith({ grain: "day", series: { sessions: [], known: [], anonymous: [] } });
+  it("reports an answer with no metric at all as an error", async () => {
+    answerWith({ grain: "day", series: {} });
 
     render(<Harness />);
 
     await waitFor(() => expect(screen.getByText("The series answer had no data")).toBeTruthy());
+  });
+
+  it("keeps the metrics an answer has when it lacks one", async () => {
+    answerWith({ grain: "day", series: { sessions: [], known: [], anonymous: [] } });
+
+    render(<Harness />);
+
+    await waitFor(() => expect(screen.getByText("has series")).toBeTruthy());
+    expect(screen.getByText("no error")).toBeTruthy();
   });
 
   it("keeps a complete answer", async () => {

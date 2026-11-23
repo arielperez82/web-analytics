@@ -67,10 +67,10 @@ export const loadSeries = async (
 
   const currentRows = labelled(rowsOf(current.body));
   const previousRows = previous ? labelled(rowsOf(previous.body)) : undefined;
-  const complete = [...currentRows, ...(previousRows ?? [])].every((row) =>
-    METRICS.every((metric) => countOf(row, metric) !== undefined),
+  const usable = METRICS.filter((metric) =>
+    [...currentRows, ...(previousRows ?? [])].every((row) => countOf(row, metric) !== undefined),
   );
-  if (!complete) return MISSING_METRIC;
+  if (usable.length === 0) return MISSING_METRIC;
 
   const align = (value: (row: SeriesRow) => SeriesRow["value"]) =>
     alignSeries({
@@ -84,7 +84,7 @@ export const loadSeries = async (
     body: {
       grain,
       points: align((row) => row.value),
-      series: Object.fromEntries(METRICS.map((metric) => [metric, align((row) => countOf(row, metric) ?? 0)])),
+      series: Object.fromEntries(usable.map((metric) => [metric, align((row) => countOf(row, metric) ?? 0)])),
     },
   };
 };

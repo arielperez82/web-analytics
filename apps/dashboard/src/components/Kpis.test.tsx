@@ -610,6 +610,23 @@ describe("Kpis", () => {
       expect(document.querySelectorAll("svg.spark")).toHaveLength(4);
     });
 
+    it("keeps the other cards and the chart when one metric is unavailable, and says so only for that metric", async () => {
+      const { pageviews: _missing, ...others } = everyTrend(null);
+      renderWith(others);
+
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(3));
+      expect(screen.queryByRole("alert")).toBeNull();
+
+      await userEvent.click(await card("Pageviews"));
+
+      expect((await screen.findByRole("alert")).textContent).toMatch(/Pageviews.*not available/);
+      expect(document.querySelectorAll("svg.spark")).toHaveLength(3);
+
+      await userEvent.click(await card("Sessions"));
+
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    });
+
     it("keeps the cards level whether or not their trend has arrived", async () => {
       renderWith(rowsOf([1, 2, 3]));
 

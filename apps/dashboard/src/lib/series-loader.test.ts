@@ -178,7 +178,29 @@ describe("loadSeries", () => {
     expect(result.body).toMatchObject({ points: [{ current: 8 }], series: { pageviews: [{ current: 9 }], known: [{ current: 2 }] } });
   });
 
-  it("refuses to answer when the pipe has not been deployed with every metric", async () => {
+  it("answers with the metrics it has when a pipe lacks one", async () => {
+    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 8, sessions: 1, known: 2, anonymous: 3 }]);
+
+    const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
+
+    expect(result.status).toBe(200);
+    expect(Object.keys((result.body as { series: object }).series).sort()).toEqual(["anonymous", "known", "sessions"]);
+  });
+
+  it("leaves out a metric that any row lacks, in either period", async () => {
+    const full = { sessions: 1, known: 2, anonymous: 3, pageviews: 4 };
+    const { deps } = fakeDeps((url) =>
+      url.searchParams.get("date_from") === "2026-11-16"
+        ? [{ date: "2026-11-16", value: 1, ...full }]
+        : [{ date: "2026-11-09", value: 1, sessions: 1, known: 2, anonymous: 3 }],
+    );
+
+    const result = await load("date_from=2026-11-16&date_to=2026-11-16&compare_from=2026-11-09&compare_to=2026-11-09", deps);
+
+    expect(Object.keys((result.body as { series: object }).series).sort()).toEqual(["anonymous", "known", "sessions"]);
+  });
+
+  it("refuses to answer when the pipe has no metric at all", async () => {
     const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 9 }]);
 
     const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
