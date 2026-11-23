@@ -24,15 +24,17 @@ const fakeDeps = (
 const load = (query: string, deps: ProxyDeps, authenticated = true) =>
   loadSeries({ query: new URLSearchParams(query), authenticated }, deps);
 
+const counts = { sessions: 0, known: 0, anonymous: 0, pageviews: 0 };
+
 const byStart = (url: URL) =>
   url.searchParams.get("date_from") === "2026-11-16"
     ? [
-        { date: "2026-11-16", value: 5 },
-        { date: "2026-11-17", value: 7 },
+        { date: "2026-11-16", ...counts, value: 5 },
+        { date: "2026-11-17", ...counts, value: 7 },
       ]
     : [
-        { date: "2026-11-09", value: 3 },
-        { date: "2026-11-10", value: 4 },
+        { date: "2026-11-09", ...counts, value: 3 },
+        { date: "2026-11-10", ...counts, value: 4 },
       ];
 
 describe("loadSeries", () => {
@@ -46,7 +48,7 @@ describe("loadSeries", () => {
       ["/v0/pipes/daily_series.json", "2026-11-16", "2026-11-17"],
       ["/v0/pipes/daily_series.json", "2026-11-09", "2026-11-10"],
     ]);
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       status: 200,
       body: {
         grain: "day",
@@ -54,6 +56,7 @@ describe("loadSeries", () => {
           { label: "2026-11-16", current: 5, previousLabel: "2026-11-09", previous: 3 },
           { label: "2026-11-17", current: 7, previousLabel: "2026-11-10", previous: 4 },
         ],
+        series: expect.any(Object),
       },
     });
   });
@@ -81,7 +84,7 @@ describe("loadSeries", () => {
 
   it("loads hourly buckets for both ranges and reads their labels on the clock of the zone", async () => {
     const { deps, urls } = fakeDeps((url) => [
-      { hour: url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00", value: 2 },
+      { hour: url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00", ...counts, value: 2 },
     ]);
     const result = await load(
       "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare_from=2026-11-16&compare_to=2026-11-16",
@@ -98,7 +101,7 @@ describe("loadSeries", () => {
   });
 
   it("loads 24 hours from an exact start and the 24 hours it is compared with", async () => {
-    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", value: 2 }]);
+    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }]);
     await load(
       "grain=hour&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare_from_at=2026-11-16T16:00:00Z",
       deps,
@@ -149,24 +152,37 @@ describe("loadSeries", () => {
     );
 
     expect(urls).toHaveLength(2);
-    expect(result.body).toMatchObject({
+    const paired = (label: string, previousLabel: string, current: number, previous: number) => ({
+      label,
+      current,
+      previousLabel,
+      previous,
+    });
+    expect(result.body).toEqual({
+      grain: "day",
+      points: expect.any(Array),
       series: {
-        sessions: [
-          { label: "2026-11-16", current: 10, previousLabel: "2026-11-09", previous: 1 },
-          { label: "2026-11-17", current: 20, previousLabel: "2026-11-10", previous: 2 },
-        ],
-        known: [{ current: 11, previous: 2 }, { current: 21, previous: 3 }],
-        anonymous: [{ current: 12, previous: 3 }, { current: 22, previous: 4 }],
-        pageviews: [{ current: 13, previous: 4 }, { current: 23, previous: 5 }],
+        sessions: [paired("2026-11-16", "2026-11-09", 10, 1), paired("2026-11-17", "2026-11-10", 20, 2)],
+        known: [paired("2026-11-16", "2026-11-09", 11, 2), paired("2026-11-17", "2026-11-10", 21, 3)],
+        anonymous: [paired("2026-11-16", "2026-11-09", 12, 3), paired("2026-11-17", "2026-11-10", 22, 4)],
+        pageviews: [paired("2026-11-16", "2026-11-09", 13, 4), paired("2026-11-17", "2026-11-10", 23, 5)],
       },
     });
   });
 
   it("still answers a single metric as points", async () => {
-    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 9, sessions: 1, known: 2, anonymous: 3, pageviews: 9 }]);
+    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 8, sessions: 1, known: 2, anonymous: 3, pageviews: 9 }]);
 
     const result = await load("date_from=2026-11-16&date_to=2026-11-16&metric=pageviews", deps);
 
-    expect(result.body).toMatchObject({ points: [{ current: 9 }], series: { pageviews: [{ current: 9 }], known: [{ current: 2 }] } });
+    expect(result.body).toMatchObject({ points: [{ current: 8 }], series: { pageviews: [{ current: 9 }], known: [{ current: 2 }] } });
+  });
+
+  it("refuses to answer when the pipe has not been deployed with every metric", async () => {
+    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 9 }]);
+
+    const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
+
+    expect(result).toEqual({ status: 502, body: { error: "The series feed is missing a metric" } });
   });
 });

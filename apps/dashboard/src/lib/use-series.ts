@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import type { Metric } from "./metrics";
+
 export type SeriesPoint = {
   readonly label: string;
   readonly current: number;
@@ -9,7 +11,7 @@ export type SeriesPoint = {
   readonly previous: number | null;
 };
 
-export type Metric = "sessions" | "known" | "anonymous" | "pageviews";
+export type { Metric };
 
 export type MetricSeries = Readonly<Record<Metric, readonly SeriesPoint[]>>;
 

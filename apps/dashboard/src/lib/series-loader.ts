@@ -1,5 +1,6 @@
 import { type ProxyDeps, proxyEndpoint } from "./endpoint-proxy";
 import { hourlyRequest, zonedHour } from "./hour-window";
+import { type Metric, METRICS } from "./metrics";
 import { alignSeries, type SeriesRow } from "./series-comparison";
 
 type LoadRequest = { readonly query: URLSearchParams; readonly authenticated: boolean };
@@ -18,7 +19,12 @@ const SERIES = {
 const withoutOwn = (query: URLSearchParams): Params =>
   Object.fromEntries([...query.entries()].filter(([key]) => !OWN_PARAMS.includes(key)));
 
-const METRICS = ["sessions", "known", "anonymous", "pageviews"] as const;
+const MISSING_METRIC = { status: 502, body: { error: "The series feed is missing a metric" } } as const;
+
+const countOf = (row: SeriesRow, metric: Metric): SeriesRow["value"] | undefined => {
+  const value = row[metric];
+  return typeof value === "number" || typeof value === "string" ? value : undefined;
+};
 
 const rowsOf = (body: unknown): readonly SeriesRow[] => (body as { data?: readonly SeriesRow[] }).data ?? [];
 
@@ -61,6 +67,11 @@ export const loadSeries = async (
 
   const currentRows = labelled(rowsOf(current.body));
   const previousRows = previous ? labelled(rowsOf(previous.body)) : undefined;
+  const complete = [...currentRows, ...(previousRows ?? [])].every((row) =>
+    METRICS.every((metric) => countOf(row, metric) !== undefined),
+  );
+  if (!complete) return MISSING_METRIC;
+
   const align = (value: (row: SeriesRow) => SeriesRow["value"]) =>
     alignSeries({
       key,
@@ -73,7 +84,7 @@ export const loadSeries = async (
     body: {
       grain,
       points: align((row) => row.value),
-      series: Object.fromEntries(METRICS.map((metric) => [metric, align((row) => row[metric] as SeriesRow["value"])])),
+      series: Object.fromEntries(METRICS.map((metric) => [metric, align((row) => countOf(row, metric) ?? 0)])),
     },
   };
 };

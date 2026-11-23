@@ -1,10 +1,10 @@
+import { METRICS } from "@/lib/metrics";
 import { vi } from "vitest";
 
 export type ApiRow = Readonly<Record<string, string | number | null>>;
 export type MetricRows = Readonly<Record<string, readonly ApiRow[]>>;
 type Route = readonly ApiRow[] | MetricRows | ((query: URLSearchParams) => readonly ApiRow[] | MetricRows);
 
-const METRICS = ["sessions", "known", "anonymous", "pageviews"] as const;
 
 export type FakeApi = {
   readonly requestsTo: (endpoint: string) => readonly URLSearchParams[];
