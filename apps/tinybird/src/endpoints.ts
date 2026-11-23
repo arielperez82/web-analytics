@@ -423,7 +423,11 @@ export const dailySeries = defineEndpoint("daily_series", {
                 {{ String(metric, 'sessions') }} = 'anonymous', p.anonymous_count,
                 {{ String(metric, 'sessions') }} = 'pageviews', p.pageviews_count,
                 p.sessions_count
-            ) AS value
+            ) AS value,
+            p.sessions_count AS sessions,
+            p.known_count AS known,
+            p.anonymous_count AS anonymous,
+            p.pageviews_count AS pageviews
         FROM days d
         LEFT JOIN per_day p ON d.date = p.date
       `,
@@ -434,7 +438,11 @@ export const dailySeries = defineEndpoint("daily_series", {
         SELECT
             date,
             value,
-            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent
+            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent,
+            sessions,
+            known,
+            anonymous,
+            pageviews
         FROM values
         ORDER BY date
       `,
@@ -453,6 +461,10 @@ export const dailySeries = defineEndpoint("daily_series", {
     date: t.date(),
     value: t.uint64(),
     bar_percent: t.float64(),
+    sessions: t.uint64(),
+    known: t.uint64(),
+    anonymous: t.uint64(),
+    pageviews: t.uint64(),
   },
 });
 
@@ -528,7 +540,11 @@ export const hourlySeries = defineEndpoint("hourly_series", {
                 {{ String(metric, 'sessions') }} = 'anonymous', p.anonymous_count,
                 {{ String(metric, 'sessions') }} = 'pageviews', p.pageviews_count,
                 p.sessions_count
-            ) AS value
+            ) AS value,
+            p.sessions_count AS sessions,
+            p.known_count AS known,
+            p.anonymous_count AS anonymous,
+            p.pageviews_count AS pageviews
         FROM hours h
         LEFT JOIN per_hour p ON h.hour = p.hour
       `,
@@ -539,7 +555,11 @@ export const hourlySeries = defineEndpoint("hourly_series", {
         SELECT
             hour,
             value,
-            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent
+            round(if(max(value) OVER () = 0, 0, value * 100.0 / max(value) OVER ()), 2) AS bar_percent,
+            sessions,
+            known,
+            anonymous,
+            pageviews
         FROM values
         ORDER BY hour
       `,
@@ -558,6 +578,10 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     hour: t.dateTime(),
     value: t.uint64(),
     bar_percent: t.float64(),
+    sessions: t.uint64(),
+    known: t.uint64(),
+    anonymous: t.uint64(),
+    pageviews: t.uint64(),
   },
 });
 

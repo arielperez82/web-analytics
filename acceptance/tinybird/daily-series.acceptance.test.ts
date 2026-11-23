@@ -20,6 +20,10 @@ type Row = {
   date: string;
   value: number | string;
   bar_percent: number | string;
+  sessions: number | string;
+  known: number | string;
+  anonymous: number | string;
+  pageviews: number | string;
 };
 
 describe.concurrent('daily series', () => {
@@ -124,6 +128,37 @@ describe.concurrent('daily series', () => {
 
     expect(values(daily)).toEqual([0, 2, 0, 0]);
     expect(values(views)).toEqual([0, 3, 0, 0]);
+  });
+
+  it('carries every metric on each day, so one call serves all of them', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hit(scope, 'v-1', 2),
+      hit(scope, 'v-1', 2),
+      hit(scope, 'd-1', 2, { idMode: 'daily_direct' }),
+    ]);
+
+    await series(scope, 3, { metric: 'pageviews' });
+    const rows = await pipeRows<Row>(env, 'daily_series', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+      date_from: dayOf(3),
+      date_to: dayOf(0),
+    });
+
+    expect(
+      rows.map(row => [
+        Number(row.sessions),
+        Number(row.known),
+        Number(row.anonymous),
+        Number(row.pageviews),
+      ])
+    ).toEqual([
+      [0, 0, 0, 0],
+      [3, 1, 1, 3],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ]);
   });
 
   it('sizes each bar against the busiest day, as a percentage', async () => {
