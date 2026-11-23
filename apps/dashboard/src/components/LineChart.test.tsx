@@ -117,6 +117,29 @@ describe("LineChart", () => {
     expect(within(screen.getByRole("tooltip")).getByText("2026-11-10")).toBeTruthy();
   });
 
+  it("makes the chart one tab stop that follows the arrow keys", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <LineChart points={points} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />
+        <button>after</button>
+      </>,
+    );
+    const stops = () => points.filter(({ label }) => point(label).tabIndex === 0).map(({ label }) => label);
+
+    expect(stops()).toEqual(["2026-11-10"]);
+
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(stops()).toEqual(["2026-11-11"]);
+
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(point("2026-11-11"));
+  });
+
   it("dismisses the tooltip on Escape without moving focus, and brings it back on the next move", async () => {
     const user = userEvent.setup();
     renderChart();

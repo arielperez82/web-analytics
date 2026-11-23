@@ -52,6 +52,8 @@ export const LineChart = ({
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [lastFocused, setLastFocused] = useState<string | null>(null);
+  const tabStop = points.some((point) => point.label === lastFocused) ? lastFocused : points[0]?.label;
   const active = dismissed ? -1 : points.findIndex((point) => point.label === (hovered ?? focused));
   const showing = active !== -1;
   useEffect(() => {
@@ -90,7 +92,11 @@ export const LineChart = ({
           onClick={() => drillable && onDrill(point.label)}
           onMouseEnter={() => enter(point.label, setHovered)}
           onMouseLeave={() => setHovered(null)}
-          onFocus={() => enter(point.label, setFocused)}
+          tabIndex={point.label === tabStop ? 0 : -1}
+          onFocus={() => {
+            setLastFocused(point.label);
+            enter(point.label, setFocused);
+          }}
           onBlur={() => setFocused(null)}
           onKeyDown={onKey}
         />
