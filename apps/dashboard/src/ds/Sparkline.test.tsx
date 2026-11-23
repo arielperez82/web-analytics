@@ -19,6 +19,33 @@ describe("Sparkline", () => {
     expect(coordinates.map(([x]) => x)).toEqual([...coordinates.map(([x]) => x)].sort((a, b) => a - b));
   });
 
+  it("joins the points evenly with one move and straight lines", () => {
+    const { container } = render(<Sparkline points={[point("a", 0), point("b", 10), point("c", 5)]} />);
+
+    const d = container.querySelector("path.spark-line")?.getAttribute("d") ?? "";
+
+    expect(d.match(/[A-Z]/g)).toEqual(["M", "L", "L"]);
+    const xs = [...d.matchAll(/[ML]([\d.]+),/g)].map(([, x]) => Number(x));
+    [16.67, 50, 83.33].forEach((expected, index) => expect(xs[index]).toBeCloseTo(expected, 1));
+  });
+
+  it("scales from zero, so a steady busy series sits near the top, not across the height", () => {
+    const { container } = render(<Sparkline points={[point("a", 100), point("b", 101), point("c", 100)]} />);
+
+    const d = container.querySelector("path.spark-line")?.getAttribute("d") ?? "";
+    const heights = [...d.matchAll(/,([\d.]+)/g)].map(([, y]) => Number(y));
+
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(5);
+  });
+
+  it("lies flat along the bottom when every value is zero", () => {
+    const { container } = render(<Sparkline points={[point("a", 0), point("b", 0)]} />);
+
+    const d = container.querySelector("path.spark-line")?.getAttribute("d") ?? "";
+
+    expect([...d.matchAll(/,([\d.]+)/g)].map(([, y]) => Number(y))).toEqual([100, 100]);
+  });
+
   it("is decoration beside the figure, so it stays out of the accessibility tree", () => {
     const { container } = render(<Sparkline points={[point("a", 1), point("b", 2)]} />);
 

@@ -24,11 +24,12 @@ import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { type SeriesPoint, useSeries } from "@/lib/use-series";
+import { type TrendMetric, useTrends } from "@/lib/use-trends";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
 
-type Metric = "sessions" | "known" | "anonymous" | "pageviews";
+type Metric = TrendMetric;
 
 const METRICS: readonly { readonly key: Metric; readonly label: string }[] = [
   { key: "sessions", label: "Sessions" },
@@ -92,7 +93,11 @@ const CardBody = ({
     )}
     {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
     {note === undefined ? null : <small id={ids.note}>{note}</small>}
-    {trend === undefined ? null : <Sparkline points={trend} />}
+    {trend === undefined ? null : (
+      <div className="spark-slot">
+        <Sparkline points={trend} />
+      </div>
+    )}
   </>
 );
 
@@ -220,13 +225,7 @@ export const Kpis = ({
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
-  const useTrend = (key: Metric) => useSeries({ ...params, grain, metric: key }).points;
-  const trends = {
-    known: useTrend("known"),
-    anonymous: useTrend("anonymous"),
-    sessions: useTrend("sessions"),
-    pageviews: useTrend("pageviews"),
-  };
+  const trends = useTrends({ ...params, grain });
   const { points, loading, error, refreshing, retry } = useSeries({
     ...params,
     ...comparison,

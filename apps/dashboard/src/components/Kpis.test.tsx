@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Sparkline } from "@/ds/Sparkline";
 import type { DashboardState } from "@/lib/dashboard-state";
 import { type ApiRow, type FakeApi,installFakeApi, removeFakeApi } from "@/test/fake-api";
 
@@ -86,6 +87,20 @@ const card = async (label: string): Promise<HTMLElement> => {
 
 const sessionsSeries = (api: FakeApi) =>
   api.requestsTo("series").filter((query) => query.get("metric") === "sessions");
+
+const failOnce = (endpoint: string, only: (query: URLSearchParams) => boolean = () => true) => {
+  const real = globalThis.fetch;
+  const seen: boolean[] = [];
+  vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
+    const name = /\/api\/(?:endpoints\/)?([^?]+)/.exec(input)?.[1] ?? "";
+    const target = name === endpoint && only(new URLSearchParams(input.split("?")[1] ?? ""));
+    const first = target && seen.length === 0;
+    if (target) seen.push(true);
+    return first
+      ? Promise.resolve(new Response(JSON.stringify({ error: "warehouse down" }), { status: 500 }))
+      : real(input, init);
+  });
+};
 
 const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
 const line = async (which: "current" | "previous") => {
@@ -463,22 +478,9 @@ describe("Kpis", () => {
     });
   });
   describe("when the API fails", () => {
-    const failOnce = (endpoint: string, only = "") => {
-      const calls: string[] = [];
-      const real = globalThis.fetch;
-      vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
-        const name = /\/api\/(?:endpoints\/)?([^?]+)/.exec(input)?.[1] ?? "";
-        const target = name === endpoint && input.includes(only);
-        if (target) calls.push("target");
-        return target && calls.filter((call) => call === "target").length === 1
-          ? Promise.resolve(new Response(JSON.stringify({ error: "warehouse down" }), { status: 500 }))
-          : real(input, init);
-      });
-    };
-
     it("says so beside the chart, keeps the cards, and Retry brings the series back", async () => {
       installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
-      failOnce("series", "compare_from");
+      failOnce("series", (query) => query.has("compare_from"));
       render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
 
       const alert = await screen.findByRole("alert");
@@ -512,64 +514,106 @@ describe("Kpis", () => {
     });
   });
   describe("trend sparklines", () => {
-    const trendOf = (base: number): readonly ApiRow[] => [
-      { label: "2026-11-10", current: base, previousLabel: null, previous: null },
-      { label: "2026-11-11", current: base * 2, previousLabel: null, previous: null },
-      { label: "2026-11-12", current: base, previousLabel: null, previous: null },
-    ];
-    const renderWith = (series: (query: URLSearchParams) => readonly ApiRow[]) => {
-      const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series });
-      render(<Kpis state={state} params={params} onChange={() => undefined} />);
-      return api;
+    const TRENDS = {
+      known: [1, 9, 3],
+      anonymous: [8, 2, 6],
+      sessions: [4, 4, 10],
+      pageviews: [9, 1, 1],
+    } as const;
+    const rowsOf = (values: readonly number[]) =>
+      values.map((current, index) => ({ label: `2026-11-1${String(index)}`, current, previousLabel: null, previous: null }));
+    const pathOf = (values: readonly number[]) => {
+      const { container } = render(<Sparkline points={rowsOf(values)} />);
+      const d = container.querySelector("path")?.getAttribute("d");
+      cleanup();
+      return d;
     };
+    const metricOf = (query: URLSearchParams): keyof typeof TRENDS => query.get("metric") as keyof typeof TRENDS;
+    const trendRequests = (api: FakeApi) => api.requestsTo("series").filter((query) => !query.has("compare_from"));
+    const renderWith = (
+      series: (query: URLSearchParams) => readonly ApiRow[],
+      props: { params?: Record<string, string>; comparison?: typeof comparison } = {},
+    ) => {
+      const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series });
+      const view = render(
+        <Kpis state={state} params={props.params ?? params} comparison={props.comparison} onChange={() => undefined} />,
+      );
+      return { api, ...view };
+    };
+    const sparkOf = (element: HTMLElement) => element.querySelector("path.spark-line")?.getAttribute("d");
 
     it.each([
       ["Known visitors", "known"],
       ["Anonymous visitors", "anonymous"],
       ["Sessions", "sessions"],
       ["Pageviews", "pageviews"],
-    ])("draws the %s trend the API supplies for that metric", async (label, metric) => {
-      const api = renderWith(() => trendOf(10));
+    ] as const)("draws the %s card from that metric's own trend, not the chart's series", async (label, metric) => {
+      const expected = pathOf(TRENDS[metric]);
+      renderWith((query) => (query.has("compare_from") ? rowsOf([2, 2, 2]) : rowsOf(TRENDS[metricOf(query)])), { comparison });
 
       const element = await card(label);
-      await waitFor(() => expect(element.querySelector("svg.spark path.spark-line")).not.toBeNull());
-      expect(api.requestsTo("series").some((query) => query.get("metric") === metric && !query.has("compare_from"))).toBe(
-        true,
-      );
+      await waitFor(() => expect(sparkOf(element)).toBe(expected));
     });
 
-    it("draws each card from its own metric's series", async () => {
-      renderWith((query) =>
-        query.get("metric") === "pageviews"
-          ? [
-              { label: "2026-11-10", current: 9, previousLabel: null, previous: null },
-              { label: "2026-11-11", current: 1, previousLabel: null, previous: null },
-            ]
-          : trendOf(10),
-      );
+    it("asks for each trend over the page's own range, filters and grain", async () => {
+      const filtered = { ...params, country: "ES" };
+      const { api } = renderWith(() => rowsOf([1, 2, 3]), { params: filtered, comparison });
 
-      const spark = async (label: string) => {
-        const element = await card(label);
-        await waitFor(() => expect(element.querySelector("path.spark-line")).not.toBeNull());
-        return element.querySelector("path.spark-line")?.getAttribute("d");
-      };
-      expect(await spark("Pageviews")).not.toBe(await spark("Sessions"));
+      await waitFor(() => expect(trendRequests(api)).toHaveLength(4));
+      expect(trendRequests(api).map(metricOf).sort()).toEqual(["anonymous", "known", "pageviews", "sessions"]);
+      trendRequests(api).forEach((query) => {
+        expect(Object.fromEntries(query)).toMatchObject({ ...filtered, grain: "day" });
+      });
+    });
+
+    it("asks for hourly trends over an exact window", async () => {
+      const last24 = { ...params, from_at: "2026-11-09T16:00:00Z" };
+      const { api } = renderWith(() => rowsOf([1, 2, 3]), {
+        params: last24,
+        comparison: { compare_from: "2026-11-08", compare_to: "2026-11-09" },
+      });
+
+      await waitFor(() => expect(trendRequests(api)).toHaveLength(4));
+      trendRequests(api).forEach((query) => {
+        expect(Object.fromEntries(query)).toMatchObject({ from_at: "2026-11-09T16:00:00Z", grain: "hour" });
+      });
     });
 
     it("hides the sparkline when the API supplies no trend", async () => {
       renderWith(() => []);
 
-      const element = await card("Sessions");
-      await screen.findByRole("group", { name: "Sessions chart" });
-      expect(element.querySelector("svg.spark")).toBeNull();
+      await screen.findByText(/No data for this range/);
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(0));
+      expect((await card("Sessions")).querySelector("svg.spark")).toBeNull();
     });
 
     it("draws none for the cards that have no trend metric", async () => {
-      renderWith(() => trendOf(10));
+      renderWith(() => rowsOf([1, 2, 3]));
 
-      await waitFor(() => expect((document.querySelectorAll("svg.spark")).length).toBe(4));
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
       expect((await card("Bounce rate")).querySelector("svg.spark")).toBeNull();
       expect((await card("Avg session")).querySelector("svg.spark")).toBeNull();
+    });
+
+    it("drops a trend that could not be refreshed rather than show the old range's line", async () => {
+      const { rerender } = renderWith(() => rowsOf([1, 2, 3]));
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
+
+      failOnce("series", (query) => query.get("metric") === "known");
+      rerender(<Kpis state={state} params={{ ...params, date_to: "2026-11-17" }} onChange={() => undefined} />);
+
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(3));
+      expect((await card("Known visitors")).querySelector("svg.spark")).toBeNull();
+      expect((await card("Pageviews")).querySelector("svg.spark")).not.toBeNull();
+    });
+
+    it("keeps the cards level whether or not their trend has arrived", async () => {
+      renderWith(() => rowsOf([1, 2, 3]));
+
+      const element = await card("Sessions");
+      expect(element.querySelector(".spark-slot")).not.toBeNull();
+      expect((await card("Bounce rate")).querySelector(".spark-slot")).toBeNull();
+      await waitFor(() => expect(element.querySelector(".spark-slot svg.spark")).not.toBeNull());
     });
   });
 });
