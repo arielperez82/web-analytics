@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Sparkline } from "@/ds/Sparkline";
 import type { DashboardState } from "@/lib/dashboard-state";
-import { type ApiRow, type FakeApi,installFakeApi, removeFakeApi } from "@/test/fake-api";
+import { type ApiRow, type FakeApi, installFakeApi, type MetricRows, removeFakeApi } from "@/test/fake-api";
 
 import { Kpis } from "./Kpis";
 
@@ -85,8 +85,7 @@ const card = async (label: string): Promise<HTMLElement> => {
   return element;
 };
 
-const sessionsSeries = (api: FakeApi) =>
-  api.requestsTo("series").filter((query) => query.get("metric") === "sessions");
+const seriesRequests = (api: FakeApi) => api.requestsTo("series");
 
 const failOnce = (endpoint: string, only: (query: URLSearchParams) => boolean = () => true) => {
   const real = globalThis.fetch;
@@ -229,24 +228,27 @@ describe("Kpis", () => {
     expect(previous.classList.contains("previous")).toBe(true);
   });
 
-  it("asks the series route for the metric the viewer picks", async () => {
-    const api = renderKpis({ comparison });
-    const user = userEvent.setup();
+  it("switches the chart to the metric the viewer picks without asking the server again", async () => {
+    const api = installFakeApi({
+      visitor_counts: [counts],
+      engagement: [engagement],
+      series: { ...Object.fromEntries(["sessions", "anonymous", "pageviews"].map((m) => [m, days])), known: [days[0]] },
+    });
+    render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
+    const chart = await screen.findByRole("group", { name: "Sessions chart" });
+    await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
 
-    await user.click(await screen.findByRole("button", { name: /^Known visitors/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Known visitors/ }));
 
-    await waitFor(() =>
-      expect(
-        api.requestsTo("series").some((query) => query.get("metric") === "known" && query.has("compare_from")),
-      ).toBe(true),
-    );
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Known visitors chart" })).getAllByRole("button")).toHaveLength(1));
+    expect(seriesRequests(api)).toHaveLength(1);
   });
 
   it("sends the range, the comparison and the filters to the series route as plain values", async () => {
     const api = renderKpis({ params: { ...params, location: "ES", tz: "Europe/Madrid" }, comparison });
 
-    await waitFor(() => expect(sessionsSeries(api)).toHaveLength(2));
-    const query = sessionsSeries(api).at(-1);
+    await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
+    const query = seriesRequests(api).at(-1);
     expect(query?.get("date_from")).toBe("2026-11-10");
     expect(query?.get("compare_from")).toBe("2026-11-03");
     expect(query?.get("compare_to")).toBe("2026-11-09");
@@ -258,8 +260,8 @@ describe("Kpis", () => {
   it("asks for no comparison when there is none", async () => {
     const api = renderKpis();
 
-    await waitFor(() => expect(sessionsSeries(api)).toHaveLength(2));
-    expect(sessionsSeries(api).at(-1)?.has("compare_from")).toBe(false);
+    await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
+    expect(seriesRequests(api).at(-1)?.has("compare_from")).toBe(false);
     expect(within(screen.getByLabelText("Chart legend")).queryByText(/Previous period/)).toBeNull();
   });
 
@@ -287,7 +289,7 @@ describe("Kpis", () => {
     const chart = await screen.findByRole("group", { name: "Sessions chart" });
     await waitFor(() => expect(within(chart).getAllByRole("button")).toHaveLength(2));
     expect(within(chart).getByLabelText("2026-11-10 09:00:00: 7 · 2026-11-09 09:00:00: 3")).toBeTruthy();
-    expect(sessionsSeries(api).at(-1)?.get("grain")).toBe("hour");
+    expect(seriesRequests(api).at(-1)?.get("grain")).toBe("hour");
     expect(await screen.findByText(/per hour/)).toBeTruthy();
   });
 
@@ -305,7 +307,7 @@ describe("Kpis", () => {
       state: { ...state, grain: "hour" },
     });
 
-    await waitFor(() => expect(sessionsSeries(api)).toHaveLength(2));
+    await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
     expect(await screen.findByText(/per 4 hours/)).toBeTruthy();
   });
 
@@ -444,8 +446,8 @@ describe("Kpis", () => {
     it("sends the exact start and the start of the comparison to the series route, by the hour", async () => {
       const api = renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 
-      await waitFor(() => expect(sessionsSeries(api)).toHaveLength(2));
-      const query = sessionsSeries(api).at(-1);
+      await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
+      const query = seriesRequests(api).at(-1);
       expect(query?.get("from_at")).toBe("2026-11-09T16:00:00Z");
       expect(query?.get("compare_from_at")).toBe("2026-11-08T16:00:00Z");
       expect(query?.get("grain")).toBe("hour");
@@ -520,18 +522,21 @@ describe("Kpis", () => {
       sessions: [4, 4, 10],
       pageviews: [9, 1, 1],
     } as const;
-    const rowsOf = (values: readonly number[]) =>
-      values.map((current, index) => ({ label: `2026-11-1${String(index)}`, current, previousLabel: null, previous: null }));
+    const rowsOf = (values: readonly number[], previous: number | null = null) =>
+      values.map((current, index) => ({
+        label: `2026-11-1${String(index)}`,
+        current,
+        previousLabel: previous === null ? null : `2026-11-0${String(index)}`,
+        previous,
+      }));
     const pathOf = (values: readonly number[]) => {
       const { container } = render(<Sparkline points={rowsOf(values)} />);
       const d = container.querySelector("path")?.getAttribute("d");
       cleanup();
       return d;
     };
-    const metricOf = (query: URLSearchParams): keyof typeof TRENDS => query.get("metric") as keyof typeof TRENDS;
-    const trendRequests = (api: FakeApi) => api.requestsTo("series").filter((query) => !query.has("compare_from"));
     const renderWith = (
-      series: (query: URLSearchParams) => readonly ApiRow[],
+      series: ApiRow[] | MetricRows | ((query: URLSearchParams) => readonly ApiRow[] | MetricRows),
       props: { params?: Record<string, string>; comparison?: typeof comparison } = {},
     ) => {
       const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series });
@@ -541,74 +546,72 @@ describe("Kpis", () => {
       return { api, ...view };
     };
     const sparkOf = (element: HTMLElement) => element.querySelector("path.spark-line")?.getAttribute("d");
+    const everyTrend = (previous: number | null) =>
+      Object.fromEntries(Object.entries(TRENDS).map(([metric, values]) => [metric, rowsOf(values, previous)]));
 
     it.each([
       ["Known visitors", "known"],
       ["Anonymous visitors", "anonymous"],
       ["Sessions", "sessions"],
       ["Pageviews", "pageviews"],
-    ] as const)("draws the %s card from that metric's own trend, not the chart's series", async (label, metric) => {
+    ] as const)("draws the %s card from that metric's own series, on its own scale", async (label, metric) => {
       const expected = pathOf(TRENDS[metric]);
-      renderWith((query) => (query.has("compare_from") ? rowsOf([2, 2, 2]) : rowsOf(TRENDS[metricOf(query)])), { comparison });
+      renderWith(everyTrend(1000), { comparison });
 
       const element = await card(label);
       await waitFor(() => expect(sparkOf(element)).toBe(expected));
     });
 
-    it("asks for each trend over the page's own range, filters and grain", async () => {
+    it("makes one request for the chart and all four trends, over the page's own range, filters and grain", async () => {
       const filtered = { ...params, country: "ES" };
-      const { api } = renderWith(() => rowsOf([1, 2, 3]), { params: filtered, comparison });
+      const { api } = renderWith(rowsOf([1, 2, 3]), { params: filtered, comparison });
 
-      await waitFor(() => expect(trendRequests(api)).toHaveLength(4));
-      expect(trendRequests(api).map(metricOf).sort()).toEqual(["anonymous", "known", "pageviews", "sessions"]);
-      trendRequests(api).forEach((query) => {
-        expect(Object.fromEntries(query)).toMatchObject({ ...filtered, grain: "day" });
-      });
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
+      expect(api.requestsTo("series")).toHaveLength(1);
+      const query = api.requestsTo("series")[0];
+      expect(Object.fromEntries(query ?? [])).toMatchObject({ ...filtered, ...comparison, grain: "day" });
+      expect(query?.has("metric")).toBe(false);
     });
 
-    it("asks for hourly trends over an exact window", async () => {
+    it("asks for hours over an exact window", async () => {
       const last24 = { ...params, from_at: "2026-11-09T16:00:00Z" };
-      const { api } = renderWith(() => rowsOf([1, 2, 3]), {
-        params: last24,
-        comparison: { compare_from: "2026-11-08", compare_to: "2026-11-09" },
-      });
+      const { api } = renderWith(rowsOf([1, 2, 3]), { params: last24 });
 
-      await waitFor(() => expect(trendRequests(api)).toHaveLength(4));
-      trendRequests(api).forEach((query) => {
-        expect(Object.fromEntries(query)).toMatchObject({ from_at: "2026-11-09T16:00:00Z", grain: "hour" });
+      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
+      expect(Object.fromEntries(api.requestsTo("series")[0] ?? [])).toMatchObject({
+        from_at: "2026-11-09T16:00:00Z",
+        grain: "hour",
       });
     });
 
     it("hides the sparkline when the API supplies no trend", async () => {
-      renderWith(() => []);
+      renderWith([]);
 
       await screen.findByText(/No data for this range/);
-      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(0));
-      expect((await card("Sessions")).querySelector("svg.spark")).toBeNull();
+      expect(document.querySelectorAll("svg.spark")).toHaveLength(0);
     });
 
     it("draws none for the cards that have no trend metric", async () => {
-      renderWith(() => rowsOf([1, 2, 3]));
+      renderWith(rowsOf([1, 2, 3]));
 
       await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
       expect((await card("Bounce rate")).querySelector("svg.spark")).toBeNull();
       expect((await card("Avg session")).querySelector("svg.spark")).toBeNull();
     });
 
-    it("drops a trend that could not be refreshed rather than show the old range's line", async () => {
-      const { rerender } = renderWith(() => rowsOf([1, 2, 3]));
+    it("keeps the last trends beside the alert that says they are old when a refresh fails", async () => {
+      const { rerender } = renderWith(rowsOf([1, 2, 3]));
       await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(4));
 
-      failOnce("series", (query) => query.get("metric") === "known");
+      failOnce("series");
       rerender(<Kpis state={state} params={{ ...params, date_to: "2026-11-17" }} onChange={() => undefined} />);
 
-      await waitFor(() => expect(document.querySelectorAll("svg.spark")).toHaveLength(3));
-      expect((await card("Known visitors")).querySelector("svg.spark")).toBeNull();
-      expect((await card("Pageviews")).querySelector("svg.spark")).not.toBeNull();
+      expect((await screen.findByRole("alert")).textContent).toContain("last figures that loaded");
+      expect(document.querySelectorAll("svg.spark")).toHaveLength(4);
     });
 
     it("keeps the cards level whether or not their trend has arrived", async () => {
-      renderWith(() => rowsOf([1, 2, 3]));
+      renderWith(rowsOf([1, 2, 3]));
 
       const element = await card("Sessions");
       expect(element.querySelector(".spark-slot")).not.toBeNull();

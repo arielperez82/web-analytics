@@ -307,10 +307,10 @@ test('the chart granularity is chosen apart from what it counts', async ({
 
   await expect(page).toHaveURL(/grain=hour/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
+  const asked = api.requestsTo('series').length;
   await page.getByRole('button', { name: 'Pageviews' }).click();
-  await expect
-    .poll(() => api.requestsTo('series').at(-1)?.get('metric'))
-    .toBe('pageviews');
+  await expect(page.getByText('Pageviews per hour')).toBeVisible();
+  expect(api.requestsTo('series')).toHaveLength(asked);
 });
 
 test('a month shows hours in four-hour buckets', async ({ page }) => {

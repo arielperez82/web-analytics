@@ -9,8 +9,12 @@ export type SeriesPoint = {
   readonly previous: number | null;
 };
 
+export type Metric = "sessions" | "known" | "anonymous" | "pageviews";
+
+export type MetricSeries = Readonly<Record<Metric, readonly SeriesPoint[]>>;
+
 type State = {
-  readonly points: readonly SeriesPoint[] | undefined;
+  readonly series: MetricSeries | undefined;
   readonly error: string | undefined;
   readonly loading: boolean;
   readonly refreshing: boolean;
@@ -19,24 +23,24 @@ type State = {
 
 export const useSeries = (params: Readonly<Record<string, string | undefined>>): State => {
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<Omit<State, "retry">>({ points: undefined, error: undefined, loading: true, refreshing: false });
+  const [state, setState] = useState<Omit<State, "retry">>({ series: undefined, error: undefined, loading: true, refreshing: false });
   const query = new URLSearchParams(
     Object.entries(params).flatMap(([key, value]) => (value !== undefined ? [[key, value] as [string, string]] : [])),
   ).toString();
 
   useEffect(() => {
     const controller = new AbortController();
-    setState((previous) => ({ ...previous, loading: previous.points === undefined, refreshing: previous.points !== undefined, error: undefined }));
+    setState((previous) => ({ ...previous, loading: previous.series === undefined, refreshing: previous.series !== undefined, error: undefined }));
     fetch(`/api/series?${query}`, { signal: controller.signal })
       .then(async (response) => {
-        const body = (await response.json()) as { points?: SeriesPoint[]; error?: string };
+        const body = (await response.json()) as { series?: MetricSeries; error?: string };
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
-        setState({ points: body.points ?? [], error: undefined, loading: false, refreshing: false });
+        setState({ series: body.series, error: undefined, loading: false, refreshing: false });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setState((previous) => ({
-          points: previous.points,
+          series: previous.series,
           error: error instanceof Error ? error.message : "Request failed",
           loading: false,
           refreshing: false,
