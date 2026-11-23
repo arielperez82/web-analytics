@@ -23,13 +23,10 @@ import {
 import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
-import { type SeriesPoint, useSeries } from "@/lib/use-series";
-import { type TrendMetric, useTrends } from "@/lib/use-trends";
+import { type Metric, type SeriesPoint, useSeries } from "@/lib/use-series";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
-
-type Metric = TrendMetric;
 
 const METRICS: readonly { readonly key: Metric; readonly label: string }[] = [
   { key: "sessions", label: "Sessions" },
@@ -225,14 +222,10 @@ export const Kpis = ({
   const bucket = hourBucket(params) ?? 1;
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
-  const trends = useTrends({ ...params, grain });
-  const { points, loading, error, refreshing, retry } = useSeries({
-    ...params,
-    ...comparison,
-    grain,
-    metric,
-  });
+  const { series, loading, error, refreshing, retry } = useSeries({ ...params, ...comparison, grain });
+  const points = series?.[metric];
   const rows = points ?? [];
+  const unavailable = series !== undefined && points === undefined;
   const ticks = yTicks(
     rows.flatMap((row) =>
       row.previous === null ? [row.current] : [row.current, row.previous],
@@ -241,6 +234,7 @@ export const Kpis = ({
   const selected = "from" in state.range ? state.range.from : undefined;
   const label =
     METRICS.find((option) => option.key === metric)?.label ?? "Sessions";
+  const chartError = error ?? (unavailable ? `${label} is not available from the server yet` : undefined);
   const grainOptions = GRAINS.map((option) => ({
     value: option.key,
     label: option.label,
@@ -256,7 +250,7 @@ export const Kpis = ({
       onChange({ ...state, grain: key });
   };
   const pick = (key: Metric) => ({
-    trend: trends[key],
+    trend: series?.[key] ?? [],
     selected: metric === key,
     onSelect: () => setMetric(key),
   });
@@ -330,7 +324,7 @@ export const Kpis = ({
             )}
           </div>
         </div>
-        <Status loading={false} error={error} stale={points !== undefined} empty={false} onRetry={retry} />
+        <Status loading={false} error={chartError} stale={points !== undefined} empty={false} onRetry={retry} />
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
             {ticks.map((tick) => (
@@ -345,7 +339,7 @@ export const Kpis = ({
                 <Status
                   loading={loading}
                   refreshing={refreshing}
-                  empty={rows.length === 0 && error === undefined}
+                  empty={rows.length === 0 && chartError === undefined}
                 />
               </div>
               <LineChart

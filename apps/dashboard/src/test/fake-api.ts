@@ -1,7 +1,10 @@
+import { METRICS } from "@/lib/metrics";
 import { vi } from "vitest";
 
 export type ApiRow = Readonly<Record<string, string | number | null>>;
-type Route = readonly ApiRow[] | ((query: URLSearchParams) => readonly ApiRow[]);
+export type MetricRows = Readonly<Record<string, readonly ApiRow[]>>;
+type Route = readonly ApiRow[] | MetricRows | ((query: URLSearchParams) => readonly ApiRow[] | MetricRows);
+
 
 export type FakeApi = {
   readonly requestsTo: (endpoint: string) => readonly URLSearchParams[];
@@ -9,8 +12,13 @@ export type FakeApi = {
 
 const ENDPOINT_PATH = /^\/api\/(?:endpoints\/([^?]+)|(series))\?(.*)$/;
 
-const bodyOf = (endpoint: string, query: URLSearchParams, rows: readonly ApiRow[]) =>
-  endpoint === "series" ? { grain: query.get("grain") ?? "day", points: rows } : { data: rows };
+const seriesOf = (rows: readonly ApiRow[] | MetricRows): MetricRows =>
+  Array.isArray(rows)
+    ? Object.fromEntries(METRICS.map((metric) => [metric, rows]))
+    : (rows as MetricRows);
+
+const bodyOf = (endpoint: string, query: URLSearchParams, rows: readonly ApiRow[] | MetricRows) =>
+  endpoint === "series" ? { grain: query.get("grain") ?? "day", series: seriesOf(rows) } : { data: rows };
 
 export const installFakeApi = (routes: Readonly<Record<string, Route>>): FakeApi => {
   const requests: { readonly endpoint: string; readonly query: URLSearchParams }[] = [];

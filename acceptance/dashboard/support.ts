@@ -17,10 +17,18 @@ export const stubApi = async (
     const url = new URL(route.request().url());
     requests.push({ endpoint: 'series', query: url.searchParams });
     const found = routes.series;
-    const points =
+    const rows =
       typeof found === 'function' ? found(url.searchParams) : (found ?? []);
     await route.fulfill({
-      json: { grain: url.searchParams.get('grain') ?? 'day', points },
+      json: {
+        grain: url.searchParams.get('grain') ?? 'day',
+        series: Object.fromEntries(
+          ['sessions', 'known', 'anonymous', 'pageviews'].map(metric => [
+            metric,
+            rows,
+          ])
+        ),
+      },
     });
   });
   await page.route('**/api/endpoints/*', async route => {

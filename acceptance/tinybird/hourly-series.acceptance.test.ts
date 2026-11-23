@@ -32,6 +32,10 @@ type Row = {
   hour: string;
   value: number | string;
   bar_percent: number | string;
+  sessions: number | string;
+  known: number | string;
+  anonymous: number | string;
+  pageviews: number | string;
 };
 
 type HitOptions = {
@@ -98,6 +102,37 @@ describe.concurrent('hourly series', () => {
     expect(rows[0]?.hour).toBe(`${dayOf(3)} 00:00:00`);
     expect(rows[23]?.hour).toBe(`${dayOf(3)} 23:00:00`);
     expect(values(rows)).toEqual(at(9));
+  });
+
+  it('carries every metric on each hour, so one call serves all of them', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hitAt(scope, 'v-1', 3, 9),
+      hitAt(scope, 'v-1', 3, 9),
+      hitAt(scope, 'v-2', 3, 9),
+      hitAt(scope, 'd-1', 3, 9, { idMode: 'daily_direct' }),
+    ]);
+
+    expect(values(await series(scope, 4, { metric: 'pageviews' }))[9]).toBe(4);
+    const rows = await pipeRows<Row>(env, 'hourly_series', {
+      tenant_id: scope.tenantId,
+      domain: scope.domain,
+      ...utcWindow(3, 3),
+    });
+
+    expect(rows).toHaveLength(24);
+    expect(
+      [rows[8], rows[9], rows[10]].map(row => [
+        Number(row?.sessions),
+        Number(row?.known),
+        Number(row?.anonymous),
+        Number(row?.pageviews),
+      ])
+    ).toEqual([
+      [0, 0, 0, 0],
+      [4, 2, 1, 4],
+      [0, 0, 0, 0],
+    ]);
   });
 
   it('counts sessions per hour by default', async () => {
