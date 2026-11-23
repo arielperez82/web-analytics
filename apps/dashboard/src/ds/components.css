@@ -50,3 +50,6 @@
 .ds-btn,.sidebar a,.see-all,.panel h2 a,label:has(input[type=checkbox]),button,select,input:not([type=checkbox]):not([type=radio]){min-height:44px}
 }
 @media (max-width:640px),(pointer:coarse){.see-all,.panel h2 a,label:has(input[type=checkbox]){display:inline-flex;align-items:center}}
+.spark-slot{margin-top:auto;min-height:34px}
+.spark{display:block;width:100%;height:28px;margin-top:6px;overflow:visible}
+.spark-line{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
