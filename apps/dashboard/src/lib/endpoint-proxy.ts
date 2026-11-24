@@ -45,7 +45,6 @@ const FORWARDED_PARAMS: readonly string[] = [
   "location",
   "device",
   "browser",
-  "metric",
   "include_bots",
   "goal_path",
   "goal_event",

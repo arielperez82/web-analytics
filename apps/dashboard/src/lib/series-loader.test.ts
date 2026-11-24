@@ -29,12 +29,12 @@ const counts = { sessions: 0, known: 0, anonymous: 0, pageviews: 0 };
 const byStart = (url: URL) =>
   url.searchParams.get("date_from") === "2026-11-16"
     ? [
-        { date: "2026-11-16", ...counts, value: 5 },
-        { date: "2026-11-17", ...counts, value: 7 },
+        { date: "2026-11-16", ...counts, sessions: 5, value: 5 },
+        { date: "2026-11-17", ...counts, sessions: 7, value: 7 },
       ]
     : [
-        { date: "2026-11-09", ...counts, value: 3 },
-        { date: "2026-11-10", ...counts, value: 4 },
+        { date: "2026-11-09", ...counts, sessions: 3, value: 3 },
+        { date: "2026-11-10", ...counts, sessions: 4, value: 4 },
       ];
 
 describe("loadSeries", () => {
@@ -52,23 +52,25 @@ describe("loadSeries", () => {
       status: 200,
       body: {
         grain: "day",
-        points: [
-          { label: "2026-11-16", current: 5, previousLabel: "2026-11-09", previous: 3 },
-          { label: "2026-11-17", current: 7, previousLabel: "2026-11-10", previous: 4 },
-        ],
-        series: expect.any(Object),
+        series: expect.objectContaining({
+          sessions: [
+            { label: "2026-11-16", current: 5, previousLabel: "2026-11-09", previous: 3 },
+            { label: "2026-11-17", current: 7, previousLabel: "2026-11-10", previous: 4 },
+          ],
+        }),
       },
     });
   });
 
-  it("keeps the filters, the metric and the zone on both calls and never forwards the comparison dates", async () => {
+  it("keeps the filters and the zone on both calls, never forwards the comparison dates, and asks for no single metric", async () => {
     const { deps, urls } = fakeDeps(byStart);
     await load(
-      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10&metric=known&country=ES&tz=Europe%2FMadrid",
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10&metric=known&location=ES&tz=Europe%2FMadrid",
       deps,
     );
     for (const url of urls) {
-      expect(url.searchParams.get("metric")).toBe("known");
+      expect(url.searchParams.has("metric")).toBe(false);
+      expect(url.searchParams.get("location")).toBe("ES");
       expect(url.searchParams.get("tz")).toBe("Europe/Madrid");
       expect(url.searchParams.has("compare_from")).toBe(false);
       expect(url.searchParams.has("grain")).toBe(false);
@@ -79,7 +81,7 @@ describe("loadSeries", () => {
     const { deps, urls } = fakeDeps(byStart);
     const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps);
     expect(urls).toHaveLength(1);
-    expect(result.body).toMatchObject({ points: [{ previous: null }, { previous: null }] });
+    expect(result.body).toMatchObject({ series: { sessions: [{ previous: null }, { previous: null }] } });
   });
 
   it("loads hourly buckets for both ranges and reads their labels on the clock of the zone", async () => {
@@ -96,7 +98,7 @@ describe("loadSeries", () => {
     ]);
     expect(result.body).toMatchObject({
       grain: "hour",
-      points: [{ label: "2026-11-17 00:00:00", previousLabel: "2026-11-16 00:00:00" }],
+      series: { sessions: [{ label: "2026-11-17 00:00:00", previousLabel: "2026-11-16 00:00:00" }] },
     });
   });
 
@@ -160,7 +162,6 @@ describe("loadSeries", () => {
     });
     expect(result.body).toEqual({
       grain: "day",
-      points: expect.any(Array),
       series: {
         sessions: [paired("2026-11-16", "2026-11-09", 10, 1), paired("2026-11-17", "2026-11-10", 20, 2)],
         known: [paired("2026-11-16", "2026-11-09", 11, 2), paired("2026-11-17", "2026-11-10", 21, 3)],
@@ -168,14 +169,6 @@ describe("loadSeries", () => {
         pageviews: [paired("2026-11-16", "2026-11-09", 13, 4), paired("2026-11-17", "2026-11-10", 23, 5)],
       },
     });
-  });
-
-  it("still answers a single metric as points", async () => {
-    const { deps } = fakeDeps(() => [{ date: "2026-11-16", value: 8, sessions: 1, known: 2, anonymous: 3, pageviews: 9 }]);
-
-    const result = await load("date_from=2026-11-16&date_to=2026-11-16&metric=pageviews", deps);
-
-    expect(result.body).toMatchObject({ points: [{ current: 8 }], series: { pageviews: [{ current: 9 }], known: [{ current: 2 }] } });
   });
 
   it("answers with the metrics it has when a pipe lacks one", async () => {
