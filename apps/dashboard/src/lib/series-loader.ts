@@ -16,13 +16,13 @@ const SERIES = {
   hour: { endpoint: "hourly_series", engagement: "hourly_engagement_series", key: "hour" },
 } as const;
 
-type Source = readonly (readonly [Trend, string])[];
+type Source = readonly (readonly [Trend, string, boolean])[];
 
-const COUNTS: Source = METRICS.map((metric) => [metric, metric] as const);
+const COUNTS: Source = METRICS.map((metric) => [metric, metric, false] as const);
 
 const ENGAGEMENT: Source = [
-  ["bounce_rate", "bounce_rate_percent"],
-  ["avg_session", "avg_session_sec"],
+  ["bounce_rate", "bounce_rate_percent", true],
+  ["avg_session", "avg_session_sec", true],
 ];
 
 const withoutOwn = (query: URLSearchParams): Params =>
@@ -30,9 +30,15 @@ const withoutOwn = (query: URLSearchParams): Params =>
 
 const MISSING_METRIC = { status: 502, body: { error: "The series feed is missing a metric" } } as const;
 
-const countOf = (row: SeriesRow, field: string): SeriesRow["value"] | undefined => {
+const countOf = (row: SeriesRow, field: string, nullable: boolean): SeriesRow["value"] | undefined => {
   const value = row[field];
+  if (value === null) return nullable ? null : undefined;
   return typeof value === "number" || typeof value === "string" ? value : undefined;
+};
+
+const valueOf = (row: SeriesRow, field: string, nullable: boolean): SeriesRow["value"] => {
+  const value = countOf(row, field, nullable);
+  return value === undefined ? 0 : value;
 };
 
 const rowsOf = (body: unknown): readonly SeriesRow[] => (body as { data?: readonly SeriesRow[] }).data ?? [];
@@ -86,15 +92,15 @@ export const loadSeries = async (
     const currentRows = labelled(rowsOf(now.body));
     const previousRows = before ? labelled(rowsOf(before.body)) : undefined;
     return source
-      .filter(([, field]) =>
-        [...currentRows, ...(previousRows ?? [])].every((row) => countOf(row, field) !== undefined),
+      .filter(([, field, nullable]) =>
+        [...currentRows, ...(previousRows ?? [])].every((row) => countOf(row, field, nullable) !== undefined),
       )
-      .map(([trend, field]) => [
+      .map(([trend, field, nullable]) => [
         trend,
         alignSeries({
           key,
-          current: currentRows.map((row) => ({ ...row, value: countOf(row, field) ?? 0 })),
-          previous: previousRows?.map((row) => ({ ...row, value: countOf(row, field) ?? 0 })),
+          current: currentRows.map((row) => ({ ...row, value: valueOf(row, field, nullable) })),
+          previous: previousRows?.map((row) => ({ ...row, value: valueOf(row, field, nullable) })),
         }),
       ]);
   };

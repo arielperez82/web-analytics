@@ -253,6 +253,25 @@ describe("loadSeries", () => {
       }
     });
 
+    it("keeps a day with no sessions as a gap, not a zero", async () => {
+      const quiet = { date: "2026-11-17", session_count: 0, bounce_rate_percent: null, avg_session_sec: null };
+      const { deps } = fakeDeps(byStart, (url) => [...engagementByStart(url).slice(0, 1), quiet]);
+
+      const result = await load(both, deps);
+
+      const series = (result.body as { series: Record<string, { current: number | null }[]> }).series;
+      expect(series.bounce_rate?.map((point) => point.current)).toEqual([40, null]);
+      expect(series.avg_session?.map((point) => point.current)).toEqual([90, null]);
+    });
+
+    it("still refuses a count that is missing", async () => {
+      const { deps } = fakeDeps((url) => byStart(url).map((row) => ({ ...row, sessions: null })), engagementByStart);
+
+      const result = await load(both, deps);
+
+      expect(Object.keys((result.body as { series: object }).series)).not.toContain("sessions");
+    });
+
     it("still answers the counts when only the engagement pipe fails", async () => {
       const { deps } = fakeDeps(byStart, () => undefined);
 

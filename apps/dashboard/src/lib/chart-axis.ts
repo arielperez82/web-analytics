@@ -33,18 +33,25 @@ export const xLabels = (keys: readonly string[], unit: "day" | "hour"): readonly
   return keys.map((key, index) => (index % step === 0 ? label(key) : ""));
 };
 
-type Paired = { readonly current: number; readonly previous: number | null };
+type Paired = { readonly current: number | null; readonly previous: number | null };
 
 const ROUND_TO_HUNDREDTHS = 100;
 
-export const lineHeights = (
-  points: readonly Paired[],
-): { readonly current: readonly number[]; readonly previous: readonly (number | null)[] } => {
-  const top = yTicks(points.flatMap(({ current, previous }) => (previous === null ? [current] : [current, previous])))[0]?.value ?? 0;
-  const height = (value: number): number =>
-    top === 0 ? 0 : Math.round((value / top) * 100 * ROUND_TO_HUNDREDTHS) / ROUND_TO_HUNDREDTHS;
+type Heights<Current> = { readonly current: readonly Current[]; readonly previous: readonly (number | null)[] };
+
+export function lineHeights(points: readonly (Paired & { readonly current: number })[]): Heights<number>;
+export function lineHeights(points: readonly Paired[]): Heights<number | null>;
+export function lineHeights(points: readonly Paired[]): Heights<number | null> {
+  const top =
+    yTicks(
+      points.flatMap(({ current, previous }) =>
+        [current, previous].filter((value): value is number => value !== null),
+      ),
+    )[0]?.value ?? 0;
+  const height = (value: number | null): number | null =>
+    value === null ? null : top === 0 ? 0 : Math.round((value / top) * 100 * ROUND_TO_HUNDREDTHS) / ROUND_TO_HUNDREDTHS;
   return {
     current: points.map(({ current }) => height(current)),
-    previous: points.map(({ previous }) => (previous === null ? null : height(previous))),
+    previous: points.map(({ previous }) => height(previous)),
   };
-};
+}

@@ -64,4 +64,23 @@ describe("alignSeries", () => {
       }),
     ).toEqual([{ label: "2026-11-17 09:00:00", current: 2, previousLabel: "2026-11-16 09:00:00", previous: 1 }]);
   });
+
+  it("keeps a bucket with no value as a gap, in the range and in its comparison", () => {
+    expect(
+      alignSeries({
+        key: "date",
+        current: [
+          { date: "2026-11-16", value: null },
+          { date: "2026-11-17", value: 0 },
+        ],
+        previous: [
+          { date: "2026-11-09", value: 4 },
+          { date: "2026-11-10", value: null },
+        ],
+      }).map(({ current, previous }) => [current, previous]),
+    ).toEqual([
+      [null, 4],
+      [0, null],
+    ]);
+  });
 });
