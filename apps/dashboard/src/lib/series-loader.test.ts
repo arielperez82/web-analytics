@@ -268,13 +268,51 @@ describe("loadSeries", () => {
     });
 
     it("leaves out only the one it cannot read when a row lacks a field", async () => {
-      const { deps } = fakeDeps(byStart, () => [{ date: "2026-11-16", session_count: 1, bounce_rate_percent: 40 }]);
+      const { deps } = fakeDeps(byStart, () => [
+        { date: "2026-11-16", session_count: 1, bounce_rate_percent: 40 },
+        { date: "2026-11-17", session_count: 1, bounce_rate_percent: 50 },
+      ]);
 
-      const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
+      const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps);
 
       const keys = Object.keys((result.body as { series: object }).series);
       expect(keys).toContain("bounce_rate");
       expect(keys).not.toContain("avg_session");
+    });
+
+    it("still answers the counts when the engagement pipe answers with a body it cannot read", async () => {
+      const { deps } = fakeDeps(byStart);
+      const readable: ProxyDeps = {
+        ...deps,
+        fetch: async (url, init) =>
+          String(url).includes("engagement_series") ? new Response("null", { status: 200 }) : deps.fetch(url, init),
+      };
+
+      const result = await load(both, readable);
+
+      expect(result.status).toBe(200);
+      expect(Object.keys((result.body as { series: object }).series).sort()).toEqual([
+        "anonymous",
+        "known",
+        "pageviews",
+        "sessions",
+      ]);
+    });
+
+    it("leaves the engagement trends out when they do not span the same days as the counts", async () => {
+      const { deps } = fakeDeps(byStart, (url) => [
+        engagementDay("2026-11-15", 10, 10),
+        ...engagementByStart(url),
+      ]);
+
+      const result = await load(both, deps);
+
+      expect(Object.keys((result.body as { series: object }).series).sort()).toEqual([
+        "anonymous",
+        "known",
+        "pageviews",
+        "sessions",
+      ]);
     });
 
     it("fails as a whole when the counts fail, even if engagement answers", async () => {

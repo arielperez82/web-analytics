@@ -102,8 +102,18 @@ export const loadSeries = async (
   const counts = trendsOf(COUNTS, [current, previous]);
   if (counts.length === 0) return MISSING_METRIC;
   const readable = [currentEngagement, previousEngagement].every((result) => result === undefined || result.status === 200);
-  const engagementTrends =
-    readable && currentEngagement.status === 200 ? trendsOf(ENGAGEMENT, [currentEngagement, previousEngagement]) : [];
+  const span = (trend: unknown): number => (Array.isArray(trend) ? trend.length : 0);
+  const countSpan = span(counts[0][1]);
+  const engagementTrends = (() => {
+    if (!readable || currentEngagement.status !== 200) return [];
+    try {
+      return trendsOf(ENGAGEMENT, [currentEngagement, previousEngagement]).filter(
+        ([, trend]) => span(trend) === countSpan,
+      );
+    } catch {
+      return [];
+    }
+  })();
 
   return {
     status: 200,
