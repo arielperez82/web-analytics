@@ -592,7 +592,7 @@ export type HourlySeriesOutput = InferOutputRow<typeof hourlySeries>;
  * Daily engagement series - bounce rate and average session length per day of the range, read from
  * the raw hits and events. A session belongs to the day of its first page view and counts once; a
  * session that began before the range (looked up a day back) is left out rather than counted by its
- * tail. Days without traffic are zero. Bots are left out unless include_bots=1.
+ * tail. Days without traffic have no rate or average. Bots are left out unless include_bots=1.
  */
 export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   description:
@@ -666,7 +666,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
     }),
     node({
       name: "days",
-      description: "Every day of the range, so quiet days show zero",
+      description: "Every day of the range, so quiet days show no sessions and no rates",
       sql: `
         SELECT arrayJoin(arrayMap(x -> toDate(x), range(toUInt32((SELECT current_start FROM date_calculations)), toUInt32((SELECT current_end FROM date_calculations)) + 1))) AS date
       `,
@@ -677,8 +677,8 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
         SELECT
             d.date AS date,
             p.session_count AS session_count,
-            round(if(p.session_count = 0, 0, p.bounces * 100.0 / p.session_count), 2) AS bounce_rate_percent,
-            round(if(p.session_count = 0, 0, p.duration_total * 1.0 / p.session_count), 2) AS avg_session_sec
+            if(p.session_count = 0, NULL, round(p.bounces * 100.0 / p.session_count, 2)) AS bounce_rate_percent,
+            if(p.session_count = 0, NULL, round(p.duration_total * 1.0 / p.session_count, 2)) AS avg_session_sec
         FROM days d
         LEFT JOIN per_day p ON d.date = p.date
         ORDER BY date
@@ -696,8 +696,8 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   output: {
     date: t.date(),
     session_count: t.uint64(),
-    bounce_rate_percent: t.float64(),
-    avg_session_sec: t.float64(),
+    bounce_rate_percent: t.float64().nullable(),
+    avg_session_sec: t.float64().nullable(),
   },
 });
 
@@ -785,7 +785,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
     }),
     node({
       name: "hours",
-      description: "Every bucket of the range, so quiet buckets show zero",
+      description: "Every bucket of the range, so quiet buckets show no sessions and no rates",
       sql: `
         SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32((SELECT current_start_at FROM date_calculations)), toUInt32((SELECT current_end_at FROM date_calculations)), toUInt32(3600 * ${BUCKET_HOURS_SQL})))) AS hour
       `,
@@ -796,8 +796,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
         SELECT
             h.hour AS hour,
             p.session_count AS session_count,
-            round(if(p.session_count = 0, 0, p.bounces * 100.0 / p.session_count), 2) AS bounce_rate_percent,
-            round(if(p.session_count = 0, 0, p.duration_total * 1.0 / p.session_count), 2) AS avg_session_sec
+            if(p.session_count = 0, NULL, round(p.bounces * 100.0 / p.session_count, 2)) AS bounce_rate_percent,
+            if(p.session_count = 0, NULL, round(p.duration_total * 1.0 / p.session_count, 2)) AS avg_session_sec
         FROM hours h
         LEFT JOIN per_hour p ON h.hour = p.hour
         ORDER BY hour
@@ -815,8 +815,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
   output: {
     hour: t.dateTime(),
     session_count: t.uint64(),
-    bounce_rate_percent: t.float64(),
-    avg_session_sec: t.float64(),
+    bounce_rate_percent: t.float64().nullable(),
+    avg_session_sec: t.float64().nullable(),
   },
 });
 
