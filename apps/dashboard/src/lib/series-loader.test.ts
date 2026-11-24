@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { ProxyDeps } from "./endpoint-proxy";
 import { loadSeries } from "./series-loader";
 
+type Rows = readonly Record<string, unknown>[] | undefined;
+
 const fakeDeps = (
-  rowsFor: (url: URL) => readonly Record<string, unknown>[] | undefined,
+  rowsFor: (url: URL) => Rows,
+  engagementFor: (url: URL) => Rows = () => undefined,
 ): { readonly deps: ProxyDeps; readonly urls: URL[] } => {
   const urls: URL[] = [];
   const deps: ProxyDeps = {
@@ -12,7 +15,7 @@ const fakeDeps = (
     fetch: async (url) => {
       const parsed = new URL(String(url));
       urls.push(parsed);
-      const data = rowsFor(parsed);
+      const data = parsed.pathname.includes("engagement_series") ? engagementFor(parsed) : rowsFor(parsed);
       return data === undefined
         ? new Response("boom", { status: 500 })
         : new Response(JSON.stringify({ data }), { status: 200 });
@@ -20,6 +23,8 @@ const fakeDeps = (
   };
   return { deps, urls };
 };
+
+const seriesCalls = (urls: readonly URL[]) => urls.filter((url) => !url.pathname.includes("engagement_series"));
 
 const load = (query: string, deps: ProxyDeps, authenticated = true) =>
   loadSeries({ query: new URLSearchParams(query), authenticated }, deps);
@@ -44,7 +49,7 @@ describe("loadSeries", () => {
       "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10&metric=sessions",
       deps,
     );
-    expect(urls.map((u) => [u.pathname, u.searchParams.get("date_from"), u.searchParams.get("date_to")])).toEqual([
+    expect(seriesCalls(urls).map((u) => [u.pathname, u.searchParams.get("date_from"), u.searchParams.get("date_to")])).toEqual([
       ["/v0/pipes/daily_series.json", "2026-11-16", "2026-11-17"],
       ["/v0/pipes/daily_series.json", "2026-11-09", "2026-11-10"],
     ]);
@@ -80,7 +85,7 @@ describe("loadSeries", () => {
   it("loads only the range when there is nothing to compare with", async () => {
     const { deps, urls } = fakeDeps(byStart);
     const result = await load("date_from=2026-11-16&date_to=2026-11-17", deps);
-    expect(urls).toHaveLength(1);
+    expect(seriesCalls(urls)).toHaveLength(1);
     expect(result.body).toMatchObject({ series: { sessions: [{ previous: null }, { previous: null }] } });
   });
 
@@ -92,7 +97,7 @@ describe("loadSeries", () => {
       "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare_from=2026-11-16&compare_to=2026-11-16",
       deps,
     );
-    expect(urls.map((u) => [u.pathname, u.searchParams.get("from_at"), u.searchParams.has("date_from")])).toEqual([
+    expect(seriesCalls(urls).map((u) => [u.pathname, u.searchParams.get("from_at"), u.searchParams.has("date_from")])).toEqual([
       ["/v0/pipes/hourly_series.json", "2026-11-17T05:00:00Z", false],
       ["/v0/pipes/hourly_series.json", "2026-11-16T05:00:00Z", false],
     ]);
@@ -109,7 +114,7 @@ describe("loadSeries", () => {
       deps,
     );
     expect(
-      urls.map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at"), u.searchParams.has("date_from")]),
+      seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at"), u.searchParams.has("date_from")]),
     ).toEqual([
       ["2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z", false],
       ["2026-11-16T16:00:00Z", "2026-11-17T16:00:00Z", false],
@@ -153,7 +158,7 @@ describe("loadSeries", () => {
       deps,
     );
 
-    expect(urls).toHaveLength(2);
+    expect(seriesCalls(urls)).toHaveLength(2);
     const paired = (label: string, previousLabel: string, current: number, previous: number) => ({
       label,
       current,
@@ -199,5 +204,110 @@ describe("loadSeries", () => {
     const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
 
     expect(result).toEqual({ status: 502, body: { error: "The series feed is missing a metric" } });
+  });
+
+  describe("bounce rate and average session", () => {
+    const engagementDay = (date: string, bounce: number, average: number) => ({
+      date,
+      session_count: 1,
+      bounce_rate_percent: bounce,
+      avg_session_sec: average,
+    });
+    const engagementByStart = (url: URL) =>
+      url.searchParams.get("date_from") === "2026-11-16"
+        ? [engagementDay("2026-11-16", 40, 90), engagementDay("2026-11-17", 50, 100)]
+        : [engagementDay("2026-11-09", 30, 60), engagementDay("2026-11-10", 20, 70)];
+    const both =
+      "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10";
+
+    it("pairs both with the comparison, from the engagement pipe, in the same call", async () => {
+      const { deps, urls } = fakeDeps(byStart, engagementByStart);
+
+      const result = await load(both, deps);
+
+      expect(urls.filter((url) => url.pathname === "/v0/pipes/daily_engagement_series.json")).toHaveLength(2);
+      expect(result.body).toMatchObject({
+        series: {
+          bounce_rate: [
+            { label: "2026-11-16", current: 40, previousLabel: "2026-11-09", previous: 30 },
+            { label: "2026-11-17", current: 50, previousLabel: "2026-11-10", previous: 20 },
+          ],
+          avg_session: [
+            { label: "2026-11-16", current: 90, previousLabel: "2026-11-09", previous: 60 },
+            { label: "2026-11-17", current: 100, previousLabel: "2026-11-10", previous: 70 },
+          ],
+        },
+      });
+    });
+
+    it("asks the engagement pipe for the same range, filters and zone as the counts, and no metric", async () => {
+      const { deps, urls } = fakeDeps(byStart, engagementByStart);
+
+      await load(`${both}&location=ES&tz=Europe%2FMadrid`, deps);
+
+      for (const url of urls.filter((u) => u.pathname.includes("engagement_series"))) {
+        expect(url.searchParams.get("location")).toBe("ES");
+        expect(url.searchParams.get("tz")).toBe("Europe/Madrid");
+        expect(url.searchParams.has("compare_from")).toBe(false);
+        expect(url.searchParams.has("metric")).toBe(false);
+      }
+    });
+
+    it("still answers the counts when only the engagement pipe fails", async () => {
+      const { deps } = fakeDeps(byStart, () => undefined);
+
+      const result = await load(both, deps);
+
+      expect(result.status).toBe(200);
+      expect(Object.keys((result.body as { series: object }).series).sort()).toEqual([
+        "anonymous",
+        "known",
+        "pageviews",
+        "sessions",
+      ]);
+    });
+
+    it("leaves out only the one it cannot read when a row lacks a field", async () => {
+      const { deps } = fakeDeps(byStart, () => [{ date: "2026-11-16", session_count: 1, bounce_rate_percent: 40 }]);
+
+      const result = await load("date_from=2026-11-16&date_to=2026-11-16", deps);
+
+      const keys = Object.keys((result.body as { series: object }).series);
+      expect(keys).toContain("bounce_rate");
+      expect(keys).not.toContain("avg_session");
+    });
+
+    it("fails as a whole when the counts fail, even if engagement answers", async () => {
+      const { deps } = fakeDeps(() => undefined, engagementByStart);
+
+      const result = await load(both, deps);
+
+      expect(result).toEqual({ status: 502, body: { error: "Upstream error" } });
+    });
+
+    it("reads hourly engagement over the same windows, on the clock of the zone", async () => {
+      const hour = (at: string) => ({ hour: at, session_count: 1, bounce_rate_percent: 10, avg_session_sec: 20 });
+      const { deps, urls } = fakeDeps(
+        (url) => [{ hour: url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00", ...counts, value: 2 }],
+        (url) => [hour(url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00")],
+      );
+
+      const result = await load(
+        "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare_from=2026-11-16&compare_to=2026-11-16",
+        deps,
+      );
+
+      expect(
+        urls
+          .filter((u) => u.pathname.includes("engagement_series"))
+          .map((u) => [u.pathname, u.searchParams.get("from_at"), u.searchParams.has("date_from")]),
+      ).toEqual([
+        ["/v0/pipes/hourly_engagement_series.json", "2026-11-17T05:00:00Z", false],
+        ["/v0/pipes/hourly_engagement_series.json", "2026-11-16T05:00:00Z", false],
+      ]);
+      expect(result.body).toMatchObject({
+        series: { bounce_rate: [{ label: "2026-11-17 00:00:00", previousLabel: "2026-11-16 00:00:00" }] },
+      });
+    });
   });
 });
