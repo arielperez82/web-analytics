@@ -206,6 +206,29 @@ describe("LineChart", () => {
     expect(point("2026-11-12").tabIndex).toBe(0);
   });
 
+  it("keeps focus in the chart when the focused point leaves the data", async () => {
+    const user = userEvent.setup();
+    const view = renderChart();
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+
+    view.rerender(
+      <LineChart points={points.slice(2)} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />,
+    );
+
+    expect(document.activeElement).toBe(point("2026-11-12"));
+  });
+
+  it("does not take focus when the chart was not focused as the data changes", async () => {
+    const view = renderChart();
+
+    view.rerender(
+      <LineChart points={points.slice(2)} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />,
+    );
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("stays on the last point when the arrow keys run out of points", async () => {
     const user = userEvent.setup();
     renderChart();

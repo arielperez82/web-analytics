@@ -33,6 +33,7 @@ export const useEndpoint = <T,>(
     fetch(`/api/endpoints/${name}?${query}`, { signal: controller.signal })
       .then(async (response) => {
         const body = (await response.json()) as { data?: T[]; error?: string };
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
         setState({ data: body.data ?? [], error: undefined, loading: false, refreshing: false });
       })

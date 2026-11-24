@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { type ApiRow, installFakeApi, removeFakeApi } from "@/test/fake-api";
+import { type ApiRow, failOnce, installFakeApi, removeFakeApi } from "@/test/fake-api";
 
 import { SpeedInsights } from "./SpeedInsights";
 
@@ -50,5 +51,24 @@ describe("SpeedInsights", () => {
     const labels = Array.from(document.querySelectorAll(".card span")).map((span) => span.textContent);
     expect(labels).toEqual(["LCP p75", "TTFB p75"]);
     expect(screen.getByText("2,100.5")).toBeTruthy();
+  });
+
+  it("retries only the panel that failed, and brings its rows back", async () => {
+    const api = installFakeApi({
+      web_vitals_current: [vital("LCP", 2100)],
+      web_vitals_routes: [{ domain: "a.example", route: "/checkout", overall_score: 80, lcp_avg: 1, inp_avg: 2, cls_avg: 0 }],
+    });
+    failOnce("web_vitals_routes");
+    render(<SpeedInsights params={params} />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("warehouse down");
+    await screen.findByText("LCP p75");
+
+    await userEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("/checkout")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(api.requestsTo("web_vitals_current")).toHaveLength(1);
   });
 });
