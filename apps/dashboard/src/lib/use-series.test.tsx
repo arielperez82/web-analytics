@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useSeries } from "./use-series";
@@ -58,5 +58,38 @@ describe("useSeries", () => {
 
     await waitFor(() => expect(screen.getByText("has series")).toBeTruthy());
     expect(screen.getByText("no error")).toBeTruthy();
+  });
+});
+
+const point = (label: string) => ({ label, current: 1, previousLabel: null, previous: null });
+const every = (label: string) => ({ sessions: [point(label)], known: [], anonymous: [], pageviews: [] });
+
+const First = ({ from }: { readonly from: string }) => {
+  const { series } = useSeries({ date_from: from });
+  return <p>{series?.sessions?.[0]?.label ?? "none"}</p>;
+};
+
+describe("useSeries when a request is overtaken", () => {
+  it("ignores a late answer to a request the page has since replaced", async () => {
+    let releaseOld: (body: unknown) => void = () => undefined;
+    const old = new Promise<unknown>((resolve) => {
+      releaseOld = resolve;
+    });
+    const answers = [
+      { ok: true, status: 200, json: () => old },
+      { ok: true, status: 200, json: async () => ({ series: every("new") }) },
+    ];
+    vi.stubGlobal("fetch", async () => answers.shift());
+
+    const view = render(<First from="old" />);
+    view.rerender(<First from="new" />);
+    await waitFor(() => expect(screen.getByText("new")).toBeTruthy());
+
+    await act(async () => {
+      releaseOld({ series: every("old") });
+      await old;
+    });
+
+    expect(screen.getByText("new")).toBeTruthy();
   });
 });
