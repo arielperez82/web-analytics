@@ -23,7 +23,7 @@ import {
 import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
-import { type Metric, type SeriesPoint, useSeries } from "@/lib/use-series";
+import { type Metric, type SeriesPoint, type Trend, useSeries } from "@/lib/use-series";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
@@ -254,8 +254,9 @@ export const Kpis = ({
     if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
       onChange({ ...state, grain: key });
   };
+  const trendOf = (key: Trend) => ({ trend: series?.[key] ?? [] });
   const pick = (key: Metric) => ({
-    trend: series?.[key] ?? [],
+    ...trendOf(key),
     selected: metric === key,
     onSelect: () => setMetric(key),
   });
@@ -295,11 +296,13 @@ export const Kpis = ({
         />
         <StaticCard
           label="Bounce rate"
+          {...trendOf("bounce_rate")}
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
           growth={growthOf(field(engagement, "bounce_rate_growth_percent"), false)}
         />
         <StaticCard
           label="Avg session"
+          {...trendOf("avg_session")}
           value={formatSeconds(field(engagement, "avg_session_sec"))}
           growth={growthOf(field(engagement, "avg_session_sec_growth_percent"), true)}
         />

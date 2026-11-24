@@ -9,6 +9,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "engagement",
   "daily_series",
   "hourly_series",
+  "daily_engagement_series",
+  "hourly_engagement_series",
   "trend",
   "top_pages",
   "top_sources",
@@ -81,6 +83,8 @@ const forwardedQuery = (
 
 const BEFORE_ANY_DATA = "2010-01-01";
 
+const DAILY_SERIES: readonly string[] = ["daily_series", "daily_engagement_series"];
+
 const pipeUrl = (host: string, name: string, qs: string): string =>
   [`${host}/v0/pipes/${name}.json`, qs].filter(Boolean).join("?");
 
@@ -109,7 +113,7 @@ const startingAtFirstData = async (
   deps: ProxyDeps,
 ): Promise<URLSearchParams> => {
   const from = query.get("date_from");
-  if (name !== "daily_series" || from === null || from >= BEFORE_ANY_DATA) return query;
+  if (!DAILY_SERIES.includes(name) || from === null || from >= BEFORE_ANY_DATA) return query;
   const first = await earliestDay(query, deps);
   return first && first > from ? new URLSearchParams([...query.entries()].map(([k, v]) => [k, k === "date_from" ? first : v])) : query;
 };

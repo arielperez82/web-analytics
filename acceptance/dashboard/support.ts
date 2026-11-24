@@ -23,10 +23,14 @@ export const stubApi = async (
       json: {
         grain: url.searchParams.get('grain') ?? 'day',
         series: Object.fromEntries(
-          ['sessions', 'known', 'anonymous', 'pageviews'].map(metric => [
-            metric,
-            rows,
-          ])
+          [
+            'sessions',
+            'known',
+            'anonymous',
+            'pageviews',
+            'bounce_rate',
+            'avg_session',
+          ].map(metric => [metric, rows])
         ),
       },
     });
