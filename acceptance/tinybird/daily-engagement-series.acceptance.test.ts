@@ -95,6 +95,45 @@ describe.concurrent('daily engagement series', () => {
     expect(average(rows)).toEqual([0, 15, 120, 0]);
   });
 
+  it('agrees with the engagement figures for the same range when weighted by sessions', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 2),
+      ...visit(scope, [0, 30], 2),
+      ...visit(scope, [0, 60, 120], 1),
+    ]);
+
+    const rows = await series(scope, 3);
+    const card = await waitForRow(
+      () =>
+        pipeRows<Record<string, number | string>>(env, 'engagement', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          date_from: dayOf(3),
+          date_to: dayOf(0),
+        }),
+      found => Number(found[0]?.pageviews) === 6
+    );
+
+    const sessions = rows.reduce(
+      (sum, row) => sum + Number(row.session_count),
+      0
+    );
+    const weighted = (pick: (row: Row) => number) =>
+      rows.reduce(
+        (sum, row) => sum + pick(row) * Number(row.session_count),
+        0
+      ) / sessions;
+    expect(weighted(row => Number(row.bounce_rate_percent))).toBeCloseTo(
+      Number(card[0]?.bounce_rate_percent),
+      1
+    );
+    expect(weighted(row => Number(row.avg_session_sec))).toBeCloseTo(
+      Number(card[0]?.avg_session_sec),
+      1
+    );
+  });
+
   it('does not count a one-page visit as a bounce when the visitor clicked something', async () => {
     const scope = createScope();
     const sessionId = crypto.randomUUID();
