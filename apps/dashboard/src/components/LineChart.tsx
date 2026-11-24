@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 
 import { lineHeights } from "@/lib/chart-axis";
 import { FULL, pathOf, xOf } from "@/lib/chart-path";
@@ -30,9 +30,19 @@ const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, step: 1 | -1): void 
   next.focus();
 };
 
+const focusEnd = (event: KeyboardEvent<HTMLButtonElement>, end: "first" | "last"): void => {
+  const points = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button.col") ?? []);
+  const target = end === "first" ? points[0] : points.at(-1);
+  if (target === undefined) return;
+  event.preventDefault();
+  target.focus();
+};
+
 const onKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
   if (event.key === "ArrowRight") moveFocus(event, 1);
   if (event.key === "ArrowLeft") moveFocus(event, -1);
+  if (event.key === "Home") focusEnd(event, "first");
+  if (event.key === "End") focusEnd(event, "last");
 };
 
 export const LineChart = ({
@@ -51,7 +61,23 @@ export const LineChart = ({
   const heights = lineHeights(points);
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const active = points.findIndex((point) => point.label === (hovered ?? focused));
+  const [dismissed, setDismissed] = useState(false);
+  const [lastFocused, setLastFocused] = useState<string | null>(null);
+  const tabStop = points.some((point) => point.label === lastFocused) ? lastFocused : points[0]?.label;
+  const active = dismissed ? -1 : points.findIndex((point) => point.label === (hovered ?? focused));
+  const showing = active !== -1;
+  useEffect(() => {
+    if (!showing) return;
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setDismissed(true);
+    };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [showing]);
+  const enter = (label: string, show: (label: string) => void) => {
+    setDismissed(false);
+    show(label);
+  };
   const activePoint = points[active];
   const activeHeight = heights.current[active];
   const area = areaOf(heights.current);
@@ -74,9 +100,13 @@ export const LineChart = ({
           aria-pressed={selected === point.label}
           aria-label={describe(point)}
           onClick={() => drillable && onDrill(point.label)}
-          onMouseEnter={() => setHovered(point.label)}
+          onMouseEnter={() => enter(point.label, setHovered)}
           onMouseLeave={() => setHovered(null)}
-          onFocus={() => setFocused(point.label)}
+          tabIndex={point.label === tabStop ? 0 : -1}
+          onFocus={() => {
+            setLastFocused(point.label);
+            enter(point.label, setFocused);
+          }}
           onBlur={() => setFocused(null)}
           onKeyDown={onKey}
         />

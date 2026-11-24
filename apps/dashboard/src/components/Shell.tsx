@@ -35,6 +35,9 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
   ];
   return (
     <div className="layout">
+      <a className="skip-link" href="#main">
+        Skip to main content
+      </a>
       <SidebarNav items={nav} collapsed={sidebar.collapsed} onToggle={sidebar.toggle} />
       <div className="app">
         <header>
@@ -112,7 +115,9 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             {onSpeed && filters.length > 0 && <span className="muted">Location, device and browser filters don’t apply to Speed Insights.</span>}
           </div>
         )}
-        <main>{children}</main>
+        <main id="main" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

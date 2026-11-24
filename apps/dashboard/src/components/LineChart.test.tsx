@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -115,6 +115,95 @@ describe("LineChart", () => {
 
     await user.keyboard("{ArrowLeft}");
     expect(within(screen.getByRole("tooltip")).getByText("2026-11-10")).toBeTruthy();
+  });
+
+  it("makes the chart one tab stop that follows the arrow keys", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <LineChart points={points} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />
+        <button>after</button>
+      </>,
+    );
+    const stops = () => points.filter(({ label }) => point(label).tabIndex === 0).map(({ label }) => label);
+
+    expect(stops()).toEqual(["2026-11-10"]);
+
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(stops()).toEqual(["2026-11-11"]);
+
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(point("2026-11-11"));
+  });
+
+  it("dismisses the tooltip on Escape without moving focus, and brings it back on the next move", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.tab();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(document.activeElement).toBe(point("2026-11-10"));
+
+    await user.keyboard("{ArrowRight}");
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-11")).toBeTruthy();
+  });
+
+  it("dismisses a hover tooltip on Escape until the pointer moves to another point", async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.hover(point("2026-11-11"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    await user.hover(point("2026-11-12"));
+    expect(within(screen.getByRole("tooltip")).getByText("2026-11-12")).toBeTruthy();
+  });
+
+  it("leaves an Escape that something else already handled alone", async () => {
+    const user = userEvent.setup();
+    renderChart();
+    await user.tab();
+
+    const handled = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    handled.preventDefault();
+    act(() => {
+      document.dispatchEvent(handled);
+    });
+
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+  });
+
+  it("jumps to the first and last points with Home and End", async () => {
+    const user = userEvent.setup();
+    renderChart();
+    await user.tab();
+
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(point("2026-11-12"));
+
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toBe(point("2026-11-10"));
+  });
+
+  it("falls back to the first point as the tab stop when the focused point leaves the data", async () => {
+    const user = userEvent.setup();
+    const view = renderChart();
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+
+    view.rerender(
+      <LineChart points={points.slice(2)} selected={undefined} drillable gridlines={[]} onDrill={() => undefined} />,
+    );
+
+    expect(point("2026-11-12").tabIndex).toBe(0);
   });
 
   it("stays on the last point when the arrow keys run out of points", async () => {

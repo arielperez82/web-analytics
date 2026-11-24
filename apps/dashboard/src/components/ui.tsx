@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, type Ref, useId } from "react";
 
 import { Button } from "@/ds/Button";
 import { formatNumber } from "@/lib/format";
@@ -8,12 +8,29 @@ export type Row = Record<string, string | number | null>;
 export const fmt = (value: string | number | null | undefined): string =>
   typeof value === "number" ? formatNumber(value) : (value ?? "—");
 
-export const Panel = ({ title, children }: { title: ReactNode; children: ReactNode }) => (
-  <section className="panel">
-    <h2>{title}</h2>
-    {children}
-  </section>
-);
+export const Panel = ({
+  title,
+  children,
+  ref,
+  focusable = false,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+  ref?: Ref<HTMLElement>;
+  focusable?: boolean;
+}) => {
+  const heading = useId();
+  return (
+    <section
+      ref={ref}
+      className="panel"
+      {...(focusable ? { "aria-labelledby": heading, tabIndex: -1 } : {})}
+    >
+      <h2 id={heading}>{title}</h2>
+      {children}
+    </section>
+  );
+};
 
 export const EMPTY_MESSAGE = "No data for this range. Try a wider range or fewer filters.";
 

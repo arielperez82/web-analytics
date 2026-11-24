@@ -20,14 +20,16 @@ export const useDismiss = ({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) latest.current.onEscape();
     };
-    const onPointer = (event: PointerEvent) => {
+    const onOutsideEvent = (event: Event) => {
       if (event.target instanceof Node && within.current?.contains(event.target) === false) latest.current.onOutside();
     };
     document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("pointerdown", onOutsideEvent);
+    document.addEventListener("focusin", onOutsideEvent);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("pointerdown", onOutsideEvent);
+      document.removeEventListener("focusin", onOutsideEvent);
     };
   }, [open, within]);
 };

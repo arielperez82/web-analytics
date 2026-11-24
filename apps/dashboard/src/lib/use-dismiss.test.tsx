@@ -20,6 +20,7 @@ const Harness = ({ open, calls }: { readonly open: boolean; readonly calls: stri
     <>
       <div ref={box}>
         <button>inside</button>
+        <button>also inside</button>
       </div>
       <button>outside</button>
     </>
@@ -37,9 +38,39 @@ describe("useDismiss", () => {
     const { calls, user } = setup();
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByText("outside"));
+    fireEvent.pointerDown(screen.getByText("outside"));
 
     expect(calls).toEqual(["escape", "outside"]);
+  });
+
+  it("reports focus leaving, so a picker closes when you tab away from it", async () => {
+    const { calls, user } = setup();
+
+    await user.tab();
+    await user.tab();
+    expect(calls).toEqual([]);
+
+    await user.tab();
+    expect(calls).toEqual(["outside"]);
+  });
+
+  it("ignores focus moving between elements inside", async () => {
+    const { calls, user } = setup();
+
+    await user.tab();
+    await user.tab();
+
+    expect(document.activeElement).toBe(screen.getByText("also inside"));
+    expect(calls).toEqual([]);
+  });
+
+  it("may report one outside press more than once, since a click both presses and focuses", async () => {
+    const { calls, user } = setup();
+
+    await user.click(screen.getByText("outside"));
+
+    expect(calls.length).toBeGreaterThan(0);
+    expect(new Set(calls)).toEqual(new Set(["outside"]));
   });
 
   it("ignores every other key and a press inside", async () => {
@@ -66,7 +97,9 @@ describe("useDismiss", () => {
     const { calls, user } = setup(false);
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByText("outside"));
+    await user.tab();
+    await user.tab();
+    await user.tab();
 
     expect(calls).toEqual([]);
   });
