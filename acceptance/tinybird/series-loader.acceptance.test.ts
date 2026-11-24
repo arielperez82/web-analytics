@@ -51,7 +51,6 @@ describe.concurrent('series loader in front of Tinybird', () => {
           query: new URLSearchParams({
             tenant_id: scope.tenantId,
             domain: scope.domain,
-            metric: 'pageviews',
             date_from: '2026-11-16',
             date_to: '2026-11-17',
             compare_from: '2026-11-09',
@@ -61,7 +60,8 @@ describe.concurrent('series loader in front of Tinybird', () => {
         deps
       );
       expect(result.status).toBe(200);
-      return (result.body as { points: readonly Point[] }).points;
+      return (result.body as { series: { pageviews: readonly Point[] } }).series
+        .pageviews;
     };
 
     const points = await waitForRow(read, data =>
