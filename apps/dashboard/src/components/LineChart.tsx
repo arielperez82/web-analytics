@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { lineHeights } from "@/lib/chart-axis";
 import { FULL, pathOf, xOf } from "@/lib/chart-path";
@@ -74,6 +74,11 @@ export const LineChart = ({
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
   }, [showing]);
+  const stop = useRef<HTMLButtonElement | null>(null);
+  const lostFocus = focused !== null && !points.some((point) => point.label === focused);
+  useEffect(() => {
+    if (lostFocus) stop.current?.focus();
+  }, [lostFocus]);
   const enter = (label: string, show: (label: string) => void) => {
     setDismissed(false);
     show(label);
@@ -102,6 +107,7 @@ export const LineChart = ({
           onClick={() => drillable && onDrill(point.label)}
           onMouseEnter={() => enter(point.label, setHovered)}
           onMouseLeave={() => setHovered(null)}
+          ref={point.label === tabStop ? stop : undefined}
           tabIndex={point.label === tabStop ? 0 : -1}
           onFocus={() => {
             setLastFocused(point.label);
