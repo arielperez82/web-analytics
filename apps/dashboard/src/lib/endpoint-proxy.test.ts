@@ -233,6 +233,13 @@ describe("proxyEndpoint", () => {
       expect(calls[0]).toBe("http://tb.test/v0/pipes/domains.json?tenant_id=t");
     });
 
+    it("starts the daily engagement series at the earliest day with data too", async () => {
+      const { deps, calls } = withDomains(["2026-02-11 08:30:00"]);
+      await proxyEndpoint(request("daily_engagement_series", "date_from=1970-01-01&date_to=2026-11-18"), deps);
+      expect(calls.at(-1)).toContain("daily_engagement_series.json");
+      expect(calls.at(-1)).toContain("date_from=2026-02-11");
+    });
+
     it("reads the first day on the clock of the viewer's zone", async () => {
       const { deps, calls } = withDomains(["2026-02-11 02:00:00"]);
       await proxyEndpoint(
