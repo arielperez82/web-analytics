@@ -254,7 +254,7 @@ export const Kpis = ({
     if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
       onChange({ ...state, grain: key });
   };
-  const trendOf = (key: Trend) => ({ trend: series?.[key] ?? [] });
+  const trendOf = (key: Trend) => ({ trend: series === undefined ? [] : series[key] });
   const pick = (key: Metric) => ({
     ...trendOf(key),
     selected: metric === key,
