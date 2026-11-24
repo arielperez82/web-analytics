@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { type Metric, METRICS } from "./metrics";
+import { type Metric, METRICS, type Trend } from "./metrics";
 
 export type SeriesPoint = {
   readonly label: string;
@@ -11,9 +11,9 @@ export type SeriesPoint = {
   readonly previous: number | null;
 };
 
-export type { Metric };
+export type { Metric, Trend };
 
-export type MetricSeries = Readonly<Partial<Record<Metric, readonly SeriesPoint[]>>>;
+export type MetricSeries = Readonly<Partial<Record<Trend, readonly SeriesPoint[]>>>;
 
 const isMetricSeries = (value: unknown): value is MetricSeries =>
   typeof value === "object" && value !== null && METRICS.some((metric) => Array.isArray((value as Record<string, unknown>)[metric]));
