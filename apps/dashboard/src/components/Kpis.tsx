@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { Badge } from "@/ds/Badge";
 import { SegmentedControl } from "@/ds/SegmentedControl";
@@ -207,6 +207,7 @@ export const Kpis = ({
   onChange: (next: DashboardState) => void;
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");
+  const chartPanel = useRef<HTMLElement>(null);
   const countsFeed = useEndpoint<Row>("visitor_counts", params);
   const engagementFeed = useEndpoint<Row>("engagement", params);
   const counts = countsFeed.data?.[0];
@@ -223,6 +224,10 @@ export const Kpis = ({
   const perHour = bucket === 1 ? "hour" : `${String(bucket)} hours`;
   const unit = hourly ? "hour" : "day";
   const { series, loading, error, refreshing, retry } = useSeries({ ...params, ...comparison, grain });
+  const retryChart = () => {
+    chartPanel.current?.focus();
+    retry();
+  };
   const points = series?.[metric];
   const rows = points ?? [];
   const unavailable = series !== undefined && points === undefined;
@@ -300,6 +305,7 @@ export const Kpis = ({
         />
       </div>
       <Panel
+        ref={chartPanel}
         title={
           hourly
             ? `${label} per ${perHour}`
@@ -324,7 +330,7 @@ export const Kpis = ({
             )}
           </div>
         </div>
-        <Status loading={false} error={chartError} stale={points !== undefined} empty={false} onRetry={retry} />
+        <Status loading={false} error={chartError} stale={points !== undefined} empty={false} onRetry={retryChart} />
         <div className="chart-frame">
           <div className="y-axis" role="group" aria-label="Chart y axis">
             {ticks.map((tick) => (

@@ -496,6 +496,17 @@ describe("Kpis", () => {
       expect(document.querySelector(".line.current")).not.toBeNull();
     });
 
+    it("moves focus to the chart panel when Retry is pressed, so it is not lost with the alert", async () => {
+      installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
+      failOnce("series", (query) => query.has("compare_from"));
+      render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
+
+      await userEvent.click(within(await screen.findByRole("alert")).getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(document.activeElement).toBe(screen.getByRole("region", { name: /^Sessions per day/ }));
+    });
+
     it("retries only the figures that failed", async () => {
       const api = installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
       failOnce("visitor_counts");
