@@ -83,7 +83,6 @@ export const loadSeries = async (
     status: 200,
     body: {
       grain,
-      points: align((row) => row.value),
       series: Object.fromEntries(usable.map((metric) => [metric, align((row) => countOf(row, metric) ?? 0)])),
     },
   };

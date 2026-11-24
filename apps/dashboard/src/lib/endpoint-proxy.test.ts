@@ -65,11 +65,17 @@ describe("proxyEndpoint", () => {
     );
   });
 
-  it("forwards the series metric and the include-bots switch", async () => {
+  it("does not forward a single-metric choice to the series pipes", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(request("daily_series", "metric=known&include_bots=1"), deps);
+    expect(calls[0].url).toBe("http://tb.test/v0/pipes/daily_series.json?include_bots=1");
+  });
+
+  it("forwards the include-bots switch", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(request("daily_series", "include_bots=1"), deps);
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/daily_series.json?metric=known&include_bots=1",
+      "http://tb.test/v0/pipes/daily_series.json?include_bots=1",
     );
   });
 
