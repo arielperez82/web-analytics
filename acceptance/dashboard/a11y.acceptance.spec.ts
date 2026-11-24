@@ -16,3 +16,24 @@ test('a skip link is the first stop, appears on focus and jumps past the sidebar
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
 });
+
+test('a picker closes when focus moves on, so two are never open together', async ({
+  page,
+}) => {
+  await stubApi(page, {});
+  await signIn(page);
+  const triggers = page.locator('button[aria-haspopup="dialog"]');
+  await expect(triggers).not.toHaveCount(0);
+  const first = triggers.nth(0);
+  const second = triggers.nth(1);
+
+  await first.focus();
+  await page.keyboard.press('Enter');
+  await expect(first).toHaveAttribute('aria-expanded', 'true');
+
+  await second.focus();
+  await page.keyboard.press('Enter');
+
+  await expect(second).toHaveAttribute('aria-expanded', 'true');
+  await expect(first).toHaveAttribute('aria-expanded', 'false');
+});

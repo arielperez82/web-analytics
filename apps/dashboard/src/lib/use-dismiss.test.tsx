@@ -37,9 +37,28 @@ describe("useDismiss", () => {
     const { calls, user } = setup();
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByText("outside"));
+    fireEvent.pointerDown(screen.getByText("outside"));
 
     expect(calls).toEqual(["escape", "outside"]);
+  });
+
+  it("reports focus leaving, so a picker closes when you tab away from it", async () => {
+    const { calls, user } = setup();
+
+    await user.tab();
+    expect(calls).toEqual([]);
+
+    await user.tab();
+    expect(calls).toEqual(["outside"]);
+  });
+
+  it("ignores focus moving to an element inside, or the window losing focus", async () => {
+    const { calls, user } = setup();
+
+    await user.tab();
+    fireEvent.blur(screen.getByText("inside"), { relatedTarget: null });
+
+    expect(calls).toEqual([]);
   });
 
   it("ignores every other key and a press inside", async () => {
@@ -66,7 +85,8 @@ describe("useDismiss", () => {
     const { calls, user } = setup(false);
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByText("outside"));
+    await user.tab();
+    await user.tab();
 
     expect(calls).toEqual([]);
   });
