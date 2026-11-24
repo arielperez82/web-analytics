@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Sparkline } from "@/ds/Sparkline";
 import type { DashboardState } from "@/lib/dashboard-state";
-import { type ApiRow, type FakeApi, installFakeApi, type MetricRows, removeFakeApi } from "@/test/fake-api";
+import { type ApiRow, type FakeApi, failOnce, installFakeApi, type MetricRows, removeFakeApi } from "@/test/fake-api";
 
 import { Kpis } from "./Kpis";
 
@@ -86,20 +86,6 @@ const card = async (label: string): Promise<HTMLElement> => {
 };
 
 const seriesRequests = (api: FakeApi) => api.requestsTo("series");
-
-const failOnce = (endpoint: string, only: (query: URLSearchParams) => boolean = () => true) => {
-  const real = globalThis.fetch;
-  const seen: boolean[] = [];
-  vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
-    const name = /\/api\/(?:endpoints\/)?([^?]+)/.exec(input)?.[1] ?? "";
-    const target = name === endpoint && only(new URLSearchParams(input.split("?")[1] ?? ""));
-    const first = target && seen.length === 0;
-    if (target) seen.push(true);
-    return first
-      ? Promise.resolve(new Response(JSON.stringify({ error: "warehouse down" }), { status: 500 }))
-      : real(input, init);
-  });
-};
 
 const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
 const line = async (which: "current" | "previous") => {
