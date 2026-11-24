@@ -589,6 +589,122 @@ export type HourlySeriesParams = InferParams<typeof hourlySeries>;
 export type HourlySeriesOutput = InferOutputRow<typeof hourlySeries>;
 
 /**
+ * Daily engagement series - bounce rate and average session length per day of the range, read from
+ * the raw hits and events. A session belongs to the day of its first page view and counts once; a
+ * session that began before the range (looked up a day back) is left out rather than counted by its
+ * tail. Days without traffic are zero. Bots are left out unless include_bots=1.
+ */
+export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
+  description:
+    "Bounce rate (percent) and average session seconds per day of a UTC date range, from the raw hits, with each session on the day of its first page view. Bots excluded unless include_bots=1",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "date_calculations",
+      description: "The range, and the instant a day before it from which sessions are looked up",
+      sql: `
+        SELECT
+            {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
+            {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
+            toDateTime(current_start, ${tzSql}) AS current_start_at,
+            toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
+            current_start_at - INTERVAL 1 DAY AS lookup_start_at
+      `,
+    }),
+    node({
+      name: "engaged_sessions",
+      description: "Sessions where the visitor did something besides view pages. Automatic web vitals do not count.",
+      sql: `
+        SELECT DISTINCT session_id
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+      `,
+    }),
+    node({
+      name: "sessions",
+      description: "One row per session that began inside the range, dated by its first page view",
+      sql: `
+        SELECT
+            toDate(toTimeZone(min(timestamp), ${tzSql})) AS date,
+            toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
+            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+        FROM analytics_hits
+        WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
+            AND is_bot = 0
+            {% end %}
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY session_id, tenant_id, domain
+        HAVING min(timestamp) >= (SELECT current_start_at FROM date_calculations)
+      `,
+    }),
+    node({
+      name: "per_day",
+      sql: `
+        SELECT
+            date,
+            count() AS session_count,
+            sum(is_bounce) AS bounces,
+            sum(duration_sec) AS duration_total
+        FROM sessions
+        GROUP BY date
+      `,
+    }),
+    node({
+      name: "days",
+      description: "Every day of the range, so quiet days show zero",
+      sql: `
+        SELECT arrayJoin(arrayMap(x -> toDate(x), range(toUInt32((SELECT current_start FROM date_calculations)), toUInt32((SELECT current_end FROM date_calculations)) + 1))) AS date
+      `,
+    }),
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT
+            d.date AS date,
+            p.session_count AS session_count,
+            round(if(p.session_count = 0, 0, p.bounces * 100.0 / p.session_count), 2) AS bounce_rate_percent,
+            round(if(p.session_count = 0, 0, p.duration_total * 1.0 / p.session_count), 2) AS avg_session_sec
+        FROM days d
+        LEFT JOIN per_day p ON d.date = p.date
+        ORDER BY date
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    domain: p.string().optional().describe("Filter by domain"),
+    date_from: p.string().optional().describe("First UTC day, inclusive"),
+    date_to: p.string().optional().describe("Last UTC day, inclusive"),
+    ...crossFilterParams,
+    ...tzParam,
+  },
+  output: {
+    date: t.date(),
+    session_count: t.uint64(),
+    bounce_rate_percent: t.float64(),
+    avg_session_sec: t.float64(),
+  },
+});
+
+export type DailyEngagementSeriesParams = InferParams<typeof dailyEngagementSeries>;
+export type DailyEngagementSeriesOutput = InferOutputRow<typeof dailyEngagementSeries>;
+
+/**
  * Tenants - every tenant with its domain count and total hits. Events that
  * carry no tenant appear with an empty tenant_id.
  */
