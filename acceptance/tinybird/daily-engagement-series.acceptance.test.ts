@@ -194,6 +194,35 @@ describe.concurrent('daily engagement series', () => {
     expect(average(rows)).toEqual([60, null]);
   });
 
+  it('measures a session that began on the last day of the range by all of it, even the part after the range', async () => {
+    const scope = createScope();
+    const sessionId = crypto.randomUUID();
+    const justBeforeMidnight = new Date('2026-11-16T23:59:30Z');
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        sessionId,
+        now: justBeforeMidnight,
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/b',
+        sessionId,
+        now: justBeforeMidnight,
+        offsetSeconds: 120,
+      }),
+    ]);
+
+    const rows = await waitForRow(
+      () => read(scope, { date_from: '2026-11-16', date_to: '2026-11-16' }),
+      found => found.some(row => Number(row.session_count) > 0)
+    );
+
+    expect(bounce(rows)).toEqual([0]);
+    expect(average(rows)).toEqual([120]);
+  });
+
   it('leaves out a session that began before the range, instead of counting its tail', async () => {
     const scope = createScope();
     const sessionId = crypto.randomUUID();

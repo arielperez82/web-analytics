@@ -601,14 +601,15 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   nodes: [
     node({
       name: "date_calculations",
-      description: "The range, and the instant a day before it from which sessions are looked up",
+      description: "The range, the instant a day before it from which sessions are looked up, and a day after it to which they are followed",
       sql: `
         SELECT
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             toDateTime(current_start, ${tzSql}) AS current_start_at,
             toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            current_start_at - INTERVAL 1 DAY AS lookup_start_at
+            current_start_at - INTERVAL 1 DAY AS lookup_start_at,
+            current_end_at + INTERVAL 1 DAY AS lookahead_end_at
       `,
     }),
     node({
@@ -619,7 +620,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -638,7 +639,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -650,6 +651,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
             {% end %}${crossFilters}
         GROUP BY session_id, tenant_id, domain
         HAVING min(timestamp) >= (SELECT current_start_at FROM date_calculations)
+            AND min(timestamp) < (SELECT current_end_at FROM date_calculations)
       `,
     }),
     node({
@@ -727,7 +729,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
                 + throwIf({{ Int32(bucket_hours, 1, description="Hours per bucket from 1 to 24, counted from from_at") }} < 1 OR {{ Int32(bucket_hours, 1) }} > 24, 'bucket_hours must be between 1 and 24')
                 + throwIf(ceil(dateDiff('hour', requested_start, requested_end) / ${BUCKET_HOURS_SQL}) > 744, 'An hourly series covers at most 744 buckets') AS current_start_at,
             requested_end AS current_end_at,
-            current_start_at - INTERVAL 1 DAY AS lookup_start_at
+            current_start_at - INTERVAL 1 DAY AS lookup_start_at,
+            current_end_at + INTERVAL 1 DAY AS lookahead_end_at
       `,
     }),
     node({
@@ -738,7 +741,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -757,7 +760,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -769,6 +772,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
             {% end %}${crossFilters}
         GROUP BY session_id, tenant_id, domain
         HAVING min(timestamp) >= (SELECT current_start_at FROM date_calculations)
+            AND min(timestamp) < (SELECT current_end_at FROM date_calculations)
       `,
     }),
     node({

@@ -140,6 +140,32 @@ describe.concurrent('hourly engagement series', () => {
     expect(bounce(rows)).toEqual(hourly({ 2: 50 }, 6));
   });
 
+  it('measures a session that began in the last bucket of the window by all of it, even the part after the window', async () => {
+    const scope = createScope();
+    const sessionId = crypto.randomUUID();
+    const justBeforeEnd = new Date(midnight(2).getTime() - 30_000);
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        sessionId,
+        now: justBeforeEnd,
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/b',
+        sessionId,
+        now: justBeforeEnd,
+        offsetSeconds: 120,
+      }),
+    ]);
+
+    const rows = await series(scope, 1);
+
+    expect(bounce(rows)).toEqual(hourly({ 23: 0 }));
+    expect(average(rows)).toEqual(hourly({ 23: 120 }));
+  });
+
   it('leaves out a session that began before the window, instead of counting its tail', async () => {
     const scope = createScope();
     const sessionId = crypto.randomUUID();
