@@ -306,6 +306,7 @@ export const Kpis = ({
       </div>
       <Panel
         ref={chartPanel}
+        focusable
         title={
           hourly
             ? `${label} per ${perHour}`

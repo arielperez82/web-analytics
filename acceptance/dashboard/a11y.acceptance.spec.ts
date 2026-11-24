@@ -23,7 +23,7 @@ test('a picker closes when focus moves on, so two are never open together', asyn
   await stubApi(page, {});
   await signIn(page);
   const triggers = page.locator('button[aria-haspopup="dialog"]');
-  await expect(triggers).not.toHaveCount(0);
+  await expect(triggers.nth(1)).toBeVisible();
   const first = triggers.nth(0);
   const second = triggers.nth(1);
 

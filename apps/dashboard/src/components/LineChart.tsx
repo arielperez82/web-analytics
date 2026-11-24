@@ -30,9 +30,19 @@ const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, step: 1 | -1): void 
   next.focus();
 };
 
+const focusEnd = (event: KeyboardEvent<HTMLButtonElement>, end: "first" | "last"): void => {
+  const points = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button.col") ?? []);
+  const target = end === "first" ? points[0] : points.at(-1);
+  if (target === undefined) return;
+  event.preventDefault();
+  target.focus();
+};
+
 const onKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
   if (event.key === "ArrowRight") moveFocus(event, 1);
   if (event.key === "ArrowLeft") moveFocus(event, -1);
+  if (event.key === "Home") focusEnd(event, "first");
+  if (event.key === "End") focusEnd(event, "last");
 };
 
 export const LineChart = ({
@@ -59,7 +69,7 @@ export const LineChart = ({
   useEffect(() => {
     if (!showing) return;
     const onEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setDismissed(true);
+      if (event.key === "Escape" && !event.defaultPrevented) setDismissed(true);
     };
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);

@@ -12,14 +12,20 @@ export const Panel = ({
   title,
   children,
   ref,
+  focusable = false,
 }: {
   title: ReactNode;
   children: ReactNode;
   ref?: Ref<HTMLElement>;
+  focusable?: boolean;
 }) => {
   const heading = useId();
   return (
-    <section ref={ref} className="panel" aria-labelledby={heading} tabIndex={-1}>
+    <section
+      ref={ref}
+      className="panel"
+      {...(focusable ? { "aria-labelledby": heading, tabIndex: -1 } : {})}
+    >
       <h2 id={heading}>{title}</h2>
       {children}
     </section>
