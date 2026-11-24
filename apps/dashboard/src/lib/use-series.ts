@@ -11,9 +11,13 @@ export type SeriesPoint = {
   readonly previous: number | null;
 };
 
+export type TrendPoint = Omit<SeriesPoint, "current"> & { readonly current: number | null };
+
 export type { Metric, Trend };
 
-export type MetricSeries = Readonly<Partial<Record<Trend, readonly SeriesPoint[]>>>;
+export type MetricSeries = Readonly<
+  Partial<Record<Metric, readonly SeriesPoint[]> & Record<Exclude<Trend, Metric>, readonly TrendPoint[]>>
+>;
 
 const isMetricSeries = (value: unknown): value is MetricSeries =>
   typeof value === "object" && value !== null && METRICS.some((metric) => Array.isArray((value as Record<string, unknown>)[metric]));

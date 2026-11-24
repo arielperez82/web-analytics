@@ -100,3 +100,15 @@ describe("lineHeights", () => {
     expect(lineHeights([])).toEqual({ current: [], previous: [] });
   });
 });
+
+describe("lineHeights with gaps", () => {
+  it("leaves a missing value as a gap and scales from the values that exist", () => {
+    expect(
+      lineHeights([
+        { current: null, previous: null },
+        { current: 5, previous: null },
+        { current: 10, previous: null },
+      ]).current,
+    ).toEqual([null, 50, 100]);
+  });
+});

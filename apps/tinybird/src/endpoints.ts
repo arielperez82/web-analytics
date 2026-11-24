@@ -592,7 +592,7 @@ export type HourlySeriesOutput = InferOutputRow<typeof hourlySeries>;
  * Daily engagement series - bounce rate and average session length per day of the range, read from
  * the raw hits and events. A session belongs to the day of its first page view and counts once; a
  * session that began before the range (looked up a day back) is left out rather than counted by its
- * tail. Days without traffic are zero. Bots are left out unless include_bots=1.
+ * tail. Days without traffic have no rate or average. Bots are left out unless include_bots=1.
  */
 export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   description:
@@ -601,14 +601,15 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   nodes: [
     node({
       name: "date_calculations",
-      description: "The range, and the instant a day before it from which sessions are looked up",
+      description: "The range, the instant a day before it from which sessions are looked up, and a day after it to which they are followed",
       sql: `
         SELECT
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             toDateTime(current_start, ${tzSql}) AS current_start_at,
             toDateTime(current_end + 1, ${tzSql}) AS current_end_at,
-            current_start_at - INTERVAL 1 DAY AS lookup_start_at
+            current_start_at - INTERVAL 1 DAY AS lookup_start_at,
+            current_end_at + INTERVAL 1 DAY AS lookahead_end_at
       `,
     }),
     node({
@@ -619,7 +620,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -638,7 +639,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -650,6 +651,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
             {% end %}${crossFilters}
         GROUP BY session_id, tenant_id, domain
         HAVING min(timestamp) >= (SELECT current_start_at FROM date_calculations)
+            AND min(timestamp) < (SELECT current_end_at FROM date_calculations)
       `,
     }),
     node({
@@ -666,7 +668,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
     }),
     node({
       name: "days",
-      description: "Every day of the range, so quiet days show zero",
+      description: "Every day of the range, so quiet days show no sessions and no rates",
       sql: `
         SELECT arrayJoin(arrayMap(x -> toDate(x), range(toUInt32((SELECT current_start FROM date_calculations)), toUInt32((SELECT current_end FROM date_calculations)) + 1))) AS date
       `,
@@ -677,8 +679,8 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
         SELECT
             d.date AS date,
             p.session_count AS session_count,
-            round(if(p.session_count = 0, 0, p.bounces * 100.0 / p.session_count), 2) AS bounce_rate_percent,
-            round(if(p.session_count = 0, 0, p.duration_total * 1.0 / p.session_count), 2) AS avg_session_sec
+            if(p.session_count = 0, NULL, round(p.bounces * 100.0 / p.session_count, 2)) AS bounce_rate_percent,
+            if(p.session_count = 0, NULL, round(p.duration_total * 1.0 / p.session_count, 2)) AS avg_session_sec
         FROM days d
         LEFT JOIN per_day p ON d.date = p.date
         ORDER BY date
@@ -696,8 +698,8 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
   output: {
     date: t.date(),
     session_count: t.uint64(),
-    bounce_rate_percent: t.float64(),
-    avg_session_sec: t.float64(),
+    bounce_rate_percent: t.float64().nullable(),
+    avg_session_sec: t.float64().nullable(),
   },
 });
 
@@ -727,7 +729,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
                 + throwIf({{ Int32(bucket_hours, 1, description="Hours per bucket from 1 to 24, counted from from_at") }} < 1 OR {{ Int32(bucket_hours, 1) }} > 24, 'bucket_hours must be between 1 and 24')
                 + throwIf(ceil(dateDiff('hour', requested_start, requested_end) / ${BUCKET_HOURS_SQL}) > 744, 'An hourly series covers at most 744 buckets') AS current_start_at,
             requested_end AS current_end_at,
-            current_start_at - INTERVAL 1 DAY AS lookup_start_at
+            current_start_at - INTERVAL 1 DAY AS lookup_start_at,
+            current_end_at + INTERVAL 1 DAY AS lookahead_end_at
       `,
     }),
     node({
@@ -738,7 +741,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -757,7 +760,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
             toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -769,6 +772,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
             {% end %}${crossFilters}
         GROUP BY session_id, tenant_id, domain
         HAVING min(timestamp) >= (SELECT current_start_at FROM date_calculations)
+            AND min(timestamp) < (SELECT current_end_at FROM date_calculations)
       `,
     }),
     node({
@@ -785,7 +789,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
     }),
     node({
       name: "hours",
-      description: "Every bucket of the range, so quiet buckets show zero",
+      description: "Every bucket of the range, so quiet buckets show no sessions and no rates",
       sql: `
         SELECT arrayJoin(arrayMap(x -> toDateTime(x), range(toUInt32((SELECT current_start_at FROM date_calculations)), toUInt32((SELECT current_end_at FROM date_calculations)), toUInt32(3600 * ${BUCKET_HOURS_SQL})))) AS hour
       `,
@@ -796,8 +800,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
         SELECT
             h.hour AS hour,
             p.session_count AS session_count,
-            round(if(p.session_count = 0, 0, p.bounces * 100.0 / p.session_count), 2) AS bounce_rate_percent,
-            round(if(p.session_count = 0, 0, p.duration_total * 1.0 / p.session_count), 2) AS avg_session_sec
+            if(p.session_count = 0, NULL, round(p.bounces * 100.0 / p.session_count, 2)) AS bounce_rate_percent,
+            if(p.session_count = 0, NULL, round(p.duration_total * 1.0 / p.session_count, 2)) AS avg_session_sec
         FROM hours h
         LEFT JOIN per_hour p ON h.hour = p.hour
         ORDER BY hour
@@ -815,8 +819,8 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
   output: {
     hour: t.dateTime(),
     session_count: t.uint64(),
-    bounce_rate_percent: t.float64(),
-    avg_session_sec: t.float64(),
+    bounce_rate_percent: t.float64().nullable(),
+    avg_session_sec: t.float64().nullable(),
   },
 });
 

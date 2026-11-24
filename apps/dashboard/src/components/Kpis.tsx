@@ -23,7 +23,7 @@ import {
 import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
-import { type Metric, type SeriesPoint, type Trend, useSeries } from "@/lib/use-series";
+import { type Metric, type Trend, type TrendPoint, useSeries } from "@/lib/use-series";
 
 import { LineChart } from "./LineChart";
 import { Panel, type Row, Status } from "./ui";
@@ -52,7 +52,7 @@ type CardContent = {
   readonly approximate?: boolean;
   readonly caption?: string;
   readonly note?: string;
-  readonly trend?: readonly SeriesPoint[];
+  readonly trend?: readonly TrendPoint[];
 };
 
 const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
@@ -254,7 +254,7 @@ export const Kpis = ({
     if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
       onChange({ ...state, grain: key });
   };
-  const trendOf = (key: Trend) => ({ trend: series?.[key] ?? [] });
+  const trendOf = (key: Trend) => ({ trend: series === undefined ? [] : series[key] });
   const pick = (key: Metric) => ({
     ...trendOf(key),
     selected: metric === key,

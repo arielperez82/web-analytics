@@ -230,6 +230,19 @@ describe("Kpis", () => {
     await waitFor(async () => expect((await card("Avg session")).querySelector("svg.spark")).not.toBeNull());
   });
 
+  it("leaves no empty room on a card whose trend the server could not give", async () => {
+    installFakeApi({
+      visitor_counts: [counts],
+      engagement: [engagement],
+      series: Object.fromEntries(["sessions", "known", "anonymous", "pageviews"].map((m) => [m, days])),
+    });
+    render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
+
+    await waitFor(async () => expect((await card("Sessions")).querySelector("svg.spark")).not.toBeNull());
+    expect((await card("Bounce rate")).querySelector(".spark-slot")).toBeNull();
+    expect((await card("Avg session")).querySelector(".spark-slot")).toBeNull();
+  });
+
   it("switches the chart to the metric the viewer picks without asking the server again", async () => {
     const api = installFakeApi({
       visitor_counts: [counts],
@@ -645,8 +658,6 @@ describe("Kpis", () => {
 
       const element = await card("Sessions");
       expect(element.querySelector(".spark-slot")).not.toBeNull();
-      expect((await card("Bounce rate")).querySelector(".spark-slot")).not.toBeNull();
-      expect((await card("Avg session")).querySelector(".spark-slot")).not.toBeNull();
       await waitFor(() => expect(element.querySelector(".spark-slot svg.spark")).not.toBeNull());
     });
   });

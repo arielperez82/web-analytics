@@ -6,7 +6,7 @@ import { Sparkline } from "./Sparkline";
 
 afterEach(cleanup);
 
-const point = (label: string, current: number) => ({ label, current, previousLabel: null, previous: null });
+const point = (label: string, current: number | null) => ({ label, current, previousLabel: null, previous: null });
 
 describe("Sparkline", () => {
   it("draws the supplied trend as one line, lowest value at the bottom", () => {
@@ -44,6 +44,15 @@ describe("Sparkline", () => {
     const d = container.querySelector("path.spark-line")?.getAttribute("d") ?? "";
 
     expect([...d.matchAll(/,([\d.]+)/g)].map(([, y]) => Number(y))).toEqual([100, 100]);
+  });
+
+  it("breaks the line where a value is missing instead of dropping it to zero", () => {
+    const { container } = render(<Sparkline points={[point("a", 4), point("b", 6), point("c", null), point("d", 10), point("e", 8)]} />);
+
+    const d = container.querySelector("path.spark-line")?.getAttribute("d") ?? "";
+
+    expect(d.match(/M/g)).toHaveLength(2);
+    expect(d.match(/[ML]/g)).toHaveLength(4);
   });
 
   it("is decoration beside the figure, so it stays out of the accessibility tree", () => {

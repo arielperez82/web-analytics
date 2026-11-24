@@ -32,8 +32,8 @@ const window = {
 type Row = {
   hour: string;
   session_count: number | string;
-  bounce_rate_percent: number | string;
-  avg_session_sec: number | string;
+  bounce_rate_percent: number | string | null;
+  avg_session_sec: number | string | null;
 };
 
 describe.concurrent('hourly engagement series', () => {
@@ -63,11 +63,15 @@ describe.concurrent('hourly engagement series', () => {
     );
 
   const bounce = (rows: readonly Row[]) =>
-    rows.map(row => Number(row.bounce_rate_percent));
+    rows.map(row =>
+      row.bounce_rate_percent === null ? null : Number(row.bounce_rate_percent)
+    );
   const average = (rows: readonly Row[]) =>
-    rows.map(row => Number(row.avg_session_sec));
+    rows.map(row =>
+      row.avg_session_sec === null ? null : Number(row.avg_session_sec)
+    );
   const hourly = (at: Readonly<Record<number, number>>, length = 24) =>
-    Array.from({ length }, (_, index) => at[index] ?? 0);
+    Array.from({ length }, (_, index) => at[index] ?? null);
 
   const visit = (
     scope: Scope,
@@ -88,7 +92,7 @@ describe.concurrent('hourly engagement series', () => {
     );
   };
 
-  it('lists every hour oldest first with its own bounce rate and average session length, zero when quiet', async () => {
+  it('lists every hour oldest first with its own bounce rate and average session length, nothing when quiet', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, [0], 9),
@@ -101,7 +105,7 @@ describe.concurrent('hourly engagement series', () => {
     expect(rows).toHaveLength(24);
     expect(rows[0]?.hour).toBe(`${dayOf(3)} 00:00:00`);
     expect(rows[23]?.hour).toBe(`${dayOf(3)} 23:00:00`);
-    expect(bounce(rows)).toEqual(hourly({ 9: 50 }));
+    expect(bounce(rows)).toEqual(hourly({ 9: 50, 10: 0 }));
     expect(average(rows)).toEqual(hourly({ 9: 15, 10: 120 }));
   });
 
@@ -134,6 +138,32 @@ describe.concurrent('hourly engagement series', () => {
       0, 0, 2, 0, 0, 0,
     ]);
     expect(bounce(rows)).toEqual(hourly({ 2: 50 }, 6));
+  });
+
+  it('measures a session that began in the last bucket of the window by all of it, even the part after the window', async () => {
+    const scope = createScope();
+    const sessionId = crypto.randomUUID();
+    const justBeforeEnd = new Date(midnight(2).getTime() - 30_000);
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        sessionId,
+        now: justBeforeEnd,
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/b',
+        sessionId,
+        now: justBeforeEnd,
+        offsetSeconds: 120,
+      }),
+    ]);
+
+    const rows = await series(scope, 1);
+
+    expect(bounce(rows)).toEqual(hourly({ 23: 0 }));
+    expect(average(rows)).toEqual(hourly({ 23: 120 }));
   });
 
   it('leaves out a session that began before the window, instead of counting its tail', async () => {
@@ -172,7 +202,7 @@ describe.concurrent('hourly engagement series', () => {
     const without = await series(scope, 1);
     const withBots = await series(scope, 2, { include_bots: 1 });
 
-    expect(bounce(without)).toEqual(hourly({}));
+    expect(bounce(without)).toEqual(hourly({ 9: 0 }));
     expect(bounce(withBots)).toEqual(hourly({ 9: 50 }));
   });
 
@@ -186,7 +216,7 @@ describe.concurrent('hourly engagement series', () => {
 
     const rows = await series(scope, 1);
 
-    expect(bounce(rows)).toEqual(hourly({}));
+    expect(bounce(rows)).toEqual(hourly({ 9: 0 }));
   });
 
   it('refuses a bucket size outside 1 to 24 hours', async () => {

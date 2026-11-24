@@ -20,8 +20,8 @@ const dayOf = (days: number): string =>
 type Row = {
   date: string;
   session_count: number | string;
-  bounce_rate_percent: number | string;
-  avg_session_sec: number | string;
+  bounce_rate_percent: number | string | null;
+  avg_session_sec: number | string | null;
 };
 
 describe.concurrent('daily engagement series', () => {
@@ -52,9 +52,13 @@ describe.concurrent('daily engagement series', () => {
     );
 
   const bounce = (rows: readonly Row[]) =>
-    rows.map(row => Number(row.bounce_rate_percent));
+    rows.map(row =>
+      row.bounce_rate_percent === null ? null : Number(row.bounce_rate_percent)
+    );
   const average = (rows: readonly Row[]) =>
-    rows.map(row => Number(row.avg_session_sec));
+    rows.map(row =>
+      row.avg_session_sec === null ? null : Number(row.avg_session_sec)
+    );
 
   const visit = (
     scope: Scope,
@@ -75,7 +79,7 @@ describe.concurrent('daily engagement series', () => {
     );
   };
 
-  it('gives each day its own bounce rate and average session length, with a zero for quiet days', async () => {
+  it('gives each day its own bounce rate and average session length, and nothing for quiet days', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, [0], 2),
@@ -91,8 +95,8 @@ describe.concurrent('daily engagement series', () => {
       dayOf(1),
       dayOf(0),
     ]);
-    expect(bounce(rows)).toEqual([0, 50, 0, 0]);
-    expect(average(rows)).toEqual([0, 15, 120, 0]);
+    expect(bounce(rows)).toEqual([null, 50, 0, null]);
+    expect(average(rows)).toEqual([null, 15, 120, null]);
   });
 
   it('agrees with the engagement figures for the same range when weighted by sessions', async () => {
@@ -155,7 +159,7 @@ describe.concurrent('daily engagement series', () => {
 
     const rows = await series(scope, 2);
 
-    expect(bounce(rows)).toEqual([0, 50, 0, 0]);
+    expect(bounce(rows)).toEqual([null, 50, null, null]);
   });
 
   it('counts a session on the day of its first page view, once, even when it runs past midnight', async () => {
@@ -187,7 +191,36 @@ describe.concurrent('daily engagement series', () => {
       ['2026-11-16', 1],
       ['2026-11-17', 0],
     ]);
-    expect(average(rows)).toEqual([60, 0]);
+    expect(average(rows)).toEqual([60, null]);
+  });
+
+  it('measures a session that began on the last day of the range by all of it, even the part after the range', async () => {
+    const scope = createScope();
+    const sessionId = crypto.randomUUID();
+    const justBeforeMidnight = new Date('2026-11-16T23:59:30Z');
+    await ingestEvents(env, [
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        sessionId,
+        now: justBeforeMidnight,
+      }),
+      createPageHitEvent({
+        ...scope,
+        pathname: '/b',
+        sessionId,
+        now: justBeforeMidnight,
+        offsetSeconds: 120,
+      }),
+    ]);
+
+    const rows = await waitForRow(
+      () => read(scope, { date_from: '2026-11-16', date_to: '2026-11-16' }),
+      found => found.some(row => Number(row.session_count) > 0)
+    );
+
+    expect(bounce(rows)).toEqual([0]);
+    expect(average(rows)).toEqual([120]);
   });
 
   it('leaves out a session that began before the range, instead of counting its tail', async () => {
@@ -234,8 +267,8 @@ describe.concurrent('daily engagement series', () => {
     const without = await series(scope, 1);
     const withBots = await series(scope, 2, { include_bots: 1 });
 
-    expect(bounce(without)).toEqual([0, 0, 0, 0]);
-    expect(bounce(withBots)).toEqual([0, 50, 0, 0]);
+    expect(bounce(without)).toEqual([null, 0, null, null]);
+    expect(bounce(withBots)).toEqual([null, 50, null, null]);
   });
 
   it('keeps tenants apart', async () => {
@@ -248,6 +281,6 @@ describe.concurrent('daily engagement series', () => {
 
     const rows = await series(scope, 1);
 
-    expect(bounce(rows)).toEqual([0, 0, 0, 0]);
+    expect(bounce(rows)).toEqual([null, 0, null, null]);
   });
 });
