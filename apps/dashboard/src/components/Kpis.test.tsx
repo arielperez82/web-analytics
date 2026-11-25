@@ -455,6 +455,12 @@ describe("Kpis", () => {
       expect(within(grain).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
     });
 
+    it("is titled by the hour", async () => {
+      renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
+
+      expect(await screen.findByRole("heading", { name: "Sessions per hour" })).toBeTruthy();
+    });
+
     it("names the lines in the legend the same way as any range", async () => {
       renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 

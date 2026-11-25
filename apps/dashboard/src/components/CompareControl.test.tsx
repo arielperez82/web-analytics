@@ -55,7 +55,7 @@ describe("CompareControl", () => {
     expect(screen.getByRole("button", { name: "None" }).getAttribute("aria-pressed")).toBe("true");
     await userEvent.setup().click(screen.getByRole("button", { name: "Previous period" }));
 
-    expect(picked).toEqual([state]);
+    expect(picked).toStrictEqual([{ ...state, compare: undefined }]);
   });
 
   it("asks to switch the comparison off, or to last week, when those are picked", async () => {
@@ -74,7 +74,9 @@ describe("CompareControl", () => {
   it("says Compare beside its choices, so they are not mistaken for ranges", () => {
     renderControl();
 
-    expect(screen.getByText("Compare").nextElementSibling).toBe(screen.getByRole("group", { name: "Compare to" }));
+    const label = screen.getByText("Compare");
+    expect(label.getAttribute("aria-hidden")).toBe("true");
+    expect(label.parentElement).toBe(screen.getByRole("group", { name: "Compare to" }).parentElement);
   });
 
   it("offers nothing to compare all time with", () => {

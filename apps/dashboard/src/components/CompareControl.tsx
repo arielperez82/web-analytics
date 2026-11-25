@@ -2,11 +2,10 @@
 
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import type { Compare, DashboardState } from "@/lib/dashboard-state";
+import { isExactWindow } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 
 type Choice = Compare | "previous";
-
-const isExactWindow = (params: QueryParams): boolean => params.from_at !== undefined;
 
 const isSingleDay = (params: QueryParams): boolean => params.date_from === params.date_to;
 

@@ -19,7 +19,7 @@ import {
   formatSeconds,
   formatSignedPercent,
 } from "@/lib/format";
-import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
+import { effectiveGrain, hourAvailable, hourBucket, isExactWindow } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { type Metric, type Trend, type TrendPoint, useSeries } from "@/lib/use-series";
@@ -147,9 +147,6 @@ const SelectableCard = ({
     </button>
   );
 };
-
-const isExactWindow = (params: QueryParams): boolean =>
-  params.from_at !== undefined;
 
 export const Kpis = ({
   state,

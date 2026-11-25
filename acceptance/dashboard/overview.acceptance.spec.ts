@@ -165,6 +165,7 @@ test('speed insights do not offer the bot toggle', async ({ page }) => {
   await expect(
     page.getByRole('checkbox', { name: 'Include bots' })
   ).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Compare to' })).toHaveCount(0);
 });
 
 test('clicking a day on the chart shows that day hour by hour', async ({

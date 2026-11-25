@@ -35,6 +35,16 @@ const openReport = async (
   await page.goto(path);
 };
 
+test('a report offers no comparison choice, since it always compares with the period before', async ({
+  page,
+}) => {
+  await stubApi(page, { top_locations: locations });
+  await openReport(page, '/reports/locations');
+
+  await expect(page.locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByRole('group', { name: 'Compare to' })).toHaveCount(0);
+});
+
 test('a report compares each row with the previous period using the API growth', async ({
   page,
 }) => {
