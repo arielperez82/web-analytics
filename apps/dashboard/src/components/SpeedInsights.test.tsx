@@ -22,13 +22,25 @@ const vital = (metric_name: string, p75: number): ApiRow => ({
   status: "Good",
 });
 
-const renderPage = (vitals: readonly ApiRow[] = [vital("LCP", 2100)]) => {
+const renderPage = (vitals: readonly ApiRow[] = [vital("LCP", 2100)], pageParams: Record<string, string> = params) => {
   const api = installFakeApi({ web_vitals_current: vitals, web_vitals_routes: [] });
-  render(<SpeedInsights params={params} />);
+  render(<SpeedInsights params={pageParams} />);
   return api;
 };
 
 describe("SpeedInsights", () => {
+  it("asks both endpoints for the picked tenant and the exact start of the window", async () => {
+    const api = renderPage(undefined, { ...params, tenant_id: "acme", from_at: "2026-11-15T16:00:00Z" });
+
+    await screen.findByText("LCP p75");
+    await waitFor(() => expect(api.requestsTo("web_vitals_routes")).toHaveLength(1));
+    for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
+      const query = api.requestsTo(endpoint)[0];
+      expect(query?.get("tenant_id")).toBe("acme");
+      expect(query?.get("from_at")).toBe("2026-11-15T16:00:00Z");
+    }
+  });
+
   it("asks both endpoints for the dates of the range, not a number of days", async () => {
     const api = renderPage();
 
