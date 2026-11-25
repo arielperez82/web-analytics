@@ -85,11 +85,15 @@ const CardBody = ({
         <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
           {growth.text}
         </Badge>
-        vs previous period
+        <span className="ds-sr">vs previous period</span>
       </small>
     )}
-    {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
-    {note === undefined ? null : <small id={ids.note}>{note}</small>}
+    {caption === undefined && note === undefined ? null : (
+      <div className="card-tip">
+        {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
+        {note === undefined ? null : <small id={ids.note}>{note}</small>}
+      </div>
+    )}
     {trend === undefined ? null : (
       <div className="spark-slot">
         <Sparkline points={trend} />
@@ -119,7 +123,7 @@ const useCardIds = (content: CardContent) => {
 const StaticCard = (content: CardContent) => {
   const { ids } = useCardIds(content);
   return (
-    <div className="card">
+    <div className="card kpi">
       <CardBody {...content} ids={ids} />
     </div>
   );
@@ -134,7 +138,7 @@ const SelectableCard = ({
   return (
     <button
       type="button"
-      className="card card-select"
+      className="card kpi card-select"
       aria-pressed={selected}
       aria-labelledby={ids.label}
       aria-describedby={described}
@@ -310,6 +314,16 @@ export const Kpis = ({
       <Panel
         ref={chartPanel}
         focusable
+        aside={
+          <ul className="legend" aria-label="Chart legend">
+            <li className="current">{thisPeriod(params)}</li>
+            {comparison === undefined ? null : (
+              <li className="previous">
+                {comparedPeriod({ state, params }, comparison)}
+              </li>
+            )}
+          </ul>
+        }
         title={
           hourly
             ? `${label} per ${perHour}`
@@ -370,14 +384,6 @@ export const Kpis = ({
             </div>
           </div>
         </div>
-        <ul className="legend" aria-label="Chart legend">
-          <li className="current">{thisPeriod(params)}</li>
-          {comparison === undefined ? null : (
-            <li className="previous">
-              {comparedPeriod({ state, params }, comparison)}
-            </li>
-          )}
-        </ul>
         <small className="footnote">
           Lines are per-{unit} counts and can add up to more than the card.
         </small>

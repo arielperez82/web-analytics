@@ -121,4 +121,36 @@ describe("SidebarNav", () => {
 
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
+  describe("brand, site and account", () => {
+    it("names the product beside its mark", () => {
+      renderNav({ brand: "Acme" });
+
+      expect(within(screen.getByRole("navigation", { name: "Main" })).getByText("Acme")).toBeTruthy();
+    });
+
+    it("keeps the product name for screen readers but out of sight when collapsed", () => {
+      renderNav({ brand: "Acme", collapsed: true });
+
+      expect(screen.getByText("Acme").className).toContain("ds-sr");
+    });
+
+    it("shows the site chooser above the pages and the account below them when open", () => {
+      renderNav({ site: <button type="button">demo.example.com</button>, account: <button type="button">me@example.com</button> });
+
+      const buttons = screen.getAllByRole("button").map((button) => button.textContent);
+      const links = screen.getAllByRole("link");
+      const order = [...screen.getByRole("navigation", { name: "Main" }).querySelectorAll("button,a")].map((node) => node.textContent);
+
+      expect(buttons).toContain("demo.example.com");
+      expect(order.indexOf("demo.example.com")).toBeLessThan(order.indexOf(links[0].textContent ?? ""));
+      expect(order.indexOf("me@example.com")).toBeGreaterThan(order.indexOf(links[links.length - 1].textContent ?? ""));
+    });
+
+    it("leaves the site chooser and account out when collapsed", () => {
+      renderNav({ collapsed: true, site: <button type="button">demo.example.com</button>, account: <button type="button">me@example.com</button> });
+
+      expect(screen.queryByRole("button", { name: "demo.example.com" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "me@example.com" })).toBeNull();
+    });
+  });
 });

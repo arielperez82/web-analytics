@@ -47,7 +47,7 @@
 .sidebar-toggle,.side-tip{display:none}
 }
 @media (max-width:640px),(pointer:coarse){
-.ds-btn,.sidebar a,.skip-link,.see-all,.panel h2 a,label:has(input[type=checkbox]),button,select,input:not([type=checkbox]):not([type=radio]){min-height:44px}
+:root :is(.ds-btn,.sidebar a,.skip-link,.see-all,.panel h2 a,label:has(input[type=checkbox]),button,select,input:not([type=checkbox]):not([type=radio])){min-height:44px}
 }
 @media (max-width:640px),(pointer:coarse){.skip-link,.see-all,.panel h2 a,label:has(input[type=checkbox]){display:inline-flex;align-items:center}}
 .spark-slot{margin-top:auto;min-height:34px}
@@ -55,3 +55,9 @@
 .spark-line{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .skip-link{position:absolute;z-index:40;left:8px;top:-64px;padding:10px 16px;border-radius:9px;background:var(--surface);color:var(--accent-text);border:1px solid var(--accent);font-weight:600;text-decoration:none}
 .skip-link:focus{top:8px}
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 4px}
+.sidebar[data-collapsed=true] .sidebar-head{justify-content:center}
+.brand{display:flex;align-items:center;gap:10px}.brand-mark{flex:0 0 26px;width:26px;height:26px;border-radius:8px;background:var(--accent)}.brand-name{font-weight:700;font-size:16px}
+.sidebar[data-collapsed=true] .brand{display:none}
+.sidebar-site{display:grid;gap:8px}.sidebar-site select,.sidebar-account button{width:100%}
+.sidebar-account{margin-top:auto;display:grid;gap:8px;padding-top:12px;font-size:12.5px;color:var(--text-muted)}.sidebar-account button{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

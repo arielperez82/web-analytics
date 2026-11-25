@@ -5,24 +5,17 @@ import { useState } from "react";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { type DashboardState, SHORTCUTS } from "@/lib/dashboard-state";
 import { normalizeRange } from "@/lib/date-range";
+import { rangeLabel, sameRange } from "@/lib/range-label";
 import { rangeToParams } from "@/lib/time-range";
 import { localDay } from "@/lib/time-zone";
 import { usePopover } from "@/lib/use-popover";
 
 import { TimeZonePicker } from "./TimeZonePicker";
 
-const sameRange = (a: DashboardState["range"], b: DashboardState["range"]): boolean =>
-  "days" in a ? "days" in b && a.days === b.days : "preset" in a && "preset" in b && a.preset === b.preset;
-
 const QUICK = ["Today", "Last 24 Hours", "Last 7 Days", "Last 30 Days"];
 
 const quick = SHORTCUTS.filter(({ label }) => QUICK.includes(label));
 const rest = SHORTCUTS.filter(({ label }) => !QUICK.includes(label));
-
-const describe = (range: DashboardState["range"]): string => {
-  if (!("from" in range)) return SHORTCUTS.find((shortcut) => sameRange(shortcut.range, range))?.label ?? "";
-  return range.from === range.to ? range.from : `${range.from} → ${range.to}`;
-};
 
 const quickLabelOf = (range: DashboardState["range"]): string | undefined =>
   quick.find((shortcut) => sameRange(shortcut.range, range))?.label;
@@ -73,7 +66,7 @@ export const DateRangePicker = ({
         data-active={quickLabel === undefined}
         onClick={toggle}
       >
-        {quickLabel === undefined ? describe(range) : "Other"} · {zone} ▾
+        {quickLabel === undefined ? rangeLabel(range) : "Other"} · {zone} ▾
       </button>
       {popover.open && (
         <div className="popover" role="dialog" aria-label="Date range">

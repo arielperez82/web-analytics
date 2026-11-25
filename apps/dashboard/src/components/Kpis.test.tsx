@@ -136,6 +136,24 @@ describe("Kpis", () => {
     expect(screen.getByRole("button", { name: "Pageviews" })).toBeTruthy();
   });
 
+  it("keeps the explanations in a tooltip instead of the face of the card", async () => {
+    renderKpis();
+
+    const known = within(await card("Known visitors"));
+    const explanation = await known.findByText("41.5% of sessions from people who accepted tracking");
+
+    expect(explanation.closest(".card-tip")).not.toBeNull();
+    expect(known.getByText("120").closest(".card-tip")).toBeNull();
+  });
+
+  it("says what the change is measured against only to those who cannot see the comparison", async () => {
+    renderKpis();
+
+    const known = within(await card("Known visitors"));
+
+    expect((await known.findByText("vs previous period")).className).toContain("ds-sr");
+  });
+
   it("describes a card by its figures, change and notes, and only those it has", async () => {
     renderKpis();
     const describedBy = async (name: string) => {

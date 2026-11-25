@@ -13,8 +13,10 @@ export const Panel = ({
   children,
   ref,
   focusable = false,
+  aside,
 }: {
   title: ReactNode;
+  aside?: ReactNode;
   children: ReactNode;
   ref?: Ref<HTMLElement>;
   focusable?: boolean;
@@ -26,7 +28,10 @@ export const Panel = ({
       className="panel"
       {...(focusable ? { "aria-labelledby": heading, tabIndex: -1 } : {})}
     >
-      <h2 id={heading}>{title}</h2>
+      <div className="panel-head">
+        <h2 id={heading}>{title}</h2>
+        {aside}
+      </div>
       {children}
     </section>
   );
