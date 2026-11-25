@@ -1089,6 +1089,59 @@ const rankedBarPercentNode = (label: string) =>
       `,
   });
 
+/**
+ * Rows of one label from both periods: the union of `current_period_data` and `previous_period_data`,
+ * each row marked new or gone, ordered busiest first. Without a comparison, only the current period.
+ */
+const rankedSql = (label: string, limit: string): string => `
+        {% if defined(include_previous_period) and include_previous_period == 'true' %}
+        SELECT
+            ${label},
+            sessions,
+            hits,
+            previous_sessions,
+            previous_hits,
+            toInt64(sessions) - toInt64(previous_sessions) as sessions_change,
+            multiIf(previous_sessions = 0 AND sessions > 0, 'new', sessions = 0 AND previous_sessions > 0, 'gone', '') as status,
+            CASE
+                WHEN previous_sessions = 0 AND sessions > 0 THEN 100.0
+                WHEN previous_sessions = 0 THEN 0.0
+                ELSE round(((sessions - previous_sessions) * 100.0) / previous_sessions, 2)
+            END as sessions_growth_percentage,
+            CASE
+                WHEN previous_hits = 0 AND hits > 0 THEN 100.0
+                WHEN previous_hits = 0 THEN 0.0
+                ELSE round(((hits - previous_hits) * 100.0) / previous_hits, 2)
+            END as hits_growth_percentage
+        FROM (
+            SELECT
+                ${label},
+                sum(sessions) as sessions,
+                sum(hits) as hits,
+                sum(previous_sessions) as previous_sessions,
+                sum(previous_hits) as previous_hits
+            FROM (
+                SELECT ${label}, current_sessions as sessions, current_hits as hits, 0 as previous_sessions, 0 as previous_hits
+                FROM current_period_data
+                UNION ALL
+                SELECT ${label}, 0 as sessions, 0 as hits, previous_sessions, previous_hits
+                FROM previous_period_data
+            )
+            GROUP BY ${label}
+        )
+        ORDER BY sessions DESC, previous_sessions DESC, ${label} ASC
+        ${limit}
+        {% else %}
+        SELECT
+            ${label},
+            current_sessions as sessions,
+            current_hits as hits
+        FROM current_period_data
+        ORDER BY current_sessions DESC
+        ${limit}
+        {% end %}
+      `;
+
 type RankedSpec<L extends string> = {
   readonly name: string;
   readonly description: string;
@@ -1168,54 +1221,7 @@ ${comparedWindowSql}
       node({
         name: "ranked",
         description: "Union both periods by label, mark new and gone rows",
-        sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            ${spec.label},
-            sessions,
-            hits,
-            previous_sessions,
-            previous_hits,
-            toInt64(sessions) - toInt64(previous_sessions) as sessions_change,
-            multiIf(previous_sessions = 0 AND sessions > 0, 'new', sessions = 0 AND previous_sessions > 0, 'gone', '') as status,
-            CASE
-                WHEN previous_sessions = 0 AND sessions > 0 THEN 100.0
-                WHEN previous_sessions = 0 THEN 0.0
-                ELSE round(((sessions - previous_sessions) * 100.0) / previous_sessions, 2)
-            END as sessions_growth_percentage,
-            CASE
-                WHEN previous_hits = 0 AND hits > 0 THEN 100.0
-                WHEN previous_hits = 0 THEN 0.0
-                ELSE round(((hits - previous_hits) * 100.0) / previous_hits, 2)
-            END as hits_growth_percentage
-        FROM (
-            SELECT
-                ${spec.label},
-                sum(sessions) as sessions,
-                sum(hits) as hits,
-                sum(previous_sessions) as previous_sessions,
-                sum(previous_hits) as previous_hits
-            FROM (
-                SELECT ${spec.label}, current_sessions as sessions, current_hits as hits, 0 as previous_sessions, 0 as previous_hits
-                FROM current_period_data
-                UNION ALL
-                SELECT ${spec.label}, 0 as sessions, 0 as hits, previous_sessions, previous_hits
-                FROM previous_period_data
-            )
-            GROUP BY ${spec.label}
-        )
-        ORDER BY sessions DESC, previous_sessions DESC, ${spec.label} ASC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% else %}
-        SELECT
-            ${spec.label},
-            current_sessions as sessions,
-            current_hits as hits
-        FROM current_period_data
-        ORDER BY current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% end %}
-      `,
+        sql: rankedSql(spec.label, "LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}"),
       }),
       rankedBarPercentNode(spec.label),
     ],
@@ -1305,7 +1311,7 @@ export const topSources = rankedEndpoint({
 export type TopSourcesParams = InferParams<typeof topSources>;
 export type TopSourcesOutput = InferOutputRow<typeof topSources>;
 
-const channelDateNode = () =>
+const channelDateNode = (window = currentWindowSql) =>
   node({
     name: "date_calculations",
     sql: `
@@ -1316,11 +1322,12 @@ const channelDateNode = () =>
             {% else %}
                 toDate(timestampAdd(today(), interval -7 day)) as current_start,
                 toDate(today()) as current_end
-            {% end %}
+            {% end %},
+            timestampAdd(current_start, interval -(dateDiff('day', current_start, current_end) + 1) day) as previous_start
         SELECT
             current_start,
             current_end,
-${currentWindowSql}
+${window}
       `,
   });
 
@@ -1329,9 +1336,9 @@ const pathKey = (expression: string): string => {
   return `if(trimRight(${decoded}, '/') = '', '/', trimRight(${decoded}, '/'))`;
 };
 
-const channelVisitsNode = (extraColumns = "") =>
+const channelVisitsNode = (extraColumns = "", period: "current" | "previous" = "current") =>
   node({
-    name: "sessions",
+    name: period === "current" ? "sessions" : "prior_sessions",
     description: "First page view of each session, with its UTMs and referrer",
     sql: `
         SELECT
@@ -1346,8 +1353,8 @@ const channelVisitsNode = (extraColumns = "") =>
             argMin(current_domain, timestamp) as site_domain,
             count() as hits${extraColumns}
         FROM analytics_hits
-        WHERE timestamp >= (SELECT current_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+        WHERE timestamp >= (SELECT ${period}_start_at FROM date_calculations)
+            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1361,9 +1368,9 @@ const channelVisitsNode = (extraColumns = "") =>
       `,
   });
 
-const channelVisitorCampaignsNode = () =>
+const channelVisitorCampaignsNode = (period: "current" | "previous" = "current") =>
   node({
-    name: "visitor_campaigns",
+    name: period === "current" ? "visitor_campaigns" : "prior_visitor_campaigns",
     description: "The first campaign each anonymous visitor arrived with. Daily ids only: stored ids already carry their campaign in the browser.",
     sql: `
         SELECT
@@ -1375,8 +1382,8 @@ const channelVisitorCampaignsNode = () =>
         FROM analytics_hits
         WHERE visitor_id != ''
             AND id_mode IN ('daily_direct', 'daily_proxy')
-            AND timestamp >= (SELECT current_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+            AND timestamp >= (SELECT ${period}_start_at FROM date_calculations)
+            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
             {% if defined(tenant_id) %}
             AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
             {% end %}
@@ -1391,9 +1398,9 @@ const channelVisitorCampaignsNode = () =>
       `,
   });
 
-const channelFirstTouchNode = (extraColumns = "") =>
+const channelFirstTouchNode = (extraColumns = "", period: "current" | "previous" = "current") =>
   node({
-    name: "first_touch",
+    name: period === "current" ? "first_touch" : "prior_first_touch",
     description: "Each session with its campaign: its own, or the one its anonymous visitor arrived with earlier",
     sql: `
         SELECT
@@ -1405,8 +1412,8 @@ const channelFirstTouchNode = (extraColumns = "") =>
             v.referrer_domain as referrer_domain,
             v.site_domain as site_domain,
             v.hits as hits${extraColumns}
-        FROM sessions v
-        LEFT JOIN visitor_campaigns c
+        FROM ${period === "current" ? "sessions" : "prior_sessions"} v
+        LEFT JOIN ${period === "current" ? "visitor_campaigns" : "prior_visitor_campaigns"} c
             ON v.tenant_id = c.tenant_id AND v.domain = c.domain AND v.visitor_id = c.visitor_id
       `,
   });
@@ -1420,6 +1427,14 @@ const channelSql = `multiIf(
                 match(referrer_domain, '(^|\\.)(facebook|instagram|linkedin|twitter|reddit|pinterest|tiktok|youtube)\\.com$') OR referrer_domain IN ('t.co', 'x.com', 'lnkd.in', 'news.ycombinator.com'), 'Social',
                 'Referral'
             )`;
+
+const channelPeriodDataSql = (source: string, period: "current" | "previous"): string => `
+        SELECT
+            ${channelSql} as channel,
+            count() as ${period}_sessions,
+            sum(hits) as ${period}_hits
+        FROM ${source}
+        GROUP BY channel`;
 
 const channelParams = {
   date_from: p.string().optional().describe("Start date"),
@@ -1436,28 +1451,40 @@ const channelParams = {
  */
 export const channels = defineEndpoint("channels", {
   description:
-    "Sessions and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit",
+    "Sessions and hits grouped by acquisition channel (Paid, Email, Organic Search, Social, Referral, Direct), taken from the first page view of each visit, with an optional comparison period",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
-    channelDateNode(),
+    channelDateNode(comparedWindowSql),
     channelVisitsNode(),
     channelVisitorCampaignsNode(),
     channelFirstTouchNode(),
+    channelVisitsNode("", "previous"),
+    channelVisitorCampaignsNode("previous"),
+    channelFirstTouchNode("", "previous"),
     node({
-      name: "ranked",
+      name: "current_period_data",
+      sql: channelPeriodDataSql("first_touch", "current"),
+    }),
+    node({
+      name: "previous_period_data",
       sql: `
-        SELECT
-            ${channelSql} as channel,
-            count() as sessions,
-            sum(hits) as hits
-        FROM first_touch
-        GROUP BY channel
-        ORDER BY sessions DESC
+        {% if defined(include_previous_period) and include_previous_period == 'true' %}${channelPeriodDataSql("prior_first_touch", "previous")}
+        {% else %}
+        SELECT '' as channel, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
+        {% end %}
       `,
     }),
-    barPercentNode(),
+    node({
+      name: "ranked",
+      sql: rankedSql("channel", ""),
+    }),
+    rankedBarPercentNode("channel"),
   ],
-  params: channelParams,
+  params: {
+    ...channelParams,
+    include_previous_period: p.string().optional().describe("Include previous period"),
+    ...compareWindowParams,
+  },
   output: {
     channel: t.string(),
     sessions: t.uint64(),
