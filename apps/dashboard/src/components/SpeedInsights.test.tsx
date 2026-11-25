@@ -29,6 +29,26 @@ const renderPage = (vitals: readonly ApiRow[] = [vital("LCP", 2100)], pageParams
 };
 
 describe("SpeedInsights", () => {
+  it("asks both endpoints for the same visitor filters as the rest of the dashboard", async () => {
+    const api = renderPage(undefined, {
+      ...params,
+      location: "ES",
+      device: "mobile-ios",
+      browser: "safari",
+      include_bots: "1",
+    });
+
+    await screen.findByText("LCP p75");
+    await waitFor(() => expect(api.requestsTo("web_vitals_routes")).toHaveLength(1));
+    for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
+      const query = api.requestsTo(endpoint)[0];
+      expect(query?.get("location")).toBe("ES");
+      expect(query?.get("device")).toBe("mobile-ios");
+      expect(query?.get("browser")).toBe("safari");
+      expect(query?.get("include_bots")).toBe("1");
+    }
+  });
+
   it("asks both endpoints for the picked tenant and the exact start of the window", async () => {
     const api = renderPage(undefined, { ...params, tenant_id: "acme", from_at: "2026-11-15T16:00:00Z" });
 
