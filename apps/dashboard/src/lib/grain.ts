@@ -7,6 +7,8 @@ const BUCKET_HOURS = [1, 4] as const;
 
 type DayRange = { readonly date_from?: string; readonly date_to?: string; readonly from_at?: string };
 
+export const isExactWindow = ({ from_at }: DayRange): boolean => from_at !== undefined;
+
 const daysIn = ({ date_from, date_to }: DayRange): number =>
   date_from === undefined || date_to === undefined
     ? 0

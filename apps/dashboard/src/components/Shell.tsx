@@ -13,6 +13,7 @@ import { useEndpoint } from "@/lib/use-endpoint";
 import { rangeLabel } from "@/lib/range-label";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 
+import { CompareControl } from "./CompareControl";
 import { DateRangePicker } from "./DateRangePicker";
 import { FilterMenu } from "./FilterMenu";
 import { fmt, type Row } from "./ui";
@@ -102,6 +103,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
               onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
             />
           )}
+          {onOverview && <CompareControl state={state} params={params} onChange={update} />}
           <DateRangePicker
             range={state.range}
             zone={zone}
