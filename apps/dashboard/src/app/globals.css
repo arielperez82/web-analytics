@@ -28,8 +28,5 @@ td.label{position:relative;width:70%}.bar{position:absolute;inset:2px auto 2px 0
 .kpi>span:first-child{flex:0 0 100%;font-size:13px;font-weight:500;color:var(--muted)}
 .kpi>strong{margin-top:0;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
 .kpi>.spark-slot{flex:0 0 100%;margin-top:4px}
-.card-tip{position:absolute;z-index:30;left:0;top:calc(100% + 6px);width:max(100%,220px);display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-radius:9px;background:var(--tip-bg);color:var(--tip-fg);font-size:12.5px;line-height:16px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s}
-.card-tip small{color:var(--tip-muted);font-size:12px}
-.kpi:hover .card-tip,.kpi:focus-visible .card-tip,.kpi:focus-within .card-tip{opacity:1;visibility:visible}
 .panel-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}.panel-head h2{margin:0}.panel-head .legend{margin:0}
 .compare{display:flex;align-items:center;gap:8px}.compare-label{font-size:12px;color:var(--muted)}

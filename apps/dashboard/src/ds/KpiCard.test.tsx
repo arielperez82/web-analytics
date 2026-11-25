@@ -40,7 +40,7 @@ describe("KpiCard", () => {
     expect(screen.getByText("410").textContent).toBe("410");
   });
 
-  it("puts the change right beneath the figure", () => {
+  it("follows the figure with its change", () => {
     explained();
 
     const value = screen.getByText("410");

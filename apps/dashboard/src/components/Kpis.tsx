@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { Badge } from "@/ds/Badge";
+import { KpiCard } from "@/ds/KpiCard";
 import { SegmentedControl } from "@/ds/SegmentedControl";
 import { Sparkline } from "@/ds/Sparkline";
 import { xLabels, yTicks } from "@/lib/chart-axis";
@@ -59,94 +60,33 @@ const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
   delta: deltaOf({ percent, higherIsBetter }),
 });
 
-const CardBody = ({
+const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
   label,
   value,
-  growth,
-  approximate = false,
-  caption,
-  note,
-  trend,
-  ids,
-}: CardContent & { readonly ids: Record<"label" | "value" | "growth" | "caption" | "note", string> }) => (
-  <>
-    <span id={ids.label}>{label}</span>
-    <strong id={ids.value}>
-      {value}
-      {approximate ? (
-        <abbr title={APPROXIMATE_COUNT_NOTE} aria-label={APPROXIMATE_COUNT_NOTE}>
-          *
-        </abbr>
-      ) : null}
-    </strong>
-    {growth === undefined ? null : (
-      <small id={ids.growth} className="delta">
+  delta:
+    growth === undefined ? undefined : (
+      <>
         <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
           {growth.text}
         </Badge>
         <span className="ds-sr">vs previous period</span>
-      </small>
-    )}
-    {caption === undefined && note === undefined ? null : (
-      <div className="card-tip">
-        {caption === undefined ? null : <small id={ids.caption}>{caption}</small>}
-        {note === undefined ? null : <small id={ids.note}>{note}</small>}
-      </div>
-    )}
-    {trend === undefined ? null : (
-      <div className="spark-slot">
-        <Sparkline points={trend} />
-      </div>
-    )}
-  </>
-);
+      </>
+    ),
+  tips: [caption, note, approximate ? APPROXIMATE_COUNT_NOTE : undefined].filter(
+    (tip): tip is string => tip !== undefined,
+  ),
+  trend: trend === undefined ? undefined : <Sparkline points={trend} />,
+});
 
-const useCardIds = (content: CardContent) => {
-  const base = useId();
-  const ids = {
-    label: `${base}-label`,
-    value: `${base}-value`,
-    growth: `${base}-growth`,
-    caption: `${base}-caption`,
-    note: `${base}-note`,
-  };
-  const described = [
-    ids.value,
-    ...(content.growth === undefined ? [] : [ids.growth]),
-    ...(content.caption === undefined ? [] : [ids.caption]),
-    ...(content.note === undefined ? [] : [ids.note]),
-  ].join(" ");
-  return { ids, described };
-};
-
-const StaticCard = (content: CardContent) => {
-  const { ids } = useCardIds(content);
-  return (
-    <div className="card kpi">
-      <CardBody {...content} ids={ids} />
-    </div>
-  );
-};
+const StaticCard = (content: CardContent) => <KpiCard {...cardProps(content)} />;
 
 const SelectableCard = ({
   selected,
   onSelect,
   ...content
-}: CardContent & { readonly selected: boolean; readonly onSelect: () => void }) => {
-  const { ids, described } = useCardIds(content);
-  return (
-    <button
-      type="button"
-      className="card kpi card-select"
-      aria-pressed={selected}
-      aria-labelledby={ids.label}
-      aria-describedby={described}
-      onClick={onSelect}
-    >
-      <CardBody {...content} ids={ids} />
-    </button>
-  );
-};
+}: CardContent & { readonly selected: boolean; readonly onSelect: () => void }) => (
+  <KpiCard {...cardProps(content)} selected={selected} onSelect={onSelect} />
+);
 
 export const Kpis = ({
   state,

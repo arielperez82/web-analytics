@@ -142,8 +142,8 @@ describe("Kpis", () => {
     const known = within(await card("Known visitors"));
     const explanation = await known.findByText("41.5% of sessions from people who accepted tracking");
 
-    expect(explanation.closest(".card-tip")).not.toBeNull();
-    expect(known.getByText("120").closest(".card-tip")).toBeNull();
+    expect(explanation.closest("[role=tooltip]")).not.toBeNull();
+    expect(known.getByText("120").closest("[role=tooltip]")).toBeNull();
   });
 
   it("says what the change is measured against only to those who cannot see the comparison", async () => {
@@ -169,7 +169,7 @@ describe("Kpis", () => {
     expect(known).toContain("41.5% of sessions from people who accepted tracking");
     expect(sessions).toContain("+7.89%");
     expect(sessions).not.toContain("Unique people");
-    expect(sessions.split(" | ")).toHaveLength(2);
+    expect(sessions.split(" | ")).toHaveLength(3);
   });
 
   it("lets the keyboard pick a card", async () => {
@@ -201,15 +201,19 @@ describe("Kpis", () => {
     expect(screen.queryByText("100")).toBeNull();
   });
 
-  it("marks distinct counts as approximate and exact counts as plain", async () => {
+  it("says distinct counts are approximate in the explanation, never with a mark on the figure", async () => {
     renderKpis();
-
     const note = "Exact for small counts, within 1% for large ones.";
-    await waitFor(async () => expect(within(await card("Sessions")).getByTitle(note)).toBeTruthy());
-    expect(within(await card("Known visitors")).getByTitle(note)).toBeTruthy();
-    expect(within(await card("Anonymous visitors")).getByTitle(note)).toBeTruthy();
-    expect(within(await card("Pageviews")).queryByTitle(note)).toBeNull();
-    expect(within(await card("Bounce rate")).queryByTitle(note)).toBeNull();
+    const tipOf = async (name: string) =>
+      within(await card(name)).queryByRole("tooltip", { hidden: true })?.textContent ?? "";
+
+    await waitFor(async () => expect(within(await card("Sessions")).getByText("410").textContent).toBe("410"));
+    expect(await tipOf("Sessions")).toContain(note);
+    expect(await tipOf("Known visitors")).toContain(note);
+    expect(await tipOf("Anonymous visitors")).toContain(note);
+    expect(await tipOf("Pageviews")).not.toContain(note);
+    expect(await tipOf("Bounce rate")).not.toContain(note);
+    expect(document.querySelector(".kpi abbr")).toBeNull();
   });
 
   it("labels the y axis from the highest value of either line and the x axis with the days", async () => {
