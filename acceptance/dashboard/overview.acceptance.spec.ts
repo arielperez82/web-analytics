@@ -445,6 +445,25 @@ test.describe('time zone', () => {
       page.getByText('which ends at each visitor’s own midnight')
     ).toBeVisible();
   });
+
+  test('a key figure carries no mark, and its explanation opens on focus and closes with Escape', async ({
+    page,
+  }) => {
+    await stubApi(page, routes);
+    await signIn(page);
+    const sessions = page.getByRole('button', { name: 'Sessions' });
+    const tip = sessions.getByRole('tooltip');
+
+    await expect(sessions.locator('strong')).not.toContainText('*');
+    await expect(tip).toBeHidden();
+
+    await sessions.focus();
+    await expect(tip).toContainText('within 1% for large ones');
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(sessions).toBeFocused();
+  });
 });
 
 test('the chart is compared with the period before it until the viewer switches that off', async ({
