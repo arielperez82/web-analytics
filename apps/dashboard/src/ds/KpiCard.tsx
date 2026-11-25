@@ -15,35 +15,51 @@ type KpiCardProps = {
 };
 
 const useDelayedTip = () => {
-  const [open, setOpen] = useState(false);
+  const [pointerInside, setPointerInside] = useState(false);
+  const [rested, setRested] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const byPointer = useRef(false);
   const cancel = () => clearTimeout(timer.current);
-  const close = () => {
-    cancel();
-    setOpen(false);
-  };
   useEffect(() => cancel, []);
+  const engaged = pointerInside || focused;
   useEffect(() => {
-    if (!open) return undefined;
+    if (!engaged) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      cancel();
+      setDismissed(true);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [engaged]);
   return {
-    open,
+    open: !dismissed && (rested || focused),
     handlers: {
       onMouseEnter: () => {
         cancel();
-        timer.current = setTimeout(() => setOpen(true), TIP_DELAY_MS);
+        setPointerInside(true);
+        setDismissed(false);
+        timer.current = setTimeout(() => setRested(true), TIP_DELAY_MS);
       },
-      onMouseLeave: close,
-      onFocus: () => {
+      onMouseLeave: () => {
         cancel();
-        setOpen(true);
+        byPointer.current = false;
+        setPointerInside(false);
+        setRested(false);
       },
-      onBlur: close,
+      onPointerDown: () => {
+        byPointer.current = true;
+      },
+      onFocus: () => {
+        const clicked = byPointer.current;
+        byPointer.current = false;
+        if (clicked) return;
+        setDismissed(false);
+        setFocused(true);
+      },
+      onBlur: () => setFocused(false),
     },
   };
 };
@@ -67,8 +83,8 @@ export const KpiCard = ({ label, value, delta, tips = [], trend, selected, onSel
       )}
       {hasTip ? (
         <span id={ids.tip} role="tooltip" className="kpi-tip" hidden={!open}>
-          {tips.map((tip) => (
-            <small key={tip}>{tip}</small>
+          {tips.map((tip, index) => (
+            <small key={`${String(index)}-${tip}`}>{tip}</small>
           ))}
         </span>
       ) : null}
@@ -77,7 +93,14 @@ export const KpiCard = ({ label, value, delta, tips = [], trend, selected, onSel
   );
   if (onSelect === undefined)
     return (
-      <div className="card kpi" tabIndex={hasTip ? 0 : undefined} aria-describedby={hasTip ? ids.tip : undefined} {...handlers}>
+      <div
+        role="group"
+        className="card kpi"
+        tabIndex={hasTip ? 0 : undefined}
+        aria-labelledby={ids.label}
+        aria-describedby={hasTip ? ids.tip : undefined}
+        {...handlers}
+      >
         {body}
       </div>
     );

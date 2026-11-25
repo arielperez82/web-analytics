@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { KpiCard, TIP_DELAY_MS } from "./KpiCard";
+import { KpiCard } from "./KpiCard";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -32,19 +33,18 @@ const wait = (ms: number) =>
   act(() => {
     vi.advanceTimersByTime(ms);
   });
+const keyboard = () => {
+  vi.useRealTimers();
+  return userEvent.setup();
+};
+const describedBy = (element: HTMLElement) =>
+  (element.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)?.textContent);
 
 describe("KpiCard", () => {
-  it("shows the figure as given, with no mark on it", () => {
-    explained();
+  it("is named by its label and described by its figure, unmarked, then its change and explanations", () => {
+    explained({ tips: ["Unique people", "41.5% accepted tracking"] });
 
-    expect(screen.getByText("410").textContent).toBe("410");
-  });
-
-  it("follows the figure with its change", () => {
-    explained();
-
-    const value = screen.getByText("410");
-    expect(value.nextElementSibling?.textContent).toBe("+7.89%");
+    expect(describedBy(card())).toEqual(["410", "+7.89%", "Unique people41.5% accepted tracking"]);
   });
 
   it("keeps its explanations hidden until asked for", () => {
@@ -54,11 +54,11 @@ describe("KpiCard", () => {
     expect(tip().textContent).toContain("within 1% for large ones");
   });
 
-  it("explains itself only after the pointer rests on it for a moment", () => {
+  it("explains itself only after the pointer rests on it for 400ms", () => {
     explained();
 
     fireEvent.mouseEnter(card());
-    wait(TIP_DELAY_MS - 1);
+    wait(399);
     expect(tip().hidden).toBe(true);
     wait(1);
     expect(tip().hidden).toBe(false);
@@ -68,24 +68,36 @@ describe("KpiCard", () => {
     explained();
 
     fireEvent.mouseEnter(card());
-    wait(TIP_DELAY_MS - 1);
+    wait(399);
     fireEvent.mouseLeave(card());
-    wait(TIP_DELAY_MS);
+    wait(400);
 
     expect(tip().hidden).toBe(true);
+  });
+
+  it("starts the wait again when the pointer comes back", () => {
+    explained();
+
+    fireEvent.mouseEnter(card());
+    wait(200);
+    fireEvent.mouseEnter(card());
+    wait(399);
+    expect(tip().hidden).toBe(true);
+    wait(1);
+    expect(tip().hidden).toBe(false);
   });
 
   it("hides the explanation when the pointer leaves", () => {
     explained();
 
     fireEvent.mouseEnter(card());
-    wait(TIP_DELAY_MS);
+    wait(400);
     fireEvent.mouseLeave(card());
 
     expect(tip().hidden).toBe(true);
   });
 
-  it("explains itself straight away to the keyboard, and hides on leaving", () => {
+  it("explains itself straight away to the keyboard, and hides when focus leaves", () => {
     explained();
 
     fireEvent.focus(card());
@@ -94,34 +106,66 @@ describe("KpiCard", () => {
     expect(tip().hidden).toBe(true);
   });
 
-  it("dismisses the explanation with Escape without moving the pointer or focus", () => {
+  it("keeps the explanation open for the keyboard when the pointer leaves", () => {
     explained();
 
+    fireEvent.focus(card());
     fireEvent.mouseEnter(card());
-    wait(TIP_DELAY_MS);
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    expect(tip().hidden).toBe(true);
-    expect(card()).toBeTruthy();
-  });
-
-  it("lets the pointer move onto the explanation to read it", () => {
-    explained();
-
-    fireEvent.mouseEnter(card());
-    wait(TIP_DELAY_MS);
-    fireEvent.mouseEnter(tip());
+    fireEvent.mouseLeave(card());
 
     expect(tip().hidden).toBe(false);
   });
 
-  it("is named by its label and described by its figure, change and explanations", () => {
-    explained({ tips: ["Unique people", "41.5% accepted tracking"] });
+  it("keeps the explanation open for the pointer when focus leaves", () => {
+    explained();
 
-    const ids = (card().getAttribute("aria-describedby") ?? "").split(" ");
-    const described = ids.map((id) => document.getElementById(id)?.textContent);
+    fireEvent.mouseEnter(card());
+    wait(400);
+    fireEvent.focus(card());
+    fireEvent.blur(card());
 
-    expect(described).toEqual(["410", "+7.89%", "Unique people41.5% accepted tracking"]);
+    expect(tip().hidden).toBe(false);
+  });
+
+  it("waits for the pointer even when a click gives the card focus", () => {
+    explained();
+
+    fireEvent.mouseEnter(card());
+    fireEvent.pointerDown(card());
+    fireEvent.focus(card());
+    expect(tip().hidden).toBe(true);
+    wait(400);
+    expect(tip().hidden).toBe(false);
+  });
+
+  it("dismisses the explanation with Escape and leaves focus where it was", async () => {
+    const user = keyboard();
+    explained();
+    await user.tab();
+
+    await user.keyboard("a");
+    expect(tip().hidden).toBe(false);
+    await user.keyboard("{Escape}");
+
+    expect(tip().hidden).toBe(true);
+    expect(document.activeElement).toBe(card());
+  });
+
+  it("dismisses an explanation that was still waiting to show", () => {
+    explained();
+
+    fireEvent.mouseEnter(card());
+    wait(200);
+    fireEvent.keyDown(document, { key: "Escape" });
+    wait(400);
+
+    expect(tip().hidden).toBe(true);
+  });
+
+  it("keeps the explanation inside the card, so the pointer can move onto it", () => {
+    explained();
+
+    expect(card().contains(tip())).toBe(true);
   });
 
   it("has no explanation to show when it was given none", () => {
@@ -130,7 +174,7 @@ describe("KpiCard", () => {
     fireEvent.focus(card());
 
     expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
-    expect(card().getAttribute("aria-describedby")).not.toContain("undefined");
+    expect(describedBy(card())).toEqual(["410", "+7.89%"]);
   });
 
   it("can be picked, and says whether it is", () => {
@@ -143,10 +187,29 @@ describe("KpiCard", () => {
     expect(card().getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("is plain content, not a control, when it cannot be picked", () => {
+  it("is a named group, not a control, when it cannot be picked", () => {
     explained({ onSelect: undefined, selected: undefined });
 
+    const group = screen.getByRole("group", { name: "Sessions" });
+
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByText("410")).toBeTruthy();
+    expect(describedBy(group)).toEqual(["Exact for small counts, within 1% for large ones."]);
+  });
+
+  it("still explains itself to the keyboard when it cannot be picked", async () => {
+    const user = keyboard();
+    explained({ onSelect: undefined, selected: undefined });
+
+    await user.tab();
+
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Sessions" }));
+
+    expect(tip().hidden).toBe(false);
+  });
+
+  it("shows two explanations that happen to read the same", () => {
+    explained({ tips: ["Same words", "Same words"] });
+
+    expect(tip().querySelectorAll("small")).toHaveLength(2);
   });
 });

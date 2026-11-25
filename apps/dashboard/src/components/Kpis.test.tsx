@@ -168,8 +168,7 @@ describe("Kpis", () => {
     expect(known).toContain("Unique people, counted once across the range");
     expect(known).toContain("41.5% of sessions from people who accepted tracking");
     expect(sessions).toContain("+7.89%");
-    expect(sessions).not.toContain("Unique people");
-    expect(sessions.split(" | ")).toHaveLength(3);
+    expect(sessions.split(" | ")).toEqual(["410", "▲Up+7.89%vs previous period", "Exact for small counts, within 1% for large ones."]);
   });
 
   it("lets the keyboard pick a card", async () => {
@@ -211,9 +210,9 @@ describe("Kpis", () => {
     expect(await tipOf("Sessions")).toContain(note);
     expect(await tipOf("Known visitors")).toContain(note);
     expect(await tipOf("Anonymous visitors")).toContain(note);
-    expect(await tipOf("Pageviews")).not.toContain(note);
-    expect(await tipOf("Bounce rate")).not.toContain(note);
-    expect(document.querySelector(".kpi abbr")).toBeNull();
+    expect(await tipOf("Pageviews")).toBe("");
+    expect(await tipOf("Bounce rate")).toBe("");
+    expect(within(await card("Known visitors")).getByText("120").textContent).toBe("120");
   });
 
   it("labels the y axis from the highest value of either line and the x axis with the days", async () => {
