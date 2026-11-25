@@ -7,7 +7,6 @@ import { SegmentedControl } from "@/ds/SegmentedControl";
 import { Sparkline } from "@/ds/Sparkline";
 import { xLabels, yTicks } from "@/lib/chart-axis";
 import {
-  type Compare,
   type DashboardState,
   drillDay,
   type Grain,
@@ -20,7 +19,7 @@ import {
   formatSeconds,
   formatSignedPercent,
 } from "@/lib/format";
-import { effectiveGrain, hourAvailable, hourBucket } from "@/lib/grain";
+import { effectiveGrain, hourAvailable, hourBucket, isExactWindow } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { type Metric, type Trend, type TrendPoint, useSeries } from "@/lib/use-series";
@@ -149,52 +148,6 @@ const SelectableCard = ({
   );
 };
 
-const comparisons = (
-  exact: boolean,
-): readonly {
-  readonly key: Compare | "previous";
-  readonly label: string;
-}[] => [
-  { key: "previous", label: "Previous period" },
-  {
-    key: "last_week",
-    label: exact ? "Same hours last week" : "Same day last week",
-  },
-  { key: "off", label: "None" },
-];
-
-const isExactWindow = (params: QueryParams): boolean =>
-  params.from_at !== undefined;
-
-const isSingleDay = (params: QueryParams): boolean =>
-  params.date_from === params.date_to;
-
-const thisPeriod = (params: QueryParams): string =>
-  isExactWindow(params)
-    ? "This period · Last 24 hours"
-    : `This period · ${String(params.date_from)} – ${String(params.date_to)}`;
-
-const comparedPeriod = (
-  {
-    state,
-    params,
-  }: { readonly state: DashboardState; readonly params: QueryParams },
-  comparison: { readonly compare_from: string; readonly compare_to: string },
-): string => {
-  const lastWeek = state.compare === "last_week";
-  if (isExactWindow(params))
-    return lastWeek
-      ? "Same hours last week · a week earlier"
-      : "Previous period · the 24 hours before";
-  return `${lastWeek ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`;
-};
-
-const comparisonKey = (state: DashboardState): Compare | "previous" =>
-  state.compare ?? "previous";
-
-const isAllTime = (state: DashboardState): boolean =>
-  "preset" in state.range && state.range.preset === "all_time";
-
 export const Kpis = ({
   state,
   params,
@@ -249,11 +202,6 @@ export const Kpis = ({
     label: option.label,
     disabled: option.key === "hour" ? !hourAvailable(params) : isExactWindow(params),
   }));
-  const compareOptions = comparisons(isExactWindow(params))
-    .filter((option) => option.key !== "last_week" || isSingleDay(params) || isExactWindow(params))
-    .map((option) => ({ value: option.key, label: option.label }));
-  const setCompare = (next: Compare | "previous") =>
-    onChange({ ...state, compare: next === "previous" ? undefined : next });
   const setGrain = (key: Grain) => {
     if (key !== grain && grainOptions.find((option) => option.value === key)?.disabled === false)
       onChange({ ...state, grain: key });
@@ -316,19 +264,11 @@ export const Kpis = ({
         focusable
         aside={
           <ul className="legend" aria-label="Chart legend">
-            <li className="current">{thisPeriod(params)}</li>
-            {comparison === undefined ? null : (
-              <li className="previous">
-                {comparedPeriod({ state, params }, comparison)}
-              </li>
-            )}
+            <li className="current">This period</li>
+            {comparison === undefined ? null : <li className="previous">Previous period</li>}
           </ul>
         }
-        title={
-          hourly
-            ? `${label} per ${perHour}`
-            : `${label} per day · click a point to drill in`
-        }
+        title={`${label} per ${hourly ? perHour : "day"}`}
       >
         <div className="chart-controls">
           <div className="chart-options">
@@ -338,14 +278,6 @@ export const Kpis = ({
               options={grainOptions}
               onChange={setGrain}
             />
-            {isAllTime(state) ? null : (
-              <SegmentedControl
-                label="Compare to"
-                value={comparisonKey(state)}
-                options={compareOptions}
-                onChange={setCompare}
-              />
-            )}
           </div>
         </div>
         <Status loading={false} error={chartError} stale={points !== undefined} empty={false} onRetry={retryChart} />
@@ -384,9 +316,6 @@ export const Kpis = ({
             </div>
           </div>
         </div>
-        <small className="footnote">
-          Lines are per-{unit} counts and can add up to more than the card.
-        </small>
       </Panel>
     </>
   );

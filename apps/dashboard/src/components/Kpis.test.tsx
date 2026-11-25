@@ -391,84 +391,45 @@ describe("Kpis", () => {
     expect((within(grain).getByRole("button", { name: "Day" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("names the two ranges in a legend", async () => {
+  const legendItems = async () =>
+    within(await screen.findByLabelText("Chart legend"))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  it("names the two lines This period and Previous period, without their dates", async () => {
     renderKpis({ comparison });
 
-    expect(await screen.findByText("This period · 2026-11-10 – 2026-11-16")).toBeTruthy();
-    expect(screen.getByText("Previous period · 2026-11-03 – 2026-11-09")).toBeTruthy();
+    expect(await legendItems()).toEqual(["This period", "Previous period"]);
   });
 
-  it("says that the lines can add up to more than the card", async () => {
+  it("calls the same day last week the previous period too", async () => {
+    renderKpis({
+      params: { ...params, date_to: "2026-11-10" },
+      comparison,
+      state: { ...state, compare: "last_week" },
+    });
+
+    expect(await legendItems()).toEqual(["This period", "Previous period"]);
+  });
+
+  it("is titled by metric and time group alone", async () => {
     renderKpis();
 
-    const note = await screen.findByText("Lines are per-day counts and can add up to more than the card.");
-    expect(note.className).toBe("footnote");
+    expect(await screen.findByRole("heading", { name: "Sessions per day" })).toBeTruthy();
   });
 
-  describe("the comparison control", () => {
-    it("offers the previous period or nothing for a week", async () => {
-      renderKpis({ comparison });
+  it("gives no reading instructions under the chart", async () => {
+    renderKpis();
 
-      const group = await screen.findByRole("group", { name: "Compare to" });
-      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
-        "Previous period",
-        "None",
-      ]);
-      expect(within(group).getByRole("button", { name: "Previous period" }).getAttribute("aria-pressed")).toBe("true");
-    });
+    await screen.findByRole("heading", { name: "Sessions per day" });
+    expect(screen.queryByText(/Lines are/)).toBeNull();
+  });
 
-    it("also offers the same day last week on a single day", async () => {
-      renderKpis({ params: { ...params, date_to: "2026-11-10" }, comparison });
+  it("leaves the comparison choice to the page header", async () => {
+    renderKpis({ comparison });
 
-      const group = await screen.findByRole("group", { name: "Compare to" });
-      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
-        "Previous period",
-        "Same day last week",
-        "None",
-      ]);
-    });
-
-    it("writes the choice into the state, and the default back out of it", async () => {
-      const picked: DashboardState[] = [];
-      renderKpis({
-        comparison,
-        state: { ...state, compare: "off" },
-        onChange: (next) => picked.push(next),
-      });
-      const user = userEvent.setup();
-
-      const group = await screen.findByRole("group", { name: "Compare to" });
-      expect(within(group).getByRole("button", { name: "None" }).getAttribute("aria-pressed")).toBe("true");
-      await user.click(within(group).getByRole("button", { name: "Previous period" }));
-
-      expect(picked).toEqual([state]);
-    });
-
-    it("asks to switch the comparison off, or to last week, when those are picked", async () => {
-      const picked: DashboardState[] = [];
-      renderKpis({
-        params: { ...params, date_to: "2026-11-10" },
-        comparison,
-        onChange: (next) => picked.push(next),
-      });
-      const user = userEvent.setup();
-
-      const group = await screen.findByRole("group", { name: "Compare to" });
-      await user.click(within(group).getByRole("button", { name: "None" }));
-      await user.click(within(group).getByRole("button", { name: "Same day last week" }));
-
-      expect(picked).toEqual([
-        { ...state, compare: "off" },
-        { ...state, compare: "last_week" },
-      ]);
-    });
-
-    it("offers nothing to compare all time with", async () => {
-      renderKpis({ state: { ...state, range: { preset: "all_time" } } });
-
-      await screen.findByRole("group", { name: "Chart granularity" });
-      expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
-    });
+    await screen.findByRole("group", { name: "Chart granularity" });
+    expect(screen.queryByRole("group", { name: "Compare to" })).toBeNull();
   });
 
   describe("the last 24 hours", () => {
@@ -494,22 +455,16 @@ describe("Kpis", () => {
       expect(within(grain).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
     });
 
-    it("is named in the legend by its length, not by days", async () => {
+    it("is titled by the hour", async () => {
       renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 
-      expect(await screen.findByText("This period · Last 24 hours")).toBeTruthy();
-      expect(screen.getByText("Previous period · the 24 hours before")).toBeTruthy();
+      expect(await screen.findByRole("heading", { name: "Sessions per hour" })).toBeTruthy();
     });
 
-    it("offers the same hours last week", async () => {
+    it("names the lines in the legend the same way as any range", async () => {
       renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 
-      const group = await screen.findByRole("group", { name: "Compare to" });
-      expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
-        "Previous period",
-        "Same hours last week",
-        "None",
-      ]);
+      expect(await legendItems()).toEqual(["This period", "Previous period"]);
     });
   });
   describe("when the API fails", () => {
