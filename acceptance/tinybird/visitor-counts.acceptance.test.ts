@@ -311,6 +311,26 @@ describe.concurrent('visitor counts', () => {
       });
     });
 
+    it('reports each change as a count, below zero when it fell', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        persistent(scope, 'v-both', 1),
+        persistent(scope, 'v-both', 4),
+        persistent(scope, 'v-before', 5),
+        persistent(scope, 'v-before', 4),
+      ]);
+
+      const row = await comparison(scope, 4);
+
+      expect(row).toMatchObject({
+        known_visitors_change: -1,
+        sessions_change: -2,
+        anonymous_visitors_change:
+          Number(row.anonymous_visitors) -
+          Number(row.previous_anonymous_visitors),
+      });
+    });
+
     it('reports growth as a percentage of the previous period', async () => {
       const scope = createScope();
       await ingestEvents(env, [
@@ -342,7 +362,10 @@ describe.concurrent('visitor counts', () => {
         date_to: dayOf(0),
       });
 
-      expect(grown).toMatchObject({ sessions_growth_percent: 100 });
+      expect(grown).toMatchObject({
+        sessions_growth_percent: 100,
+        sessions_change: 1,
+      });
       expect(none[0]).toMatchObject({
         sessions_growth_percent: 0,
         known_visitors_growth_percent: 0,

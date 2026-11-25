@@ -154,7 +154,9 @@ counted twice. D7 fixed that: the `kpis` pipe is gone and the cards come from `v
   landing and has to be seeded into the stored table directly.
 - **Ingestion lag** is read from Tinybird's ingestion log (`organization.datasource_ops_log`), not from a column.
 - **Previous-period comparison** uses the same number of days immediately before (`date_calculations` in
-  `visitor_counts` and `engagement`), per metric. Show "n/a" when the previous period starts before identity rollout.
+  `visitor_counts` and `engagement`), per metric. Each returns the absolute change (`*_change`: counts as a signed
+  number, bounce rate in percentage points, session length in seconds) beside the growth percent. Show "n/a" when
+  the previous period starts before identity rollout.
   Normalise per day when window lengths differ (28 vs 31 days).
 - **Longer ranges lose accuracy for daily traffic.** A returning non-consenting browser counts up to N times in an
   N-day range; a consenting one counts once. Hence the consented share beside the cards.
@@ -305,7 +307,8 @@ Constraints that come straight from the definitions:
   `include_bots=1`; with a location, device or browser filter the same hourly states are built from `analytics_hits`,
   so both paths share one merge and agree). `current_visitors` and `trend` also leave bots out unless
   `include_bots=1`. **Built:** `engagement` (page views, pages per session, bounce rate and average session length,
-  weighted by session over the whole range, with the previous period and growth) and `daily_series` (one metric per day
+  weighted by session over the whole range, with the previous period, the change from it and growth) and
+  `daily_series` (one metric per day
   with the bar size as a percentage, zero for quiet days). The dashboard overview reads these endpoints. **Built:**
   `hourly_series`, the same metrics per bucket of `bucket_hours` between two ISO 8601 instants (at most 744 buckets), shown
   for single-day ranges and, when the viewer chooses Hour, for ranges up to 33 days (one-hour buckets to 8 days, then

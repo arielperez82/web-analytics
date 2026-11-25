@@ -29,6 +29,9 @@ const counts: ApiRow = {
   known_visitors_growth_percent: 20,
   anonymous_visitors_growth_percent: -2.86,
   sessions_growth_percent: 7.89,
+  known_visitors_change: 20,
+  anonymous_visitors_change: -10,
+  sessions_change: 30,
 };
 const engagement: ApiRow = {
   pageviews: 1234,
@@ -41,6 +44,9 @@ const engagement: ApiRow = {
   pageviews_growth_percent: 23.4,
   bounce_rate_growth_percent: -3.85,
   avg_session_sec_growth_percent: 0,
+  pageviews_change: 234,
+  bounce_rate_change: -1.5,
+  avg_session_sec_change: 0,
 };
 
 const days: readonly ApiRow[] = [
@@ -60,10 +66,11 @@ const renderKpis = (
     onChange?: (next: DashboardState) => void;
     points?: readonly ApiRow[];
     state?: DashboardState;
+    counts?: ApiRow;
   } = {},
 ) => {
   const api = installFakeApi({
-    visitor_counts: [counts],
+    visitor_counts: [overrides.counts ?? counts],
     engagement: [engagement],
     series: (query) => (query.get("grain") === "hour" ? hours : (overrides.points ?? days)),
   });
@@ -100,32 +107,41 @@ describe("Kpis", () => {
 
     const known = within(await card("Known visitors"));
     await waitFor(() => expect(known.getByText("120")).toBeTruthy());
-    expect(known.getByText("+20%")).toBeTruthy();
+    expect(known.getByText("+20 (+20%)")).toBeTruthy();
     expect(known.getByText("Up")).toBeTruthy();
     expect(known.getByText("vs previous period")).toBeTruthy();
     expect(known.getByText("41.5% of sessions from people who accepted tracking")).toBeTruthy();
     expect(within(await card("Anonymous visitors")).getByText("340")).toBeTruthy();
     expect(within(await card("Sessions")).getByText("410")).toBeTruthy();
-    expect(within(await card("Sessions")).getByText("+7.89%")).toBeTruthy();
+    expect(within(await card("Sessions")).getByText("+30 (+7.89%)")).toBeTruthy();
     expect(within(await card("Pageviews")).getByText("1,234")).toBeTruthy();
     expect(within(await card("Bounce rate")).getByText("37.5%")).toBeTruthy();
-    expect(within(await card("Bounce rate")).getByText("-3.85%")).toBeTruthy();
+    expect(within(await card("Bounce rate")).getByText("-1.5 pp (-3.85%)")).toBeTruthy();
     expect(within(await card("Avg session")).getByText("95s")).toBeTruthy();
-    expect(within(await card("Avg session")).getByText("0%")).toBeTruthy();
+    expect(within(await card("Avg session")).getByText("0s (0%)")).toBeTruthy();
   });
 
   it("marks each change with a direction word and a tone that depends on which way is better", async () => {
     renderKpis();
     const change = async (name: string, text: string) => within(await card(name)).getByText(text);
 
-    expect((await change("Known visitors", "+20%")).getAttribute("data-tone")).toBe("good");
-    expect((await change("Anonymous visitors", "-2.86%")).getAttribute("data-tone")).toBe("bad");
-    expect((await change("Bounce rate", "-3.85%")).getAttribute("data-tone")).toBe("good");
-    expect((await change("Sessions", "+7.89%")).getAttribute("data-tone")).toBe("good");
-    expect((await change("Pageviews", "+23.4%")).getAttribute("data-tone")).toBe("good");
-    expect((await change("Avg session", "0%")).getAttribute("data-tone")).toBe("neutral");
+    expect((await change("Known visitors", "+20 (+20%)")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Anonymous visitors", "-10 (-2.86%)")).getAttribute("data-tone")).toBe("bad");
+    expect((await change("Bounce rate", "-1.5 pp (-3.85%)")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Sessions", "+30 (+7.89%)")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Pageviews", "+234 (+23.4%)")).getAttribute("data-tone")).toBe("good");
+    expect((await change("Avg session", "0s (0%)")).getAttribute("data-tone")).toBe("neutral");
     expect(within(await card("Bounce rate")).getByText("Down")).toBeTruthy();
     expect(within(await card("Avg session")).getByText("No change")).toBeTruthy();
+  });
+
+  it("reads the direction from the change, even when the growth rounds to 0%", async () => {
+    renderKpis({ counts: { ...counts, sessions_growth_percent: 0, sessions_change: 1 } });
+
+    const sessions = within(await card("Sessions"));
+
+    expect((await sessions.findByText("+1 (0%)")).getAttribute("data-tone")).toBe("good");
+    expect(sessions.getByText("Up")).toBeTruthy();
   });
 
   it("names each metric card by its label alone and groups them as the key figures", async () => {
@@ -164,11 +180,11 @@ describe("Kpis", () => {
     const known = await describedBy("Known visitors");
     const sessions = await describedBy("Sessions");
 
-    expect(known).toContain("+20%");
+    expect(known).toContain("+20 (+20%)");
     expect(known).toContain("Unique people, counted once across the range");
     expect(known).toContain("41.5% of sessions from people who accepted tracking");
-    expect(sessions).toContain("+7.89%");
-    expect(sessions.split(" | ")).toEqual(["410", "▲Up+7.89%vs previous period", "Exact for small counts, within 1% for large ones."]);
+    expect(sessions).toContain("+30 (+7.89%)");
+    expect(sessions.split(" | ")).toEqual(["410", "▲Up+30 (+7.89%)vs previous period", "Exact for small counts, within 1% for large ones."]);
   });
 
   it("lets the keyboard pick a card", async () => {

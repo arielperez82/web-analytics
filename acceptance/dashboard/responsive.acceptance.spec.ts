@@ -4,7 +4,13 @@ import { signIn, stubApi } from './support';
 
 const withData = {
   visitor_counts: [
-    { sessions: 120, known_visitors: 40, anonymous_visitors: 70 },
+    {
+      sessions: 120,
+      known_visitors: 40,
+      anonymous_visitors: 70,
+      sessions_growth_percent: 20,
+      sessions_change: 20,
+    },
   ],
   engagement: [
     { pageviews: 300, bounce_rate_percent: 40, avg_session_sec: 90 },

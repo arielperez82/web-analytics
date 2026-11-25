@@ -213,6 +213,34 @@ describe.concurrent('engagement', () => {
     });
   });
 
+  it('reports each change in the figure’s own unit, below zero when it fell', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 3),
+      ...visit(scope, [0, 30, 60], 2),
+    ]);
+
+    const row = await engagement(scope, 6, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 5,
+      pageviews_change: -4,
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 0,
+      bounce_rate_change: 100,
+    });
+    expect(Number(row.avg_session_sec_change)).toBeLessThan(0);
+    expect(Number(row.avg_session_sec_change)).toBeCloseTo(
+      Number(row.avg_session_sec) - Number(row.previous_avg_session_sec),
+      2
+    );
+  });
+
   it('leaves bots out unless asked to include them', async () => {
     const scope = createScope();
     await ingestEvents(env, [

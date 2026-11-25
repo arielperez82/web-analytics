@@ -1,4 +1,4 @@
-import { formatSignedPercent } from "./format";
+import { formatSignedNumber } from "./format";
 
 export type Delta = {
   readonly arrow: "up" | "down" | "flat";
@@ -8,9 +8,9 @@ export type Delta = {
 
 const FLAT: Delta = { arrow: "flat", tone: "neutral", word: "No change" };
 
-export const deltaOf = ({ percent, higherIsBetter }: { readonly percent: number; readonly higherIsBetter: boolean }): Delta => {
-  if (!Number.isFinite(percent) || formatSignedPercent(percent) === "0%") return FLAT;
-  const rising = percent > 0;
+export const deltaOf = ({ change, higherIsBetter }: { readonly change: number; readonly higherIsBetter: boolean }): Delta => {
+  if (!Number.isFinite(change) || formatSignedNumber(change) === "0") return FLAT;
+  const rising = change > 0;
   return {
     arrow: rising ? "up" : "down",
     tone: rising === higherIsBetter ? "good" : "bad",

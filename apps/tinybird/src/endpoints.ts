@@ -59,6 +59,13 @@ export const currentVisitors = defineEndpoint("current_visitors", {
 export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
+/** Change in a count from the previous period, signed so a fall reads below zero. */
+const countChangeSql = (current: string, previous: string): string =>
+  `toInt64(${current}) - toInt64(${previous})`;
+
+/** Change in a rate from the previous period, in the rate's own unit, from the rounded figures returned. */
+const rateChangeSql = (current: string, previous: string): string => `round(${current} - ${previous}, 2)`;
+
 /**
  * Percentage change from the previous period to the current one. New traffic against an empty
  * previous period reads as 100, and two empty periods as 0.
@@ -119,12 +126,12 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
 
 /**
  * Visitor counts - known, anonymous and legacy visitors and sessions over a UTC date range, with the
- * equal-length period before it, growth and the consented share. Read from the daily visitor state,
+ * equal-length period before it, its change and growth, and the consented share. Read from the daily visitor state,
  * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
  */
 export const visitorCounts = defineEndpoint("visitor_counts", {
   description:
-    "Known visitors, anonymous visitors (person-days), legacy visitors and sessions over a UTC date range, with the previous period, growth and consented share. Bots excluded unless include_bots=1",
+    "Known visitors, anonymous visitors (person-days), legacy visitors and sessions over a UTC date range, with the previous period, the change from it (count), growth and consented share. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -174,7 +181,10 @@ ${previousWindowSql}
             previous_sessions,
             ${growthPercentSql("known_visitors", "previous_known_visitors")} AS known_visitors_growth_percent,
             ${growthPercentSql("anonymous_visitors", "previous_anonymous_visitors")} AS anonymous_visitors_growth_percent,
-            ${growthPercentSql("sessions", "previous_sessions")} AS sessions_growth_percent
+            ${growthPercentSql("sessions", "previous_sessions")} AS sessions_growth_percent,
+            ${countChangeSql("known_visitors", "previous_known_visitors")} AS known_visitors_change,
+            ${countChangeSql("anonymous_visitors", "previous_anonymous_visitors")} AS anonymous_visitors_change,
+            ${countChangeSql("sessions", "previous_sessions")} AS sessions_change
         FROM period_counts
       `,
     }),
@@ -200,6 +210,9 @@ ${previousWindowSql}
     known_visitors_growth_percent: t.float64(),
     anonymous_visitors_growth_percent: t.float64(),
     sessions_growth_percent: t.float64(),
+    known_visitors_change: t.int64(),
+    anonymous_visitors_change: t.int64(),
+    sessions_change: t.int64(),
   },
 });
 
@@ -208,12 +221,12 @@ export type VisitorCountsOutput = InferOutputRow<typeof visitorCounts>;
 
 /**
  * Engagement - page views, pages per session, bounce rate and average session length over a UTC date
- * range, weighted by session, with the equal-length period before it and growth. Sessions that cross a
+ * range, weighted by session, with the equal-length period before it, the change from it and growth. Sessions that cross a
  * UTC midnight count once. Bots are left out unless include_bots=1.
  */
 export const engagement = defineEndpoint("engagement", {
   description:
-    "Page views, pages per session, bounce rate (percent) and average session seconds over a UTC date range, weighted by session, with the previous period and growth. Bots excluded unless include_bots=1",
+    "Page views, pages per session, bounce rate (percent) and average session seconds over a UTC date range, weighted by session, with the previous period, the change from it (pageviews as a count, bounce rate in percentage points, session length in seconds) and growth. Bots excluded unless include_bots=1",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -312,7 +325,10 @@ ${previousWindowSql}
             previous_avg_session_sec,
             ${growthPercentSql("pageviews", "previous_pageviews")} AS pageviews_growth_percent,
             ${growthPercentSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_growth_percent,
-            ${growthPercentSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_growth_percent
+            ${growthPercentSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_growth_percent,
+            ${countChangeSql("pageviews", "previous_pageviews")} AS pageviews_change,
+            ${rateChangeSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_change,
+            ${rateChangeSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_change
         FROM rates
       `,
     }),
@@ -337,6 +353,9 @@ ${previousWindowSql}
     pageviews_growth_percent: t.float64(),
     bounce_rate_growth_percent: t.float64(),
     avg_session_sec_growth_percent: t.float64(),
+    pageviews_change: t.int64(),
+    bounce_rate_change: t.float64(),
+    avg_session_sec_change: t.float64(),
   },
 });
 

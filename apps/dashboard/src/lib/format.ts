@@ -1,5 +1,12 @@
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const signedNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, signDisplay: "exceptZero" });
+const signedSeconds = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  signDisplay: "exceptZero",
+  style: "unit",
+  unit: "second",
+  unitDisplay: "narrow",
+});
 const seconds = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   style: "unit",
@@ -14,5 +21,11 @@ export const formatNumber = (value: number): string => number.format(value);
 export const formatPercent = (value: number): string => `${number.format(value)}%`;
 
 export const formatSignedPercent = (value: number): string => `${signedNumber.format(value)}%`;
+
+export const formatSignedNumber = (value: number): string => signedNumber.format(value);
+
+export const formatSignedPoints = (value: number): string => `${signedNumber.format(value)} pp`;
+
+export const formatSignedSeconds = (value: number): string => signedSeconds.format(value);
 
 export const formatSeconds = (value: number): string => seconds.format(value);

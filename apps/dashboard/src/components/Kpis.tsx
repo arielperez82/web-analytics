@@ -18,7 +18,10 @@ import {
   formatNumber,
   formatPercent,
   formatSeconds,
+  formatSignedNumber,
   formatSignedPercent,
+  formatSignedPoints,
+  formatSignedSeconds,
 } from "@/lib/format";
 import { effectiveGrain, hourAvailable, hourBucket, isExactWindow } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
@@ -55,10 +58,23 @@ type CardContent = {
   readonly trend?: readonly TrendPoint[];
 };
 
-const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
-  text: formatSignedPercent(percent),
-  delta: deltaOf({ percent, higherIsBetter }),
-});
+const growthOf = ({
+  row,
+  key,
+  format,
+  higherIsBetter = true,
+}: {
+  readonly row: Row | undefined;
+  readonly key: string;
+  readonly format: (value: number) => string;
+  readonly higherIsBetter?: boolean;
+}): Growth => {
+  const change = field(row, `${key}_change`);
+  return {
+    text: `${format(change)} (${formatSignedPercent(field(row, `${key}_growth_percent`))})`,
+    delta: deltaOf({ change, higherIsBetter }),
+  };
+};
 
 const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
   label,
@@ -160,7 +176,7 @@ export const Kpis = ({
           label="Known visitors"
           {...pick("known")}
           value={formatNumber(field(counts, "known_visitors"))}
-          growth={growthOf(field(counts, "known_visitors_growth_percent"), true)}
+          growth={growthOf({ row: counts, key: "known_visitors", format: formatSignedNumber })}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
           caption="Unique people, counted once across the range"
           approximate
@@ -169,7 +185,7 @@ export const Kpis = ({
           label="Anonymous visitors"
           {...pick("anonymous")}
           value={formatNumber(field(counts, "anonymous_visitors"))}
-          growth={growthOf(field(counts, "anonymous_visitors_growth_percent"), true)}
+          growth={growthOf({ row: counts, key: "anonymous_visitors", format: formatSignedNumber })}
           caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
@@ -177,26 +193,26 @@ export const Kpis = ({
           label="Sessions"
           {...pick("sessions")}
           value={formatNumber(field(counts, "sessions"))}
-          growth={growthOf(field(counts, "sessions_growth_percent"), true)}
+          growth={growthOf({ row: counts, key: "sessions", format: formatSignedNumber })}
           approximate
         />
         <SelectableCard
           label="Pageviews"
           {...pick("pageviews")}
           value={formatNumber(field(engagement, "pageviews"))}
-          growth={growthOf(field(engagement, "pageviews_growth_percent"), true)}
+          growth={growthOf({ row: engagement, key: "pageviews", format: formatSignedNumber })}
         />
         <StaticCard
           label="Bounce rate"
           {...trendOf("bounce_rate")}
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
-          growth={growthOf(field(engagement, "bounce_rate_growth_percent"), false)}
+          growth={growthOf({ row: engagement, key: "bounce_rate", format: formatSignedPoints, higherIsBetter: false })}
         />
         <StaticCard
           label="Avg session"
           {...trendOf("avg_session")}
           value={formatSeconds(field(engagement, "avg_session_sec"))}
-          growth={growthOf(field(engagement, "avg_session_sec_growth_percent"), true)}
+          growth={growthOf({ row: engagement, key: "avg_session_sec", format: formatSignedSeconds })}
         />
       </div>
       <Panel

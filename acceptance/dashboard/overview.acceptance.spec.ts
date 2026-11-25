@@ -16,6 +16,9 @@ const counts: ApiRow = {
   known_visitors_growth_percent: 20,
   anonymous_visitors_growth_percent: -2.86,
   sessions_growth_percent: 7.89,
+  known_visitors_change: 20,
+  anonymous_visitors_change: -10,
+  sessions_change: 30,
 };
 const engagement: ApiRow = {
   pageviews: 1234,
@@ -28,6 +31,9 @@ const engagement: ApiRow = {
   pageviews_growth_percent: 23.4,
   bounce_rate_growth_percent: -3.85,
   avg_session_sec_growth_percent: 0,
+  pageviews_change: 234,
+  bounce_rate_change: -1.5,
+  avg_session_sec_change: 0,
 };
 const locations: readonly ApiRow[] = [
   { location: 'ES', sessions: 10, hits: 30, bar_percent: 100 },
@@ -77,15 +83,49 @@ test('the overview shows the figures the API computed', async ({ page }) => {
 
   await expect(
     page.getByRole('button', { name: 'Known visitors' })
-  ).toContainText('+20%');
+  ).toContainText('+20 (+20%)');
   await expect(
     page.getByRole('button', { name: 'Known visitors' })
   ).toContainText('Up');
-  await expect(page.getByText('+7.89%')).toBeVisible();
-  await expect(page.getByText('-3.85%')).toBeVisible();
+  await expect(page.getByText('+30 (+7.89%)')).toBeVisible();
+  await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
   await expect(page.getByText('1,234')).toBeVisible();
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
+
+for (const width of [1280, 375]) {
+  test(`at ${String(width)}px every key figure has its change directly beneath it, left-aligned`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stubApi(page, routes);
+    await signIn(page);
+    const cards = page
+      .getByRole('group', { name: 'Key figures' })
+      .locator('.kpi');
+    await expect(cards).toHaveCount(6);
+    await expect(cards.first()).toContainText('+20 (+20%)');
+
+    const placements = await Promise.all(
+      Array.from({ length: 6 }, async (_, index) => {
+        const card = cards.nth(index);
+        const value = await card.locator('strong').boundingBox();
+        const change = await card.locator('.delta').boundingBox();
+        if (value === null || change === null)
+          throw new Error(`card ${String(index)} is not laid out`);
+        return {
+          below: change.y >= value.y + value.height - 1,
+          leftGap: Math.abs(change.x - value.x),
+        };
+      })
+    );
+
+    expect(placements.every(placement => placement.below)).toBe(true);
+    expect(
+      Math.max(...placements.map(placement => placement.leftGap))
+    ).toBeLessThanOrEqual(1);
+  });
+}
 
 test('picking a country in the filter menu slices every widget by it', async ({
   page,

@@ -65,3 +65,4 @@
 .kpi .kpi-tip::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px}
 .kpi .kpi-tip[hidden]{display:none}
 .kpi .kpi-tip small{color:var(--tip-fg);font-size:12px}
+.kpi>.delta{flex:0 0 100%;justify-content:flex-start}
