@@ -224,6 +224,119 @@ describe.concurrent.each(entries)('top $label', entry => {
     }
   );
 
+  it('compares with the days it is given, not the days just before', async () => {
+    const scope = createScope();
+    const sessions = (count: number, now: Date) =>
+      Array.from({ length: count }, () => hit(scope, 0, { now }));
+    await ingestEvents(env, [
+      ...sessions(1, daysFromNow(0)),
+      ...sessions(5, daysFromNow(-1)),
+      ...sessions(2, daysFromNow(-7)),
+    ]);
+
+    const rows = await list(
+      scope,
+      {
+        date_from: dayString(0),
+        date_to: dayString(0),
+        include_previous_period: 'true',
+        compare_from: dayString(-7),
+        compare_to: dayString(-7),
+      },
+      r => Number(r[0]?.sessions) === 1 && Number(r[0]?.previous_sessions) >= 2
+    );
+
+    expect(rows[0]).toMatchObject({ [column]: first });
+    expect(Number(rows[0]?.previous_sessions)).toBe(2);
+  });
+
+  it('compares an exact window with the same hours starting where it is told', async () => {
+    const scope = createScope();
+    const hourStart = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+    const fromAt = new Date(hourStart.getTime() - 3_600_000);
+    const compareFromAt = new Date(fromAt.getTime() - 7 * DAY_MS);
+    await ingestEvents(env, [
+      hit(scope, 0, { now: new Date() }),
+      hit(scope, 0, { now: daysFromNow(-1) }),
+      hit(scope, 0, { now: daysFromNow(-7) }),
+    ]);
+
+    const rows = await list(
+      scope,
+      {
+        from_at: fromAt.toISOString(),
+        include_previous_period: 'true',
+        compare_from_at: compareFromAt.toISOString(),
+      },
+      r => Number(r[0]?.sessions) === 1 && Number(r[0]?.previous_sessions) >= 1
+    );
+
+    expect(Number(rows[0]?.previous_sessions)).toBe(1);
+  });
+
+  it('marks rows new or gone, lists gone ones last and sizes both bars on one scale', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hit(scope, 0),
+      hit(scope, 0),
+      hit(scope, 0, { now: daysFromNow(-3) }),
+      hit(scope, 1, { now: daysFromNow(-3) }),
+      hit(scope, 1, { now: daysFromNow(-3) }),
+      hit(scope, 1, { now: daysFromNow(-3) }),
+      hit(scope, 2),
+    ]);
+
+    const rows = await list(
+      scope,
+      {
+        date_from: dayString(-1),
+        date_to: dayString(0),
+        include_previous_period: 'true',
+      },
+      r => r.length >= 3 && Number(r[2]?.previous_sessions) === 3
+    );
+
+    expect(
+      rows.map(row => ({
+        name: String(row[column]),
+        sessions: Number(row.sessions),
+        previous: Number(row.previous_sessions),
+        change: Number(row.sessions_change),
+        status: row.status,
+        bar: Number(row.bar_percent),
+        previousBar: Number(row.previous_bar_percent),
+      }))
+    ).toEqual([
+      {
+        name: first,
+        sessions: 2,
+        previous: 1,
+        change: 1,
+        status: '',
+        bar: 66.67,
+        previousBar: 33.33,
+      },
+      {
+        name: third,
+        sessions: 1,
+        previous: 0,
+        change: 1,
+        status: 'new',
+        bar: 33.33,
+        previousBar: 0,
+      },
+      {
+        name: second,
+        sessions: 0,
+        previous: 3,
+        change: -3,
+        status: 'gone',
+        bar: 0,
+        previousBar: 100,
+      },
+    ]);
+  });
+
   it('ranks by visitors, not by page views', async () => {
     const scope = createScope();
     const heavy = crypto.randomUUID();
@@ -383,6 +496,37 @@ describe.concurrent('top lists: real-world corner cases', () => {
     );
 
     expect(devices).toEqual(['bot']);
+  });
+
+  it('keeps direct traffic seen in both periods as one row', async () => {
+    const scope = createScope();
+    const direct = (now: Date) =>
+      createPageHitEvent({ ...scope, pathname: '/', referrer: '', now });
+    await ingestEvents(env, [
+      direct(new Date()),
+      direct(new Date(Date.now() - 3 * 86_400_000)),
+      direct(new Date(Date.now() - 3 * 86_400_000)),
+    ]);
+    const day = (offset: number) =>
+      new Date(Date.now() + offset * 86_400_000 - 60_000)
+        .toISOString()
+        .slice(0, 10);
+
+    const rows = await waitForRow(
+      () =>
+        pipeRows<Row>(env, 'top_sources', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          date_from: day(-1),
+          date_to: day(0),
+          include_previous_period: 'true',
+        }),
+      r => r.some(row => Number(row.previous_sessions) === 2)
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ referrer: '', status: '' });
+    expect(Number(rows[0]?.sessions)).toBe(1);
   });
 
   it('counts a link from www.example.org and example.org as one source', async () => {
