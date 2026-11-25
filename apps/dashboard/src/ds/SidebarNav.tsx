@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 const ICONS = {
   chart: "M4 20V10M10 20V4M16 20v-8M22 20H2",
@@ -20,6 +20,9 @@ export type SidebarNavProps = {
   }[];
   readonly collapsed: boolean;
   readonly onToggle: () => void;
+  readonly brand?: string;
+  readonly site?: ReactNode;
+  readonly account?: ReactNode;
 };
 
 const Icon = ({ name }: { readonly name: IconName }) => (
@@ -28,7 +31,7 @@ const Icon = ({ name }: { readonly name: IconName }) => (
   </svg>
 );
 
-export const SidebarNav = ({ items, collapsed, onToggle }: SidebarNavProps) => {
+export const SidebarNav = ({ items, collapsed, onToggle, brand, site, account }: SidebarNavProps) => {
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [animate, setAnimate] = useState(false);
@@ -36,18 +39,27 @@ export const SidebarNav = ({ items, collapsed, onToggle }: SidebarNavProps) => {
   const shown = collapsed ? (hovered ?? focused) : null;
   return (
     <nav className="sidebar" aria-label="Main" data-collapsed={collapsed} data-animate={animate}>
-      <button
-        type="button"
-        className="ds-btn sidebar-toggle"
-        aria-label="Sidebar"
-        aria-expanded={!collapsed}
-        onClick={() => {
-          setAnimate(true);
-          onToggle();
-        }}
-      >
-        <Icon name="chevrons" />
-      </button>
+      <div className="sidebar-head">
+        {brand === undefined ? null : (
+          <span className="brand">
+            <span className="brand-mark" aria-hidden="true" />
+            <span className={collapsed ? "ds-sr" : "brand-name"}>{brand}</span>
+          </span>
+        )}
+        <button
+          type="button"
+          className="ds-btn sidebar-toggle"
+          aria-label="Sidebar"
+          aria-expanded={!collapsed}
+          onClick={() => {
+            setAnimate(true);
+            onToggle();
+          }}
+        >
+          <Icon name="chevrons" />
+        </button>
+      </div>
+      {collapsed || site === undefined ? null : <div className="sidebar-site">{site}</div>}
       <ul>
         {items.map(({ href, label, icon, active }) => (
           <li key={label}>
@@ -76,6 +88,7 @@ export const SidebarNav = ({ items, collapsed, onToggle }: SidebarNavProps) => {
           </li>
         ))}
       </ul>
+      {collapsed || account === undefined ? null : <div className="sidebar-account">{account}</div>}
     </nav>
   );
 };
