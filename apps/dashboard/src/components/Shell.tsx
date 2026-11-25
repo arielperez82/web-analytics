@@ -32,7 +32,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
   const filters = activeFilters(state.filters);
   const custom = "from" in state.range ? state.range : undefined;
   const nav: SidebarNavProps["items"] = [
-    { href: hrefFor("/", state), label: "Analytics", icon: "chart", active: pathname === "/" || pathname.startsWith("/reports") },
+    { href: hrefFor("/", state), label: "Overview", icon: "chart", active: pathname === "/" || pathname.startsWith("/reports") },
     { href: hrefFor("/speed", state), label: "Speed Insights", icon: "gauge", active: onSpeed },
   ];
   return (
@@ -40,12 +40,13 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
       <a className="skip-link" href="#main">
         Skip to main content
       </a>
-      <SidebarNav items={nav} collapsed={sidebar.collapsed} onToggle={sidebar.toggle} />
-      <div className="app">
-        <PageHeader
-          title={onSpeed ? "Speed Insights" : "Overview"}
-          subtitle={`${rangeLabel(state.range)} · ${zone} · ${fmt(online.data?.[0]?.sessions ?? 0)} online now`}
-        >
+      <SidebarNav
+        items={nav}
+        collapsed={sidebar.collapsed}
+        onToggle={sidebar.toggle}
+        brand="Analytics"
+        site={
+          <>
           {showTenants && (
             <select
               aria-label="Tenant"
@@ -76,6 +77,22 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
               <option key={String(row.domain)} value={String(row.domain)}>{String(row.domain)}</option>
             ))}
           </select>
+          </>
+        }
+        account={
+          <>
+            <span>{email}</span>
+            <button type="button" onClick={() => void signOut({ callbackUrl: "/login" })}>
+              Sign out
+            </button>
+          </>
+        }
+      />
+      <div className="app">
+        <PageHeader
+          title={onSpeed ? "Speed Insights" : "Overview"}
+          subtitle={`${rangeLabel(state.range)} · ${zone} · ${fmt(online.data?.[0]?.sessions ?? 0)} online now`}
+        >
           {!onSpeed && (
             <FilterMenu
               filters={state.filters}
@@ -91,7 +108,6 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             onChange={(range) => update({ ...state, range })}
             onZoneChange={(tz) => update({ ...state, tz })}
           />
-          <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
         </PageHeader>
         {(filters.length > 0 || custom || onOverview) && (
           <div className="chips">
