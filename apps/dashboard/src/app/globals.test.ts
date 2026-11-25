@@ -30,6 +30,6 @@ describe("the design system foundation", () => {
   });
 
   it("shows the page title at 24px", () => {
-    expect(ruleFor("header h1")).toContain("font-size:24px");
+    expect(ruleFor(".page-head h1")).toContain("font-size:24px");
   });
 });

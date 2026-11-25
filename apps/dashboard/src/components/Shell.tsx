@@ -4,11 +4,13 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { ReactNode } from "react";
 
+import { PageHeader } from "@/ds/PageHeader";
 import { SidebarNav, type SidebarNavProps } from "@/ds/SidebarNav";
 import { DEFAULT_DAYS, hrefFor, tenantLabel } from "@/lib/dashboard-state";
 import { activeFilters, toggleFilter } from "@/lib/filters";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
+import { rangeLabel } from "@/lib/range-label";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 
 import { DateRangePicker } from "./DateRangePicker";
@@ -40,10 +42,10 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
       </a>
       <SidebarNav items={nav} collapsed={sidebar.collapsed} onToggle={sidebar.toggle} />
       <div className="app">
-        <header>
-          <h1>Web Analytics</h1>
-          <span className="live">● {fmt(online.data?.[0]?.sessions ?? 0)} online</span>
-          <span className="spacer" />
+        <PageHeader
+          title={onSpeed ? "Speed Insights" : "Overview"}
+          subtitle={`${rangeLabel(state.range)} · ${zone} · ${fmt(online.data?.[0]?.sessions ?? 0)} online now`}
+        >
           {showTenants && (
             <select
               aria-label="Tenant"
@@ -90,7 +92,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             onZoneChange={(tz) => update({ ...state, tz })}
           />
           <button onClick={() => void signOut({ callbackUrl: "/login" })}>{email} · Sign out</button>
-        </header>
+        </PageHeader>
         {(filters.length > 0 || custom || onOverview) && (
           <div className="chips">
             {custom && (
