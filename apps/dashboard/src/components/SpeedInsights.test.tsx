@@ -48,7 +48,7 @@ describe("SpeedInsights", () => {
     renderPage([vital("TTFB", 400), vital("LCP", 2100.5)]);
 
     await screen.findByText("LCP p75");
-    const labels = Array.from(document.querySelectorAll(".card span")).map((span) => span.textContent);
+    const labels = Array.from(document.querySelectorAll(".card>span:not(.ds-badge)")).map((span) => span.textContent);
     expect(labels).toEqual(["LCP p75", "TTFB p75"]);
     expect(screen.getByText("2,100.5")).toBeTruthy();
   });
@@ -70,5 +70,19 @@ describe("SpeedInsights", () => {
     expect(await screen.findByText("/checkout")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(api.requestsTo("web_vitals_current")).toHaveLength(1);
+  });
+
+  it.each([
+    ["Excellent", "good"],
+    ["Good", "good"],
+    ["Needs Improvement", "warn"],
+    ["Poor", "bad"],
+    ["Something new", "neutral"],
+  ])("shows a %s vital as a %s badge, with the status written out", async (status, tone) => {
+    renderPage([{ ...vital("LCP", 2100), status }]);
+
+    const badge = await screen.findByText(status);
+
+    expect(badge.getAttribute("data-tone")).toBe(tone);
   });
 });

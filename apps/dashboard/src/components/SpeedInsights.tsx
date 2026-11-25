@@ -1,6 +1,7 @@
 "use client";
 
-import { statusClass } from "@/lib/status-class";
+import { Badge } from "@/ds/Badge";
+import { statusClass, statusTone } from "@/lib/status-class";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { orderVitals } from "@/lib/vitals-order";
@@ -22,7 +23,7 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
             <div key={`${row.domain}-${row.metric_name}`} className={`card ${statusClass(row.status)}`}>
               <span>{row.metric_name} p75{multiDomain ? ` · ${row.domain}` : ""}</span>
               <strong>{fmt(row.p75)} <small>{row.units}</small></strong>
-              <em>{row.status}</em>
+              <Badge tone={statusTone(row.status)}>{fmt(row.status)}</Badge>
             </div>
           ))}
         </div>
