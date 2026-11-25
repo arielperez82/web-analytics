@@ -1067,18 +1067,46 @@ const barPercentNode = () =>
       `,
   });
 
+type RankedSpec<L extends string> = {
+  readonly name: string;
+  readonly description: string;
+  readonly label: L;
+  readonly labelSql: string;
+  readonly source: string;
+  readonly sessionsSql: string;
+};
+
+const periodDataSql = (
+  { label, labelSql, source, sessionsSql }: RankedSpec<string>,
+  period: "current" | "previous",
+): string => `
+        SELECT
+            ${labelSql},
+            ${sessionsSql} as ${period}_sessions,
+            countMerge(hits) as ${period}_hits
+        FROM ${source}
+        WHERE bucket >= (SELECT ${period}_start_at FROM date_calculations)
+            AND bucket < (SELECT ${period}_end_at FROM date_calculations)
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}${crossFilters}
+        GROUP BY ${label}`;
+
 /**
- * Top browsers - ordered by most sessions
+ * A ranked breakdown - rows of one label ordered by most sessions, with an optional previous period.
  */
-export const topBrowsers = defineEndpoint("top_browsers", {
-  description:
-    "Top browsers ordered by most sessions with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      description: "Calculate current and previous period date ranges",
-      sql: `
+const rankedEndpoint = <L extends string>(spec: RankedSpec<L>) =>
+  defineEndpoint(spec.name, {
+    description: spec.description,
+    tokens: [{ token: dashboardToken, scope: "READ" }],
+    nodes: [
+      node({
+        name: "date_calculations",
+        description: "Calculate current and previous period date ranges",
+        sql: `
         WITH
             {% if defined(date_from) and defined(date_to) %}
                 toDate({{ String(date_from) }}) as current_start,
@@ -1098,58 +1126,30 @@ export const topBrowsers = defineEndpoint("top_browsers", {
             period_days,
 ${previousWindowSql}
       `,
-    }),
-    node({
-      name: "current_period_data",
-      description: "Get browser metrics for current period",
-      sql: `
-        SELECT
-            browser,
-            uniq(session_id) as current_sessions,
-            countMerge(hits) as current_hits
-        FROM analytics_sessions_mv
-        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY browser
+      }),
+      node({
+        name: "current_period_data",
+        description: `Get ${spec.label} metrics for current period`,
+        sql: `${periodDataSql(spec, "current")}
       `,
-    }),
-    node({
-      name: "previous_period_data",
-      description: "Get browser metrics for previous period",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            browser,
-            uniq(session_id) as previous_sessions,
-            countMerge(hits) as previous_hits
-        FROM analytics_sessions_mv
-        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
-            AND bucket < (SELECT previous_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY browser
+      }),
+      node({
+        name: "previous_period_data",
+        description: `Get ${spec.label} metrics for previous period`,
+        sql: `
+        {% if defined(include_previous_period) and include_previous_period == 'true' %}${periodDataSql(spec, "previous")}
         {% else %}
-        SELECT '' as browser, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
+        SELECT '' as ${spec.label}, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
         {% end %}
       `,
-    }),
-    node({
-      name: "ranked",
-      description: "Combine with growth calculations",
-      sql: `
+      }),
+      node({
+        name: "ranked",
+        description: "Combine with growth calculations",
+        sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
-            c.browser,
+            c.${spec.label},
             c.current_sessions as sessions,
             c.current_hits as hits,
             coalesce(p.previous_sessions, 0) as previous_sessions,
@@ -1165,12 +1165,12 @@ ${previousWindowSql}
                 ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
             END as hits_growth_percentage
         FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.browser = p.browser
+        LEFT JOIN previous_period_data p ON c.${spec.label} = p.${spec.label}
         ORDER BY c.current_sessions DESC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
-            browser,
+            ${spec.label},
             current_sessions as sessions,
             current_hits as hits
         FROM current_period_data
@@ -1178,579 +1178,89 @@ ${previousWindowSql}
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% end %}
       `,
-    }),
-    barPercentNode(),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period"),
-    skip: p.int32().optional(0).describe("Skip for pagination"),
-    limit: p.int32().optional(50).describe("Limit for pagination"),
-    ...tzParam,
-    ...windowParams,
-  },
-  output: {
-    browser: t.string(),
-    sessions: t.uint64(),
-    hits: t.uint64(),
-    bar_percent: t.float64(),
-  },
+      }),
+      barPercentNode(),
+    ],
+    params: {
+      date_from: p.string().optional().describe("Start date"),
+      date_to: p.string().optional().describe("End date"),
+      tenant_id: p.string().optional().describe("Filter by tenant ID"),
+      domain: p.string().optional().describe("Filter by domain"),
+      ...crossFilterParams,
+      include_previous_period: p.string().optional().describe("Include previous period"),
+      skip: p.int32().optional(0).describe("Skip for pagination"),
+      limit: p.int32().optional(50).describe("Limit for pagination"),
+      ...tzParam,
+      ...windowParams,
+    },
+    output: {
+      ...({ [spec.label]: t.string() } as Record<L, ReturnType<typeof t.string>>),
+      sessions: t.uint64(),
+      hits: t.uint64(),
+      bar_percent: t.float64(),
+    },
+  });
+
+const PAGE_PATH_SQL = `CASE
+                WHEN pathname = '/' THEN pathname
+                ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
+            END as pathname`;
+
+export const topBrowsers = rankedEndpoint({
+  name: "top_browsers",
+  description: "Top browsers ordered by most sessions with optional previous period comparison",
+  label: "browser",
+  labelSql: "browser",
+  source: "analytics_sessions_mv",
+  sessionsSql: "uniq(session_id)",
 });
 
 export type TopBrowsersParams = InferParams<typeof topBrowsers>;
 export type TopBrowsersOutput = InferOutputRow<typeof topBrowsers>;
 
-/**
- * Top devices - ordered by most sessions
- */
-export const topDevices = defineEndpoint("top_devices", {
-  description:
-    "Top device types ordered by most sessions with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      sql: `
-        WITH
-            {% if defined(date_from) and defined(date_to) %}
-                toDate({{ String(date_from) }}) as current_start,
-                toDate({{ String(date_to) }}) as current_end,
-            {% else %}
-                toDate(timestampAdd(today(), interval -7 day)) as current_start,
-                toDate(today()) as current_end,
-            {% end %}
-            dateDiff('day', current_start, current_end) + 1 as period_days,
-            timestampAdd(current_start, interval -period_days day) as previous_start,
-            timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT
-            current_start,
-            current_end,
-            previous_start,
-            previous_end,
-            period_days,
-${previousWindowSql}
-      `,
-    }),
-    node({
-      name: "current_period_data",
-      sql: `
-        SELECT
-            device,
-            uniq(session_id) as current_sessions,
-            countMerge(hits) as current_hits
-        FROM analytics_sessions_mv
-        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY device
-      `,
-    }),
-    node({
-      name: "previous_period_data",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            device,
-            uniq(session_id) as previous_sessions,
-            countMerge(hits) as previous_hits
-        FROM analytics_sessions_mv
-        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
-            AND bucket < (SELECT previous_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY device
-        {% else %}
-        SELECT '' as device, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "ranked",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            c.device,
-            c.current_sessions as sessions,
-            c.current_hits as hits,
-            coalesce(p.previous_sessions, 0) as previous_sessions,
-            coalesce(p.previous_hits, 0) as previous_hits,
-            CASE
-                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
-                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
-                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
-            END as sessions_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
-                WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
-            END as hits_growth_percentage
-        FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.device = p.device
-        ORDER BY c.current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% else %}
-        SELECT
-            device,
-            current_sessions as sessions,
-            current_hits as hits
-        FROM current_period_data
-        ORDER BY current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% end %}
-      `,
-    }),
-    barPercentNode(),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period"),
-    skip: p.int32().optional(0).describe("Skip for pagination"),
-    limit: p.int32().optional(50).describe("Limit for pagination"),
-    ...tzParam,
-    ...windowParams,
-  },
-  output: {
-    device: t.string(),
-    sessions: t.uint64(),
-    hits: t.uint64(),
-    bar_percent: t.float64(),
-  },
+export const topDevices = rankedEndpoint({
+  name: "top_devices",
+  description: "Top device types ordered by most sessions with optional previous period comparison",
+  label: "device",
+  labelSql: "device",
+  source: "analytics_sessions_mv",
+  sessionsSql: "uniq(session_id)",
 });
 
 export type TopDevicesParams = InferParams<typeof topDevices>;
 export type TopDevicesOutput = InferOutputRow<typeof topDevices>;
 
-/**
- * Top locations - countries ordered by most sessions
- */
-export const topLocations = defineEndpoint("top_locations", {
-  description:
-    "Top visiting countries ordered by most sessions with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      sql: `
-        WITH
-            {% if defined(date_from) and defined(date_to) %}
-                toDate({{ String(date_from) }}) as current_start,
-                toDate({{ String(date_to) }}) as current_end,
-            {% else %}
-                toDate(timestampAdd(today(), interval -7 day)) as current_start,
-                toDate(today()) as current_end,
-            {% end %}
-            dateDiff('day', current_start, current_end) + 1 as period_days,
-            timestampAdd(current_start, interval -period_days day) as previous_start,
-            timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT
-            current_start,
-            current_end,
-            previous_start,
-            previous_end,
-            period_days,
-${previousWindowSql}
-      `,
-    }),
-    node({
-      name: "current_period_data",
-      sql: `
-        SELECT
-            location,
-            uniqMerge(visits) as current_sessions,
-            countMerge(hits) as current_hits
-        FROM analytics_pages_mv
-        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY location
-      `,
-    }),
-    node({
-      name: "previous_period_data",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            location,
-            uniqMerge(visits) as previous_sessions,
-            countMerge(hits) as previous_hits
-        FROM analytics_pages_mv
-        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
-            AND bucket < (SELECT previous_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY location
-        {% else %}
-        SELECT '' as location, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "ranked",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            c.location,
-            c.current_sessions as sessions,
-            c.current_hits as hits,
-            coalesce(p.previous_sessions, 0) as previous_sessions,
-            coalesce(p.previous_hits, 0) as previous_hits,
-            CASE
-                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
-                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
-                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
-            END as sessions_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
-                WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
-            END as hits_growth_percentage
-        FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.location = p.location
-        ORDER BY c.current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% else %}
-        SELECT
-            location,
-            current_sessions as sessions,
-            current_hits as hits
-        FROM current_period_data
-        ORDER BY current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% end %}
-      `,
-    }),
-    barPercentNode(),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period"),
-    skip: p.int32().optional(0).describe("Skip for pagination"),
-    limit: p.int32().optional(50).describe("Limit for pagination"),
-    ...tzParam,
-    ...windowParams,
-  },
-  output: {
-    location: t.string(),
-    sessions: t.uint64(),
-    hits: t.uint64(),
-    bar_percent: t.float64(),
-  },
+export const topLocations = rankedEndpoint({
+  name: "top_locations",
+  description: "Top visiting countries ordered by most sessions with optional previous period comparison",
+  label: "location",
+  labelSql: "location",
+  source: "analytics_pages_mv",
+  sessionsSql: "uniqMerge(visits)",
 });
 
 export type TopLocationsParams = InferParams<typeof topLocations>;
 export type TopLocationsOutput = InferOutputRow<typeof topLocations>;
 
-/**
- * Top pages - most visited pages
- */
-export const topPages = defineEndpoint("top_pages", {
+export const topPages = rankedEndpoint({
+  name: "top_pages",
   description: "Most visited pages with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      sql: `
-        WITH
-            {% if defined(date_from) and defined(date_to) %}
-                toDate({{ String(date_from) }}) as current_start,
-                toDate({{ String(date_to) }}) as current_end,
-            {% else %}
-                toDate(timestampAdd(today(), interval -7 day)) as current_start,
-                toDate(today()) as current_end,
-            {% end %}
-            dateDiff('day', current_start, current_end) + 1 as period_days,
-            timestampAdd(current_start, interval -period_days day) as previous_start,
-            timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT
-            current_start,
-            current_end,
-            previous_start,
-            previous_end,
-            period_days,
-${previousWindowSql}
-      `,
-    }),
-    node({
-      name: "current_period_data",
-      sql: `
-        SELECT
-            CASE
-                WHEN pathname = '/' THEN pathname
-                ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
-            END as pathname,
-            uniqMerge(visits) as current_sessions,
-            countMerge(hits) as current_hits
-        FROM analytics_pages_mv
-        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY pathname
-      `,
-    }),
-    node({
-      name: "previous_period_data",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            CASE
-                WHEN pathname = '/' THEN pathname
-                ELSE if(endsWith(pathname, '/'), substring(pathname, 1, length(pathname) - 1), pathname)
-            END as pathname,
-            uniqMerge(visits) as previous_sessions,
-            countMerge(hits) as previous_hits
-        FROM analytics_pages_mv
-        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
-            AND bucket < (SELECT previous_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY pathname
-        {% else %}
-        SELECT '' as pathname, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "ranked",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            c.pathname,
-            c.current_sessions as sessions,
-            c.current_hits as hits,
-            coalesce(p.previous_sessions, 0) as previous_sessions,
-            coalesce(p.previous_hits, 0) as previous_hits,
-            CASE
-                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
-                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
-                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
-            END as sessions_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
-                WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
-            END as hits_growth_percentage
-        FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.pathname = p.pathname
-        ORDER BY c.current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% else %}
-        SELECT
-            pathname,
-            current_sessions as sessions,
-            current_hits as hits
-        FROM current_period_data
-        ORDER BY current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% end %}
-      `,
-    }),
-    barPercentNode(),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period"),
-    skip: p.int32().optional(0).describe("Skip for pagination"),
-    limit: p.int32().optional(50).describe("Limit for pagination"),
-    ...tzParam,
-    ...windowParams,
-  },
-  output: {
-    pathname: t.string(),
-    sessions: t.uint64(),
-    hits: t.uint64(),
-    bar_percent: t.float64(),
-  },
+  label: "pathname",
+  labelSql: PAGE_PATH_SQL,
+  source: "analytics_pages_mv",
+  sessionsSql: "uniqMerge(visits)",
 });
 
 export type TopPagesParams = InferParams<typeof topPages>;
 export type TopPagesOutput = InferOutputRow<typeof topPages>;
 
-/**
- * Top sources - traffic sources ordered by most sessions
- */
-export const topSources = defineEndpoint("top_sources", {
-  description:
-    "Top traffic sources ordered by most sessions with optional previous period comparison",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
-  nodes: [
-    node({
-      name: "date_calculations",
-      sql: `
-        WITH
-            {% if defined(date_from) and defined(date_to) %}
-                toDate({{ String(date_from) }}) as current_start,
-                toDate({{ String(date_to) }}) as current_end,
-            {% else %}
-                toDate(timestampAdd(today(), interval -7 day)) as current_start,
-                toDate(today()) as current_end,
-            {% end %}
-            dateDiff('day', current_start, current_end) + 1 as period_days,
-            timestampAdd(current_start, interval -period_days day) as previous_start,
-            timestampAdd(current_end, interval -period_days day) as previous_end
-        SELECT
-            current_start,
-            current_end,
-            previous_start,
-            previous_end,
-            period_days,
-${previousWindowSql}
-      `,
-    }),
-    node({
-      name: "current_period_data",
-      sql: `
-        SELECT
-            domainWithoutWWW(referrer) as referrer,
-            uniqMerge(visits) as current_sessions,
-            countMerge(hits) as current_hits
-        FROM analytics_sources_mv
-        WHERE bucket >= (SELECT current_start_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY referrer
-      `,
-    }),
-    node({
-      name: "previous_period_data",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            domainWithoutWWW(referrer) as referrer,
-            uniqMerge(visits) as previous_sessions,
-            countMerge(hits) as previous_hits
-        FROM analytics_sources_mv
-        WHERE bucket >= (SELECT previous_start_at FROM date_calculations)
-            AND bucket < (SELECT previous_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}${crossFilters}
-        GROUP BY referrer
-        {% else %}
-        SELECT '' as referrer, 0 as previous_sessions, 0 as previous_hits WHERE 1=0
-        {% end %}
-      `,
-    }),
-    node({
-      name: "ranked",
-      sql: `
-        {% if defined(include_previous_period) and include_previous_period == 'true' %}
-        SELECT
-            c.referrer,
-            c.current_sessions as sessions,
-            c.current_hits as hits,
-            coalesce(p.previous_sessions, 0) as previous_sessions,
-            coalesce(p.previous_hits, 0) as previous_hits,
-            CASE
-                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
-                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
-                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
-            END as sessions_growth_percentage,
-            CASE
-                WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
-                WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
-            END as hits_growth_percentage
-        FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.referrer = p.referrer
-        ORDER BY c.current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% else %}
-        SELECT
-            referrer,
-            current_sessions as sessions,
-            current_hits as hits
-        FROM current_period_data
-        ORDER BY current_sessions DESC
-        LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
-        {% end %}
-      `,
-    }),
-    barPercentNode(),
-  ],
-  params: {
-    date_from: p.string().optional().describe("Start date"),
-    date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
-    domain: p.string().optional().describe("Filter by domain"),
-    ...crossFilterParams,
-    include_previous_period: p
-      .string()
-      .optional()
-      .describe("Include previous period"),
-    skip: p.int32().optional(0).describe("Skip for pagination"),
-    limit: p.int32().optional(50).describe("Limit for pagination"),
-    ...tzParam,
-    ...windowParams,
-  },
-  output: {
-    referrer: t.string(),
-    sessions: t.uint64(),
-    hits: t.uint64(),
-    bar_percent: t.float64(),
-  },
+export const topSources = rankedEndpoint({
+  name: "top_sources",
+  description: "Top traffic sources ordered by most sessions with optional previous period comparison",
+  label: "referrer",
+  labelSql: "domainWithoutWWW(referrer) as referrer",
+  source: "analytics_sources_mv",
+  sessionsSql: "uniqMerge(visits)",
 });
 
 export type TopSourcesParams = InferParams<typeof topSources>;
