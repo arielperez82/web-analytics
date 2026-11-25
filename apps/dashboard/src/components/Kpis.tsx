@@ -57,7 +57,7 @@ type CardContent = {
 
 const growthOf = (percent: number, higherIsBetter: boolean): Growth => ({
   text: formatSignedPercent(percent),
-  delta: deltaOf({ percent, higherIsBetter }),
+  delta: deltaOf({ change: percent, higherIsBetter }),
 });
 
 const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
