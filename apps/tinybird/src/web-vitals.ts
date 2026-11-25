@@ -10,7 +10,9 @@ import {
   type InferParams,
   type InferOutputRow,
 } from "@tinybirdco/sdk";
+import { crossFilterParams, crossFilters } from "./cross-filters";
 import { dashboardToken } from "./tokens";
+import { browserSql, deviceSql } from "./user-agent";
 import { tzParam, tzSql } from "./time-zone";
 import { exactRangeSql, windowParams } from "./window";
 
@@ -73,7 +75,12 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             vital_delta as delta,
             pathname,
             domain_from_payload,
-            href
+            href,
+            location,
+            is_bot,
+            user_agent,
+            ${deviceSql} as device,
+            ${browserSql} as browser
         FROM analytics_events
         WHERE action = 'web_vital'
             {% if defined(from_date) %}
@@ -124,6 +131,9 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
             pv.delta,
             pv.pathname,
             pv.href,
+            pv.location,
+            pv.device,
+            pv.browser,
             if(pv.pathname = '/', '/', splitByChar('/', pv.pathname)[2]) as route,
             CASE
                 WHEN pv.value <= md.excellent_threshold THEN 'excellent'
@@ -166,6 +176,9 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
     delta: t.float64(),
     pathname: t.string(),
     href: t.string(),
+    location: t.string(),
+    device: t.string(),
+    browser: t.string(),
     route: t.string(),
     performance_category: t.string(),
     score: t.uint8(),
@@ -216,7 +229,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}
+            {% end %}${crossFilters}
         GROUP BY metric_name, domain, tenant_id
         HAVING measurements >= 1
       `,
@@ -270,6 +283,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
     }),
   ],
   params: {
+    ...crossFilterParams,
     ...tzParam,
     ...windowParams,
     days: p.int32().optional(1).describe("Number of days to analyze"),
@@ -359,7 +373,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}
+            {% end %}${crossFilters}
             AND performance_category != 'unknown'
       `,
     }),
@@ -388,7 +402,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}
+            {% end %}${crossFilters}
             AND performance_category != 'unknown'
         {% else %}
         SELECT '' as metric_name, 0 as value, '' as performance_category, 0 as score, '' as units,
@@ -562,6 +576,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
     }),
   ],
   params: {
+    ...crossFilterParams,
     ...tzParam,
     date_from: p.string().optional().describe("Start date"),
     date_to: p.string().optional().describe("End date"),
@@ -646,7 +661,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}
+            {% end %}${crossFilters}
             {% if defined(route) %}
             AND route = {{ String(route, description="Route to filter by") }}
             {% end %}
@@ -753,6 +768,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
     }),
   ],
   params: {
+    ...crossFilterParams,
     ...tzParam,
     ...windowParams,
     days: p.int32().optional(1).describe("Number of days to analyze"),
@@ -830,7 +846,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
             {% end %}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}
+            {% end %}${crossFilters}
       `,
     }),
     node({
@@ -853,6 +869,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
     }),
   ],
   params: {
+    ...crossFilterParams,
     ...tzParam,
     date_from: p.date().optional().describe("Start date"),
     date_to: p.date().optional().describe("End date"),

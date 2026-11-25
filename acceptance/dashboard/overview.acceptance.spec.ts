@@ -149,22 +149,32 @@ test('bots are left out until the viewer includes them', async ({ page }) => {
     .toEqual(BOT_AWARE.map(() => '1'));
 });
 
-test('speed insights do not offer the bot toggle', async ({ page }) => {
-  await stubApi(page, {
+test('speed insights apply the same filters as the overview', async ({
+  page,
+}) => {
+  const api = await stubApi(page, {
     ...routes,
     web_vitals_current: [],
     web_vitals_routes: [],
   });
   await signIn(page);
 
-  await page.goto('/speed');
+  await page.goto('/speed?device=mobile-ios');
 
   await expect(
     page.getByRole('link', { name: 'Speed Insights' })
   ).toHaveAttribute('aria-current', 'page');
+  await expect
+    .poll(() => api.requestsTo('web_vitals_current').at(-1)?.get('device'))
+    .toBe('mobile-ios');
+  await expect(page.getByText('device: mobile-ios ×')).not.toHaveClass(
+    /inactive/
+  );
+  await expect(page.getByText(/don’t apply to Speed Insights/)).toHaveCount(0);
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(
     page.getByRole('checkbox', { name: 'Include bots' })
-  ).toHaveCount(0);
+  ).toBeVisible();
   await expect(page.getByRole('group', { name: 'Compare to' })).toHaveCount(0);
 });
 

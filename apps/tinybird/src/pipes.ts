@@ -11,6 +11,7 @@ import {
   type InferOutputRow,
 } from "@tinybirdco/sdk";
 import { dashboardToken } from "./tokens";
+import { browserSql, deviceSql } from "./user-agent";
 
 /**
  * Analytics hits - parsed page_hit events with browser/device detection
@@ -89,28 +90,8 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
             visitor_key,
             is_bot,
             current_domain,
-            case
-                when is_bot = 1
-                then 'bot'
-                when match(user_agent, 'android')
-                then 'mobile-android'
-                when match(user_agent, 'ipad|iphone|ipod')
-                then 'mobile-ios'
-                else 'desktop'
-            END as device,
-            case
-                when match(user_agent, 'firefox')
-                then 'firefox'
-                when match(user_agent, 'chrome|crios')
-                then 'chrome'
-                when match(user_agent, 'opera')
-                then 'opera'
-                when match(user_agent, 'msie|trident')
-                then 'ie'
-                when match(user_agent, 'iphone|ipad|safari')
-                then 'safari'
-                else 'Unknown'
-            END as browser
+            ${deviceSql} as device,
+            ${browserSql} as browser
         FROM parsed_hits
       `,
     }),

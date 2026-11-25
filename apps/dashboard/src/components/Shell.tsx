@@ -94,15 +94,13 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
           title={onSpeed ? "Speed Insights" : "Overview"}
           subtitle={`${rangeLabel(state.range)} · ${zone} · ${fmt(online.data?.[0]?.sessions ?? 0)} online now`}
         >
-          {!onSpeed && (
-            <FilterMenu
-              filters={state.filters}
-              params={params}
-              onChange={(next) => update({ ...state, filters: next })}
-              includeBots={state.includeBots === true}
-              onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
-            />
-          )}
+          <FilterMenu
+            filters={state.filters}
+            params={params}
+            onChange={(next) => update({ ...state, filters: next })}
+            includeBots={state.includeBots === true}
+            onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
+          />
           {onOverview && <CompareControl state={state} params={params} onChange={update} />}
           <DateRangePicker
             range={state.range}
@@ -121,8 +119,6 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             {filters.map(({ key, value }) => (
               <button
                 key={key}
-                className={onSpeed ? "inactive" : undefined}
-                title={onSpeed ? "Not applied to Speed Insights" : undefined}
                 onClick={() => update({ ...state, filters: toggleFilter(state.filters, key, value) })}
               >
                 {key}: {value} ×
@@ -132,7 +128,6 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
               <span className="muted">Showing all traffic.</span>
             )}
             {filters.length > 0 && <button onClick={() => update({ ...state, filters: {} })}>Clear filters</button>}
-            {onSpeed && filters.length > 0 && <span className="muted">Location, device and browser filters don’t apply to Speed Insights.</span>}
           </div>
         )}
         <main id="main" tabIndex={-1}>
