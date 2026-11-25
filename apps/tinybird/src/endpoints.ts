@@ -14,7 +14,7 @@ import { visitorClassSql } from "./payload-columns";
 import { crossFilterParams, crossFilters } from "./cross-filters";
 import { dashboardToken } from "./tokens";
 import { tzParam, tzSql } from "./time-zone";
-import { currentWindowSql, previousWindowSql, windowParams } from "./window";
+import { compareWindowParams, comparedWindowSql, currentWindowSql, previousWindowSql, windowParams } from "./window";
 
 // ============================================================================
 // Core Endpoints
@@ -1067,6 +1067,28 @@ const barPercentNode = () =>
       `,
   });
 
+const rankedBarPercentNode = (label: string) =>
+  node({
+    name: "endpoint",
+    description: "Sizes both periods' bars on one scale, the busiest row of either period being 100",
+    sql: `
+        {% if defined(include_previous_period) and include_previous_period == 'true' %}
+        SELECT
+            *,
+            round(if(scale = 0, 0, sessions * 100.0 / scale), 2) AS bar_percent,
+            round(if(scale = 0, 0, previous_sessions * 100.0 / scale), 2) AS previous_bar_percent
+        FROM (SELECT *, greatest(max(sessions) OVER (), max(previous_sessions) OVER ()) AS scale FROM ranked)
+        ORDER BY sessions DESC, previous_sessions DESC, ${label} ASC
+        {% else %}
+        SELECT
+            *,
+            round(if(max(sessions) OVER () = 0, 0, sessions * 100.0 / max(sessions) OVER ()), 2) AS bar_percent
+        FROM ranked
+        ORDER BY sessions DESC
+        {% end %}
+      `,
+  });
+
 type RankedSpec<L extends string> = {
   readonly name: string;
   readonly description: string;
@@ -1124,7 +1146,7 @@ const rankedEndpoint = <L extends string>(spec: RankedSpec<L>) =>
             previous_start,
             previous_end,
             period_days,
-${previousWindowSql}
+${comparedWindowSql}
       `,
       }),
       node({
@@ -1145,28 +1167,44 @@ ${previousWindowSql}
       }),
       node({
         name: "ranked",
-        description: "Combine with growth calculations",
+        description: "Union both periods by label, mark new and gone rows",
         sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
-            c.${spec.label},
-            c.current_sessions as sessions,
-            c.current_hits as hits,
-            coalesce(p.previous_sessions, 0) as previous_sessions,
-            coalesce(p.previous_hits, 0) as previous_hits,
+            ${spec.label},
+            sessions,
+            hits,
+            previous_sessions,
+            previous_hits,
+            toInt64(sessions) - toInt64(previous_sessions) as sessions_change,
+            multiIf(previous_sessions = 0 AND sessions > 0, 'new', sessions = 0 AND previous_sessions > 0, 'gone', '') as status,
             CASE
-                WHEN coalesce(p.previous_sessions, 0) = 0 AND c.current_sessions > 0 THEN 100.0
-                WHEN coalesce(p.previous_sessions, 0) = 0 THEN 0.0
-                ELSE round(((c.current_sessions - coalesce(p.previous_sessions, 0)) * 100.0) / p.previous_sessions, 2)
+                WHEN previous_sessions = 0 AND sessions > 0 THEN 100.0
+                WHEN previous_sessions = 0 THEN 0.0
+                ELSE round(((sessions - previous_sessions) * 100.0) / previous_sessions, 2)
             END as sessions_growth_percentage,
             CASE
-                WHEN coalesce(p.previous_hits, 0) = 0 AND c.current_hits > 0 THEN 100.0
-                WHEN coalesce(p.previous_hits, 0) = 0 THEN 0.0
-                ELSE round(((c.current_hits - coalesce(p.previous_hits, 0)) * 100.0) / p.previous_hits, 2)
+                WHEN previous_hits = 0 AND hits > 0 THEN 100.0
+                WHEN previous_hits = 0 THEN 0.0
+                ELSE round(((hits - previous_hits) * 100.0) / previous_hits, 2)
             END as hits_growth_percentage
-        FROM current_period_data c
-        LEFT JOIN previous_period_data p ON c.${spec.label} = p.${spec.label}
-        ORDER BY c.current_sessions DESC
+        FROM (
+            SELECT
+                ${spec.label},
+                sum(sessions) as sessions,
+                sum(hits) as hits,
+                sum(previous_sessions) as previous_sessions,
+                sum(previous_hits) as previous_hits
+            FROM (
+                SELECT ${spec.label}, current_sessions as sessions, current_hits as hits, 0 as previous_sessions, 0 as previous_hits
+                FROM current_period_data
+                UNION ALL
+                SELECT ${spec.label}, 0 as sessions, 0 as hits, previous_sessions, previous_hits
+                FROM previous_period_data
+            )
+            GROUP BY ${spec.label}
+        )
+        ORDER BY sessions DESC, previous_sessions DESC, ${spec.label} ASC
         LIMIT {{ Int32(skip, 0) }}, {{ Int32(limit, 50) }}
         {% else %}
         SELECT
@@ -1179,7 +1217,7 @@ ${previousWindowSql}
         {% end %}
       `,
       }),
-      barPercentNode(),
+      rankedBarPercentNode(spec.label),
     ],
     params: {
       date_from: p.string().optional().describe("Start date"),
@@ -1192,6 +1230,7 @@ ${previousWindowSql}
       limit: p.int32().optional(50).describe("Limit for pagination"),
       ...tzParam,
       ...windowParams,
+      ...compareWindowParams,
     },
     output: {
       ...({ [spec.label]: t.string() } as Record<L, ReturnType<typeof t.string>>),
