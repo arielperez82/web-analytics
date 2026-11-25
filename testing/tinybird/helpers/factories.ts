@@ -1,6 +1,6 @@
 export type AnalyticsEventRow = {
   readonly timestamp: string;
-  readonly session_id: string;
+  readonly session_id: string | null;
   readonly action: string;
   readonly version: string;
   readonly payload: string;
@@ -15,7 +15,9 @@ type WebVitalOptions = {
   readonly value: number;
   readonly pathname: string;
   readonly delta?: number;
-  readonly sessionId?: string;
+  readonly sessionId?: string | null;
+  readonly userAgent?: string;
+  readonly location?: string;
   readonly now?: Date;
 };
 
@@ -35,13 +37,23 @@ export const createWebVitalEvent = ({
   pathname,
   delta = 0,
   sessionId = crypto.randomUUID(),
+  userAgent,
+  location,
   now = new Date(),
 }: WebVitalOptions): AnalyticsEventRow => ({
   timestamp: formatTimestamp(new Date(now.getTime() - ONE_MINUTE_MS)),
   session_id: sessionId,
   action: 'web_vital',
   version: 'e2e',
-  payload: JSON.stringify({ name, value, delta, pathname, domain }),
+  payload: JSON.stringify({
+    name,
+    value,
+    delta,
+    pathname,
+    domain,
+    ...(userAgent === undefined ? {} : { user_agent: userAgent }),
+    ...(location === undefined ? {} : { location }),
+  }),
   tenant_id: tenantId,
   domain,
 });
