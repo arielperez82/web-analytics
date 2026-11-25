@@ -41,7 +41,7 @@ test('at phone width the navigation sits above the content', async ({
     .getByRole('navigation', { name: 'Main' })
     .boundingBox();
   const title = await page
-    .getByRole('heading', { name: 'Web Analytics' })
+    .getByRole('heading', { name: 'Overview' })
     .boundingBox();
 
   expect(nav?.width).toBeGreaterThanOrEqual(370);

@@ -434,6 +434,7 @@ test.describe('time zone', () => {
   }) => {
     await stubApi(page, routes);
     await signIn(page);
+    await page.getByRole('button', { name: 'Anonymous visitors' }).hover();
 
     await expect(
       page.getByText('which ends at each visitor’s own midnight')
