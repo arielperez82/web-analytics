@@ -445,6 +445,50 @@ test.describe('time zone', () => {
       page.getByText('which ends at each visitor’s own midnight')
     ).toBeVisible();
   });
+
+  test('a key figure carries no mark, and its explanation opens on focus and closes with Escape', async ({
+    page,
+  }) => {
+    await stubApi(page, routes);
+    await signIn(page);
+    const sessions = page.getByRole('button', { name: 'Sessions' });
+    const tip = sessions.getByRole('tooltip');
+
+    await expect(sessions.locator('strong')).not.toContainText('*');
+    await expect(tip).toBeHidden();
+
+    await sessions.focus();
+    await expect(tip).toContainText('within 1% for large ones');
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(sessions).toBeFocused();
+  });
+
+  test('a key figure explains itself to a resting pointer, and stays open while the pointer moves onto the explanation', async ({
+    page,
+  }) => {
+    await stubApi(page, routes);
+    await signIn(page);
+    const sessions = page.getByRole('button', { name: 'Sessions' });
+    const tip = sessions.getByRole('tooltip');
+
+    await sessions.hover();
+    await expect(tip).toBeVisible();
+
+    const card = await sessions.boundingBox();
+    const box = await tip.boundingBox();
+    if (card === null || box === null)
+      throw new Error('card or tooltip not laid out');
+    const x = box.x + 16;
+    await page.mouse.move(x, card.y + card.height - 2);
+    await page.mouse.move(x, card.y + card.height + 3, { steps: 4 });
+    await page.mouse.move(x, box.y + box.height / 2, { steps: 4 });
+    await expect(tip).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await expect(tip).toBeHidden();
+  });
 });
 
 test('the chart is compared with the period before it until the viewer switches that off', async ({
