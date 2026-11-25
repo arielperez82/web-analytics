@@ -59,15 +59,17 @@ export const currentVisitors = defineEndpoint("current_visitors", {
 export type CurrentVisitorsParams = InferParams<typeof currentVisitors>;
 export type CurrentVisitorsOutput = InferOutputRow<typeof currentVisitors>;
 
+/** Change in a count from the previous period, signed so a fall reads below zero. */
+const countChangeSql = (current: string, previous: string): string =>
+  `toInt64(${current}) - toInt64(${previous})`;
+
+/** Change in a rate from the previous period, in the rate's own unit, from the rounded figures returned. */
+const rateChangeSql = (current: string, previous: string): string => `round(${current} - ${previous}, 2)`;
+
 /**
  * Percentage change from the previous period to the current one. New traffic against an empty
  * previous period reads as 100, and two empty periods as 0.
  */
-const countChangeSql = (current: string, previous: string): string =>
-  `toInt64(${current}) - toInt64(${previous})`;
-
-const rateChangeSql = (current: string, previous: string): string => `round(${current} - ${previous}, 2)`;
-
 const growthPercentSql = (current: string, previous: string): string =>
   `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
 
