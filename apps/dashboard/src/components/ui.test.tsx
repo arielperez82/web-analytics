@@ -25,4 +25,16 @@ describe("Panel", () => {
     region.focus();
     expect(document.activeElement).toBe(region);
   });
+
+  it("holds an aside in the same row as its title", () => {
+    render(
+      <Panel title="Sessions per day" aside={<span>legend</span>}>
+        chart
+      </Panel>,
+    );
+
+    const head = screen.getByRole("heading", { name: "Sessions per day" }).parentElement;
+    expect(head?.className).toBe("panel-head");
+    expect(head?.textContent).toContain("legend");
+  });
 });

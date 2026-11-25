@@ -314,6 +314,16 @@ export const Kpis = ({
       <Panel
         ref={chartPanel}
         focusable
+        aside={
+          <ul className="legend" aria-label="Chart legend">
+            <li className="current">{thisPeriod(params)}</li>
+            {comparison === undefined ? null : (
+              <li className="previous">
+                {comparedPeriod({ state, params }, comparison)}
+              </li>
+            )}
+          </ul>
+        }
         title={
           hourly
             ? `${label} per ${perHour}`
@@ -374,14 +384,6 @@ export const Kpis = ({
             </div>
           </div>
         </div>
-        <ul className="legend" aria-label="Chart legend">
-          <li className="current">{thisPeriod(params)}</li>
-          {comparison === undefined ? null : (
-            <li className="previous">
-              {comparedPeriod({ state, params }, comparison)}
-            </li>
-          )}
-        </ul>
         <small className="footnote">
           Lines are per-{unit} counts and can add up to more than the card.
         </small>
