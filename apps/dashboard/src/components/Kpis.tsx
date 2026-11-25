@@ -169,26 +169,6 @@ const isExactWindow = (params: QueryParams): boolean =>
 const isSingleDay = (params: QueryParams): boolean =>
   params.date_from === params.date_to;
 
-const thisPeriod = (params: QueryParams): string =>
-  isExactWindow(params)
-    ? "This period · Last 24 hours"
-    : `This period · ${String(params.date_from)} – ${String(params.date_to)}`;
-
-const comparedPeriod = (
-  {
-    state,
-    params,
-  }: { readonly state: DashboardState; readonly params: QueryParams },
-  comparison: { readonly compare_from: string; readonly compare_to: string },
-): string => {
-  const lastWeek = state.compare === "last_week";
-  if (isExactWindow(params))
-    return lastWeek
-      ? "Same hours last week · a week earlier"
-      : "Previous period · the 24 hours before";
-  return `${lastWeek ? "Same day last week" : "Previous period"} · ${comparison.compare_from} – ${comparison.compare_to}`;
-};
-
 const comparisonKey = (state: DashboardState): Compare | "previous" =>
   state.compare ?? "previous";
 
@@ -316,19 +296,11 @@ export const Kpis = ({
         focusable
         aside={
           <ul className="legend" aria-label="Chart legend">
-            <li className="current">{thisPeriod(params)}</li>
-            {comparison === undefined ? null : (
-              <li className="previous">
-                {comparedPeriod({ state, params }, comparison)}
-              </li>
-            )}
+            <li className="current">This period</li>
+            {comparison === undefined ? null : <li className="previous">Previous period</li>}
           </ul>
         }
-        title={
-          hourly
-            ? `${label} per ${perHour}`
-            : `${label} per day · click a point to drill in`
-        }
+        title={`${label} per ${hourly ? perHour : "day"}`}
       >
         <div className="chart-controls">
           <div className="chart-options">
@@ -384,9 +356,6 @@ export const Kpis = ({
             </div>
           </div>
         </div>
-        <small className="footnote">
-          Lines are per-{unit} counts and can add up to more than the card.
-        </small>
       </Panel>
     </>
   );

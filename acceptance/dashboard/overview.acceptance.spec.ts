@@ -491,5 +491,7 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
       .getByRole('group', { name: 'Chart granularity' })
       .getByRole('button', { name: 'Day' })
   ).toBeDisabled();
-  await expect(page.getByLabel('Chart legend')).toContainText('Last 24 hours');
+  await expect(
+    page.getByRole('heading', { name: 'Sessions per hour' })
+  ).toBeVisible();
 });

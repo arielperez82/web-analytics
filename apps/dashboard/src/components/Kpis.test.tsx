@@ -391,18 +391,38 @@ describe("Kpis", () => {
     expect((within(grain).getByRole("button", { name: "Day" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("names the two ranges in a legend", async () => {
+  const legendItems = async () =>
+    within(await screen.findByLabelText("Chart legend"))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  it("names the two lines This period and Previous period, without their dates", async () => {
     renderKpis({ comparison });
 
-    expect(await screen.findByText("This period · 2026-11-10 – 2026-11-16")).toBeTruthy();
-    expect(screen.getByText("Previous period · 2026-11-03 – 2026-11-09")).toBeTruthy();
+    expect(await legendItems()).toEqual(["This period", "Previous period"]);
   });
 
-  it("says that the lines can add up to more than the card", async () => {
+  it("calls the same day last week the previous period too", async () => {
+    renderKpis({
+      params: { ...params, date_to: "2026-11-10" },
+      comparison,
+      state: { ...state, compare: "last_week" },
+    });
+
+    expect(await legendItems()).toEqual(["This period", "Previous period"]);
+  });
+
+  it("is titled by metric and time group alone", async () => {
     renderKpis();
 
-    const note = await screen.findByText("Lines are per-day counts and can add up to more than the card.");
-    expect(note.className).toBe("footnote");
+    expect(await screen.findByRole("heading", { name: "Sessions per day" })).toBeTruthy();
+  });
+
+  it("gives no reading instructions under the chart", async () => {
+    renderKpis();
+
+    await screen.findByRole("heading", { name: "Sessions per day" });
+    expect(screen.queryByText(/Lines are/)).toBeNull();
   });
 
   describe("the comparison control", () => {
@@ -494,11 +514,10 @@ describe("Kpis", () => {
       expect(within(grain).getByRole("button", { name: "Hour" }).getAttribute("aria-pressed")).toBe("true");
     });
 
-    it("is named in the legend by its length, not by days", async () => {
+    it("names the lines in the legend the same way as any range", async () => {
       renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 
-      expect(await screen.findByText("This period · Last 24 hours")).toBeTruthy();
-      expect(screen.getByText("Previous period · the 24 hours before")).toBeTruthy();
+      expect(await legendItems()).toEqual(["This period", "Previous period"]);
     });
 
     it("offers the same hours last week", async () => {
