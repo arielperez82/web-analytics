@@ -337,27 +337,21 @@ test('hours are not offered for ninety days', async ({ page }) => {
   ).toBeDisabled();
 });
 
-test('the granularity and comparison toggles sit together at the right of the chart', async ({
+test('the comparison is chosen in the page header, the granularity on the chart', async ({
   page,
 }) => {
   await stubApi(page, routes);
   await signIn(page);
 
-  const grain = await page
-    .getByRole('group', { name: 'Chart granularity' })
-    .boundingBox();
-  const compare = await page
-    .getByRole('group', { name: 'Compare to' })
-    .boundingBox();
-  const panel = await page
-    .getByRole('group', { name: 'Sessions chart' })
-    .boundingBox();
-  expect(compare?.x).toBeGreaterThan(
-    (grain?.x ?? Infinity) + (grain?.width ?? 0)
-  );
-  expect((compare?.x ?? 0) + (compare?.width ?? 0)).toBeGreaterThan(
-    (panel?.x ?? 0) + (panel?.width ?? 0) - 40
-  );
+  await expect(
+    page.getByRole('banner').getByRole('group', { name: 'Compare to' })
+  ).toBeVisible();
+  await expect(
+    page.getByRole('main').getByRole('group', { name: 'Compare to' })
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('main').getByRole('group', { name: 'Chart granularity' })
+  ).toBeVisible();
 });
 
 test('filtering lives in the Filters menu, not in the widgets', async ({
