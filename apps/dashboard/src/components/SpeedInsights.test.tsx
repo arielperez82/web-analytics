@@ -117,4 +117,103 @@ describe("SpeedInsights", () => {
 
     expect(badge.getAttribute("data-tone")).toBe(tone);
   });
+
+  describe("compared with another period", () => {
+    const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+    const route = (overall_score_change: number | null): ApiRow => ({
+      domain: "a.example",
+      route: "/checkout",
+      overall_score: 80,
+      lcp_avg: 1,
+      inp_avg: 2,
+      cls_avg: 0,
+      previous_overall_score: overall_score_change === null ? null : 70,
+      overall_score_change,
+    });
+    const renderCompared = (vitals: readonly ApiRow[], routes: readonly ApiRow[] = []) => {
+      const api = installFakeApi({ web_vitals_current: vitals, web_vitals_routes: routes });
+      render(<SpeedInsights params={params} comparison={comparison} />);
+      return api;
+    };
+
+    it("asks both endpoints for the figures of the chosen period", async () => {
+      const api = renderCompared([vital("LCP", 2100)]);
+
+      await screen.findByText("LCP p75");
+      await waitFor(() => expect(api.requestsTo("web_vitals_routes")).toHaveLength(1));
+      for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
+        const query = api.requestsTo(endpoint)[0];
+        expect(query?.get("include_previous_period")).toBe("true");
+        expect(query?.get("compare_from")).toBe("2026-11-03");
+        expect(query?.get("compare_to")).toBe("2026-11-09");
+      }
+    });
+
+    it("asks for no comparison when none is chosen", async () => {
+      const api = renderPage([{ ...vital("LCP", 2100), previous_p75: 2300, p75_change: -200, p75_change_percent: -8.7 }]);
+
+      await screen.findByText("LCP p75");
+      await waitFor(() => expect(api.requestsTo("web_vitals_routes")).toHaveLength(1));
+      for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
+        const query = api.requestsTo(endpoint)[0];
+        expect(query?.has("include_previous_period")).toBe(false);
+        expect(query?.has("compare_from")).toBe(false);
+      }
+      expect(screen.queryByText(/8\.7%/)).toBeNull();
+      expect(screen.queryByRole("columnheader", { name: "Score vs previous" })).toBeNull();
+    });
+
+    it("shows a vital that got faster as a good change, with the API's figures", async () => {
+      renderCompared([{ ...vital("LCP", 2100), previous_p75: 2300, p75_change: -200, p75_change_percent: -8.7 }]);
+
+      const badge = await screen.findByText("-200 (-8.7%)", { exact: false });
+
+      expect(badge.getAttribute("data-tone")).toBe("good");
+      expect(within(badge).getByText("Down")).toBeTruthy();
+      expect(screen.getByText("was 2,300 ms")).toBeTruthy();
+    });
+
+    it("shows a vital that got slower as a bad change", async () => {
+      renderCompared([{ ...vital("LCP", 2100), previous_p75: 1600, p75_change: 500, p75_change_percent: 31.25 }]);
+
+      const badge = await screen.findByText("+500 (+31.25%)", { exact: false });
+
+      expect(badge.getAttribute("data-tone")).toBe("bad");
+      expect(within(badge).getByText("Up")).toBeTruthy();
+    });
+
+    it("shows a change without a percentage when the API gives none", async () => {
+      renderCompared([{ ...vital("CLS", 0.2), previous_p75: 0, p75_change: 0.2, p75_change_percent: null }]);
+
+      const badge = await screen.findByText("+0.2", { exact: false });
+
+      expect(badge.textContent).not.toContain("%");
+      expect(badge.getAttribute("data-tone")).toBe("bad");
+    });
+
+    it("says so when a vital was not measured in the chosen period", async () => {
+      renderCompared([{ ...vital("LCP", 2100), previous_p75: null, p75_change: null, p75_change_percent: null }]);
+
+      expect(await screen.findByText("No earlier data")).toBeTruthy();
+    });
+
+    it("shows each route's score change, a rise being good", async () => {
+      renderCompared([vital("LCP", 2100)], [route(10)]);
+
+      expect(await screen.findByRole("columnheader", { name: "Score vs previous" })).toBeTruthy();
+      const badge = await screen.findByText("+10", { exact: false });
+      expect(badge.getAttribute("data-tone")).toBe("good");
+      expect(within(badge).getByText("Up")).toBeTruthy();
+    });
+
+    it("shows a fallen route score as a bad change, and none where the API gives none", async () => {
+      renderCompared([vital("LCP", 2100)], [route(-12.5), { ...route(null), route: "/new" }]);
+
+      const badge = await screen.findByText("-12.5", { exact: false });
+      expect(badge.getAttribute("data-tone")).toBe("bad");
+      const fresh = (await screen.findByText("/new")).closest("tr");
+      expect(fresh?.querySelector(".ds-badge")).toBeNull();
+      expect(fresh?.lastElementChild?.textContent).toBe("—");
+    });
+  });
 });
