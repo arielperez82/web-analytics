@@ -1,15 +1,14 @@
 "use client";
 
-import { Badge } from "@/ds/Badge";
 import { spokenSignedScorePoints } from "@/lib/format";
-import { statusClass, statusTone } from "@/lib/status-class";
+import { statusClass } from "@/lib/status-class";
 import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { orderVitals } from "@/lib/vitals-order";
 
 import { ChangeBadge } from "./ChangeBadge";
 import { fmt, Panel, type Row, Status } from "./ui";
-import { VitalChange, vitalsScope } from "./vitals";
+import { hasSeveralDomains, VitalChange, VitalReading, vitalsScope } from "./vitals";
 
 const NoEarlierData = () => (
   <>
@@ -24,7 +23,7 @@ export const SpeedInsights = ({ params, comparison }: { params: QueryParams; com
   const vitals = useEndpoint<Row>("web_vitals_current", scope);
   const routes = useEndpoint<Row>("web_vitals_routes", { ...scope, sort_order: "asc", limit: "10" });
   const ordered = orderVitals(vitals.data ?? []);
-  const multiDomain = new Set(ordered.map((row) => row.domain)).size > 1;
+  const multiDomain = hasSeveralDomains(ordered);
   return (
     <>
       <Panel title="Core Web Vitals">
@@ -32,9 +31,7 @@ export const SpeedInsights = ({ params, comparison }: { params: QueryParams; com
         <div className="cards">
           {ordered.map((row) => (
             <div key={`${row.domain}-${row.metric_name}`} className={`card ${statusClass(row.status)}`}>
-              <span>{row.metric_name} p75{multiDomain ? ` · ${row.domain}` : ""}</span>
-              <strong>{fmt(row.p75)} <small>{row.units}</small></strong>
-              <Badge tone={statusTone(row.status)}>{fmt(row.status)}</Badge>
+              <VitalReading row={row} showDomain={multiDomain} />
               {comparing && <VitalChange row={row} />}
             </div>
           ))}

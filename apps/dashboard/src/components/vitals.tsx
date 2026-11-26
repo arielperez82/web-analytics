@@ -1,4 +1,6 @@
+import { Badge } from "@/ds/Badge";
 import { spokenSignedMilliseconds, spokenSignedNumber } from "@/lib/format";
+import { statusTone } from "@/lib/status-class";
 import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
 
 import { ChangeBadge } from "./ChangeBadge";
@@ -30,3 +32,23 @@ export const VitalChange = ({ row }: { row: Row }) => {
     </div>
   );
 };
+
+export const hasSeveralDomains = (rows: readonly Row[]): boolean => new Set(rows.map((row) => row.domain)).size > 1;
+
+export const VitalReading = ({
+  row,
+  showDomain,
+  labelClass,
+  figureClass,
+}: {
+  row: Row;
+  showDomain: boolean;
+  labelClass?: string;
+  figureClass?: string;
+}) => (
+  <>
+    <span className={labelClass}>{row.metric_name} p75{showDomain ? ` · ${row.domain}` : ""}</span>
+    <strong className={figureClass}>{fmt(row.p75)} <small>{row.units}</small></strong>
+    <Badge tone={statusTone(row.status)}>{fmt(row.status)}</Badge>
+  </>
+);
