@@ -75,6 +75,35 @@ const routes = {
   channels: [],
   conversions: [],
   conversion_summary: [],
+  web_vitals_current: [
+    {
+      domain: 'a.example',
+      metric_name: 'LCP',
+      p75: 2100.5,
+      units: 'ms',
+      status: 'Good',
+      previous_p75: 2300,
+      p75_change: -199.5,
+      p75_change_percent: -8.67,
+    },
+    {
+      domain: 'a.example',
+      metric_name: 'INP',
+      p75: 320,
+      units: 'ms',
+      status: 'Needs Improvement',
+      previous_p75: 250,
+      p75_change: 70,
+      p75_change_percent: 28,
+    },
+    {
+      domain: 'a.example',
+      metric_name: 'TTFB',
+      p75: 400,
+      units: 'ms',
+      status: 'Good',
+    },
+  ],
 };
 
 test('the overview shows the figures the API computed', async ({ page }) => {
@@ -91,6 +120,32 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
   await expect(page.getByText('1,234')).toBeVisible();
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
+});
+
+test('the Speed panel sits level with Pages and Sources and shows the API vitals', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await stubApi(page, routes);
+  await signIn(page);
+
+  const speed = page.locator('section.panel', {
+    has: page.getByRole('heading', { level: 2, name: 'Speed', exact: true }),
+  });
+  await expect(speed.getByText('LCP p75')).toBeVisible();
+  await expect(speed.getByText('INP p75')).toBeVisible();
+  await expect(speed.getByText('TTFB p75')).toHaveCount(0);
+  await expect(speed.getByText('2,100.5')).toBeVisible();
+  await expect(speed.getByText('Needs Improvement')).toBeVisible();
+  await expect(speed.getByText('-199.5 (-8.67%)')).toBeVisible();
+
+  const boxes = await Promise.all(
+    ['Pages', 'Sources', 'Speed'].map(name =>
+      page.getByRole('heading', { level: 2, name, exact: true }).boundingBox()
+    )
+  );
+  const tops = boxes.map(box => box?.y ?? -1);
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(2);
 });
 
 test('a screen reader hears each change with its sign and unit in words, while the screen keeps the short text', async ({
@@ -179,11 +234,15 @@ test('picking a country in the filter menu slices every widget by it', async ({
 
   await expect
     .poll(() =>
-      ['visitor_counts', 'engagement', 'series', 'top_pages'].map(endpoint =>
-        api.requestsTo(endpoint).at(-1)?.get('location')
-      )
+      [
+        'visitor_counts',
+        'engagement',
+        'series',
+        'top_pages',
+        'web_vitals_current',
+      ].map(endpoint => api.requestsTo(endpoint).at(-1)?.get('location'))
     )
-    .toEqual(['FR', 'FR', 'FR', 'FR']);
+    .toEqual(['FR', 'FR', 'FR', 'FR', 'FR']);
   await expect(page).toHaveURL(/location=FR/);
 });
 
@@ -199,6 +258,7 @@ const BOT_AWARE = [
   'channels',
   'conversions',
   'conversion_summary',
+  'web_vitals_current',
 ];
 
 test('bots are left out until the viewer includes them', async ({ page }) => {
