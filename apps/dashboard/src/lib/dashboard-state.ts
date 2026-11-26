@@ -113,9 +113,9 @@ export const drillDay = (state: DashboardState, day: string): DashboardState => 
     : { ...rest, range: { from: day, to: day }, grain: "hour" };
 };
 
-export const hrefFor = (pathname: string, state: DashboardState): string => {
-  const search = toSearch(state);
-  return search ? `${pathname}?${search}` : pathname;
-};
+export const hrefWithSearch = (pathname: string, search: string): string =>
+  search === "" ? pathname : `${pathname}?${search}`;
+
+export const hrefFor = (pathname: string, state: DashboardState): string => hrefWithSearch(pathname, toSearch(state));
 
 export const tenantLabel = (tenant: string): string => (tenant === "" ? "No Tenant" : tenant);
