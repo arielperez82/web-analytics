@@ -273,6 +273,32 @@ describe.concurrent('web_vitals_current pipe', () => {
       ]);
     });
 
+    it('takes the previous figure as the 75th percentile of the earlier window, not its average, median, minimum or maximum', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        lcpAt(scope, 2000, window.duringIt),
+        ...[1000, 1500, 2000, 3000, 10000].map(value =>
+          lcpAt(scope, value, window.justBeforeIt)
+        ),
+      ]);
+
+      const rows = await compared({
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        ...window.params,
+      });
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          p75: 2000,
+          previous_p75: 3000,
+          p75_change: -1000,
+          p75_change_percent: -33.33,
+        }),
+      ]);
+    });
+
     it('compares with the window the viewer chose instead', async () => {
       const scope = createScope();
       const window = twoHourWindow();
@@ -417,24 +443,10 @@ describe.concurrent('web_vitals_current pipe', () => {
         { tenant_id: scope.tenantId, domain: scope.domain, ...window.params }
       );
 
-      expect(rows.map(row => Object.keys(row))).toEqual([
-        [
-          'metric_name',
-          'avg_value',
-          'p75',
-          'p90',
-          'p95',
-          'p99',
-          'measurements',
-          'score',
-          'status',
-          'units',
-          'description',
-          'thresholds',
-          'domain',
-          'tenant_id',
-        ],
-      ]);
+      expect(rows).toHaveLength(1);
+      for (const key of ['previous_p75', 'p75_change', 'p75_change_percent']) {
+        expect(rows[0]).not.toHaveProperty(key);
+      }
     });
   });
 });

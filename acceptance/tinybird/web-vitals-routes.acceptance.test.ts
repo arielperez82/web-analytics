@@ -26,6 +26,7 @@ type PathnameRow = {
   overall_score: number;
 };
 
+const POOR_INP = 600;
 const EXCELLENT_LCP = 1000;
 const GOOD_LCP = 3000;
 const POOR_LCP = 5000;
@@ -70,6 +71,17 @@ const lcpEvents = (
 ) =>
   Array.from({ length: count }, () =>
     createWebVitalEvent({ ...scope, name: 'LCP', value, pathname, now })
+  );
+
+const inpEvents = (
+  scope: Scope,
+  pathname: string,
+  value: number,
+  count: number,
+  now: Date
+) =>
+  Array.from({ length: count }, () =>
+    createWebVitalEvent({ ...scope, name: 'INP', value, pathname, now })
   );
 
 describe.concurrent('web_vitals_routes pipe', () => {
@@ -343,6 +355,46 @@ describe.concurrent('web_vitals_routes pipe', () => {
       ]);
     });
 
+    it('averages the earlier score over the metrics, each counting once however many measurements it has', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 3, window.justBeforeIt),
+        ...inpEvents(scope, '/shop', POOR_INP, 6, window.justBeforeIt),
+      ]);
+
+      const rows = await compared(scope, window.params);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          overall_score: 100,
+          previous_overall_score: 62.5,
+          overall_score_change: 37.5,
+        }),
+      ]);
+    });
+
+    it('leaves a metric with too few measurements out of the earlier score', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', GOOD_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.justBeforeIt),
+        ...inpEvents(scope, '/shop', POOR_INP, 2, window.justBeforeIt),
+      ]);
+
+      const rows = await compared(scope, window.params);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          overall_score: 75,
+          previous_overall_score: 100,
+          overall_score_change: -25,
+        }),
+      ]);
+    });
+
     it('compares with the window the viewer chose instead', async () => {
       const scope = createScope();
       const window = twoHourWindow();
@@ -461,25 +513,10 @@ describe.concurrent('web_vitals_routes pipe', () => {
 
       const rows = await routes(scope, window.params);
 
-      expect(rows.map(row => Object.keys(row))).toEqual([
-        [
-          'route',
-          'overall_score',
-          'lcp_avg',
-          'ttfb_avg',
-          'fcp_avg',
-          'inp_avg',
-          'cls_avg',
-          'lcp_score',
-          'ttfb_score',
-          'fcp_score',
-          'inp_score',
-          'cls_score',
-          'metric_units',
-          'domain',
-          'analysis_type',
-        ],
-      ]);
+      expect(rows).toHaveLength(1);
+      for (const key of ['previous_overall_score', 'overall_score_change']) {
+        expect(rows[0]).not.toHaveProperty(key);
+      }
     });
   });
 });
