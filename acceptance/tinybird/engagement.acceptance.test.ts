@@ -305,19 +305,62 @@ describe.concurrent('engagement', () => {
       bounce_rate_percent: 100,
       previous_bounce_rate_percent: 50,
       bounce_rate_change: 50,
+      previous_avg_session_sec: 15,
+    });
+  });
+
+  it('compares one day with all of a longer period, and nothing around it', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0], 2),
+      ...visit(scope, [0, 30, 60], 3),
+      ...visit(scope, [0], 4),
+      ...visit(scope, [0, 30], 5),
+      ...visit(scope, [0], 6),
+    ]);
+
+    const row = await engagement(scope, 7, {
+      date_from: dayOf(0),
+      date_to: dayOf(0),
+      compare_from: dayOf(5),
+      compare_to: dayOf(3),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 6,
+      pageviews_change: -5,
+      previous_avg_session_sec: 30,
     });
   });
 
   it('compares an exact window with the same hours starting where it is told', async () => {
     const scope = createScope();
     const HOUR_MS = 60 * 60 * 1000;
+    const MINUTE_MS = 60 * 1000;
     const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
-    const fromAt = new Date(hourStart - HOUR_MS);
-    const compareFromAt = new Date(fromAt.getTime() - 7 * DAY_MS);
+    const fromAt = hourStart - HOUR_MS;
+    const compareFromAt = fromAt - 7 * DAY_MS;
+    const halfPast = 30 * MINUTE_MS;
+    const visitAt = (pages: readonly number[], instant: number) => {
+      const sessionId = crypto.randomUUID();
+      return pages.map(offsetSeconds =>
+        createPageHitEvent({
+          ...scope,
+          pathname: `/page-${String(offsetSeconds)}`,
+          sessionId,
+          offsetSeconds,
+          now: new Date(instant + MINUTE_MS),
+        })
+      );
+    };
     await ingestEvents(env, [
-      ...visit(scope, [0], 0),
-      ...visit(scope, [0, 30, 60], 1),
-      ...visit(scope, [0, 30], 7),
+      ...visitAt([0], fromAt + halfPast),
+      ...visitAt([0, 30, 60], fromAt - DAY_MS + halfPast),
+      ...visitAt([0, 30], compareFromAt + halfPast),
+      ...visitAt([0], compareFromAt - 3 * halfPast),
+      ...visitAt([0], compareFromAt + 5 * HOUR_MS + halfPast),
     ]);
 
     const [row] = await waitForRow(
@@ -325,8 +368,8 @@ describe.concurrent('engagement', () => {
         pipeRows<Row>(env, 'engagement', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
-          from_at: fromAt.toISOString(),
-          compare_from_at: compareFromAt.toISOString(),
+          from_at: new Date(fromAt).toISOString(),
+          compare_from_at: new Date(compareFromAt).toISOString(),
         }),
       rows => Number(rows[0]?.pageviews) === 1
     );
