@@ -10,6 +10,7 @@ import {
   formatSignedPoints,
   formatSignedSeconds,
   spokenSignedPoints,
+  spokenSignedSeconds,
 } from "./format";
 
 describe("format", () => {
@@ -54,6 +55,15 @@ describe("format", () => {
       expect(spokenSignedPoints(-1).spoken).toBe("minus 1 percentage point");
       expect(spokenSignedPoints(1.001)).toEqual({ text: "+1 pp", spoken: "plus 1 percentage point" });
       expect(spokenSignedPoints(1.5).spoken).toBe("plus 1.5 percentage points");
+    });
+
+    it("keeps the short seconds text and says the word, singular for exactly one", () => {
+      expect(spokenSignedSeconds(5)).toEqual({ text: "+5s", spoken: "plus 5 seconds" });
+      expect(spokenSignedSeconds(-45)).toEqual({ text: "-45s", spoken: "minus 45 seconds" });
+      expect(spokenSignedSeconds(12.25)).toEqual({ text: "+12.25s", spoken: "plus 12.25 seconds" });
+      expect(spokenSignedSeconds(1)).toEqual({ text: "+1s", spoken: "plus 1 second" });
+      expect(spokenSignedSeconds(-1)).toEqual({ text: "-1s", spoken: "minus 1 second" });
+      expect(spokenSignedSeconds(0)).toEqual({ text: "0s", spoken: "0 seconds" });
     });
   });
 

@@ -7,6 +7,13 @@ const signedSeconds = new Intl.NumberFormat("en-US", {
   unit: "second",
   unitDisplay: "narrow",
 });
+const signedSecondsInWords = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  signDisplay: "exceptZero",
+  style: "unit",
+  unit: "second",
+  unitDisplay: "long",
+});
 const seconds = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   style: "unit",
@@ -45,5 +52,10 @@ export const spokenSignedPoints = (value: number): Spoken => ({
 });
 
 export const formatSignedSeconds = (value: number): string => signedSeconds.format(value);
+
+export const spokenSignedSeconds = (value: number): Spoken => ({
+  text: formatSignedSeconds(value),
+  spoken: speak({ formatter: signedSecondsInWords, value }),
+});
 
 export const formatSeconds = (value: number): string => seconds.format(value);
