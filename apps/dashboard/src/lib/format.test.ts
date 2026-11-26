@@ -9,6 +9,8 @@ import {
   formatSignedPercent,
   formatSignedPoints,
   formatSignedSeconds,
+  spokenSignedNumber,
+  spokenSignedPercent,
   spokenSignedPoints,
   spokenSignedSeconds,
 } from "./format";
@@ -64,6 +66,19 @@ describe("format", () => {
       expect(spokenSignedSeconds(1)).toEqual({ text: "+1s", spoken: "plus 1 second" });
       expect(spokenSignedSeconds(-1)).toEqual({ text: "-1s", spoken: "minus 1 second" });
       expect(spokenSignedSeconds(0)).toEqual({ text: "0s", spoken: "0 seconds" });
+    });
+
+    it("says the sign of a plain change in words", () => {
+      expect(spokenSignedNumber(1234)).toEqual({ text: "+1,234", spoken: "plus 1,234" });
+      expect(spokenSignedNumber(-4)).toEqual({ text: "-4", spoken: "minus 4" });
+      expect(spokenSignedNumber(0)).toEqual({ text: "0", spoken: "0" });
+    });
+
+    it("says the sign and the percent of growth in words", () => {
+      expect(spokenSignedPercent(50)).toEqual({ text: "+50%", spoken: "plus 50 percent" });
+      expect(spokenSignedPercent(-3.85)).toEqual({ text: "-3.85%", spoken: "minus 3.85 percent" });
+      expect(spokenSignedPercent(1)).toEqual({ text: "+1%", spoken: "plus 1 percent" });
+      expect(spokenSignedPercent(0)).toEqual({ text: "0%", spoken: "0 percent" });
     });
   });
 
