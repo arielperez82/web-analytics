@@ -3,7 +3,8 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { DashboardState } from "@/lib/dashboard-state";
+import { type DashboardState, hrefFor } from "@/lib/dashboard-state";
+import { EMPTY_MESSAGE } from "./ui";
 import { type ApiRow, failOnce, installFakeApi, removeFakeApi } from "@/test/fake-api";
 
 import { OverviewSpeed } from "./OverviewSpeed";
@@ -56,7 +57,11 @@ describe("OverviewSpeed", () => {
 
     await screen.findByText("LCP p75");
     expect(screen.getByRole("heading", { level: 2, name: "Speed" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "See all" }).getAttribute("href")).toContain("/speed");
+    const filtered: DashboardState = { ...state, filters: { device: "mobile-ios", location: "ES" } };
+    cleanup();
+    render(<OverviewSpeed state={filtered} params={params} />);
+    await screen.findByText("LCP p75");
+    expect(screen.getByRole("link", { name: "See all" }).getAttribute("href")).toBe(hrefFor("/speed", filtered));
   });
 
   it("asks only for the vitals, with the shared filters, tenant, window and no comparison", async () => {
@@ -77,7 +82,10 @@ describe("OverviewSpeed", () => {
     expect(query?.get("device")).toBe("mobile-ios");
     expect(query?.get("browser")).toBe("safari");
     expect(query?.get("include_bots")).toBe("1");
+    expect(query?.get("domain")).toBe("a.example");
     expect(query?.get("date_from")).toBe("2026-11-10");
+    expect(query?.get("date_to")).toBe("2026-11-16");
+    expect(query?.get("tz")).toBe("Asia/Tokyo");
     expect(query?.has("include_previous_period")).toBe(false);
   });
 
@@ -129,6 +137,18 @@ describe("OverviewSpeed", () => {
 
     const badge = (await screen.findByText("+100 (+50%)")).closest<HTMLElement>(".ds-badge");
     expect(badge?.getAttribute("data-tone")).toBe("bad");
+    expect(badge && spokenOf(badge)).toBe("plus 100 milliseconds, plus 50 percent");
+  });
+
+  it("speaks a unitless CLS change without a unit", async () => {
+    renderPanel([vital("CLS", 0.2, { previous_p75: 0.1, p75_change: 0.1, p75_change_percent: 100 })], {
+      compare_from: "2026-11-03",
+      compare_to: "2026-11-09",
+    });
+
+    const badge = (await screen.findByText("+0.1 (+100%)")).closest<HTMLElement>(".ds-badge");
+    expect(badge?.getAttribute("data-tone")).toBe("bad");
+    expect(badge && spokenOf(badge)).toBe("plus 0.1, plus 100 percent");
   });
 
   it("says so when a vital has no earlier figure", async () => {
@@ -147,7 +167,21 @@ describe("OverviewSpeed", () => {
     expect(screen.getByText("LCP p75 · b.example")).toBeTruthy();
   });
 
-  it("says when there is no data, and retries a failed load", async () => {
+  it("says there is no data when the API returns no vitals", async () => {
+    renderPanel([]);
+
+    expect(await screen.findByText(EMPTY_MESSAGE)).toBeTruthy();
+    expect(document.querySelectorAll(".vital")).toHaveLength(0);
+  });
+
+  it("says there is no data when the API returns only vitals the overview does not show", async () => {
+    renderPanel([vital("TTFB", 400)]);
+
+    expect(await screen.findByText(EMPTY_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText("TTFB p75")).toBeNull();
+  });
+
+  it("retries a failed load", async () => {
     const api = installFakeApi({ web_vitals_current: [vital("LCP", 2100)] });
     failOnce("web_vitals_current");
     render(<OverviewSpeed state={state} params={params} />);
