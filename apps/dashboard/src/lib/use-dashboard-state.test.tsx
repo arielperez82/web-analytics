@@ -5,23 +5,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { browserTimeZone } from "./time-zone";
 import { useDashboardState } from "./use-dashboard-state";
 
-let search = "";
-const replace = vi.fn();
+const visit = (query: string) => window.history.replaceState(null, "", query === "" ? "/" : `/?${query}`);
+const urlQuery = () => new URLSearchParams(window.location.search);
+const router = { replace: (href: string) => window.history.replaceState(null, "", href) };
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
-  useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams(search),
+  usePathname: () => window.location.pathname,
+  useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
-afterEach(() => {
-  search = "";
-  replace.mockClear();
-});
+afterEach(() => visit(""));
 
 describe("useDashboardState", () => {
   it("sends the time zone chosen in the URL with every request", () => {
-    search = "tz=Asia%2FTokyo";
+    visit("tz=Asia%2FTokyo");
     const { result } = renderHook(() => useDashboardState());
 
     expect(result.current.params.tz).toBe("Asia/Tokyo");
@@ -35,7 +33,7 @@ describe("useDashboardState", () => {
 
   it("counts the preset range on the calendar of that zone", () => {
     vi.useFakeTimers({ now: new Date("2026-11-08T02:00:00Z") });
-    search = "days=1&tz=America%2FNew_York";
+    visit("days=1&tz=America%2FNew_York");
     const { result } = renderHook(() => useDashboardState());
     vi.useRealTimers();
 
@@ -46,7 +44,7 @@ describe("useDashboardState", () => {
   describe("the range the chart is compared with", () => {
     const comparisonOf = (query: string, now = "2026-11-18T12:00:00Z") => {
       vi.useFakeTimers({ now: new Date(now) });
-      search = `${query}&tz=UTC`;
+      visit(`${query}&tz=UTC`);
       const { result } = renderHook(() => useDashboardState());
       vi.useRealTimers();
       return result.current.comparison;
@@ -78,7 +76,7 @@ describe("useDashboardState", () => {
 
     it("counts days on the calendar of the zone", () => {
       vi.useFakeTimers({ now: new Date("2026-11-18T02:00:00Z") });
-      search = "days=1&tz=America%2FNew_York";
+      visit("days=1&tz=America%2FNew_York");
       const { result } = renderHook(() => useDashboardState());
       vi.useRealTimers();
 
@@ -87,20 +85,18 @@ describe("useDashboardState", () => {
   });
 
   it("writes the browser time zone into a URL that has none, so a shared link reads the same everywhere", () => {
-    search = "days=30&domain=a.example";
+    visit("days=30&domain=a.example");
     renderHook(() => useDashboardState());
 
-    expect(replace).toHaveBeenCalledTimes(1);
-    const href = String(replace.mock.calls[0]?.[0]);
-    expect(new URLSearchParams(href.split("?")[1]).get("tz")).toBe(browserTimeZone());
-    expect(href).toContain("days=30");
-    expect(href).toContain("domain=a.example");
+    expect(urlQuery().get("tz")).toBe(browserTimeZone());
+    expect(urlQuery().get("days")).toBe("30");
+    expect(urlQuery().get("domain")).toBe("a.example");
   });
 
   it("leaves a URL that already names a time zone alone", () => {
-    search = "tz=Asia%2FTokyo";
+    visit("tz=Asia%2FTokyo");
     renderHook(() => useDashboardState());
 
-    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?tz=Asia%2FTokyo");
   });
 });
