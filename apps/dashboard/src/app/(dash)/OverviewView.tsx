@@ -32,7 +32,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
         </>
       )}
       <h2 className="section">Breakdowns</h2>
-      <div className="grid">
+      <div className="grid breakdowns">
         {REPORTS.slice(0, SPEED_AFTER).map(breakdown)}
         <OverviewSpeed state={state} params={params} comparison={comparison} />
         {REPORTS.slice(SPEED_AFTER).map(breakdown)}

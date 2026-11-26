@@ -72,3 +72,4 @@
 .vital-name{color:var(--muted);font-size:13px}
 .vital-figure{font-size:18px;font-variant-numeric:tabular-nums}.vital-figure small{font-size:12px;font-weight:400;color:var(--muted)}
 .vital>.delta,.vital>small{grid-column:1 / -1}
+.grid.breakdowns{grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr))}
