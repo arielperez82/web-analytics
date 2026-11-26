@@ -32,4 +32,13 @@ describe("OverviewView", () => {
     expect(conversions).toBeGreaterThanOrEqual(0);
     expect(conversions).toBeLessThan(breakdowns);
   });
+
+  it("puts Speed in the bottom row beside Pages and Sources, ahead of the other breakdowns", () => {
+    installFakeApi({});
+    render(<OverviewView goals={[]} goalErrors={[]} />);
+
+    const panels = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent ?? "");
+
+    expect(panels.slice(panels.indexOf("Pages"), panels.indexOf("Pages") + 4)).toEqual(["Pages", "Sources", "Speed", "Channels"]);
+  });
 });
