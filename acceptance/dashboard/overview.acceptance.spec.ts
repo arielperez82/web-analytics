@@ -721,16 +721,17 @@ test('the key figures compare with the same hours last week when asked', async (
     .click();
 
   await expect(page).toHaveURL(/compare=last_week/);
-  const exactHour = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
-  await expect
-    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('compare_from_at'))
-    .toMatch(exactHour);
-  await expect
-    .poll(() => api.requestsTo('engagement').at(-1)?.get('compare_from_at'))
-    .toMatch(exactHour);
-  const sent = api.requestsTo('visitor_counts').at(-1);
-  expect(
-    new Date(sent?.get('from_at') ?? '').getTime() -
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const lastComparedFrom = (endpoint: string): number => {
+    const sent = api.requestsTo(endpoint).at(-1);
+    return (
+      new Date(sent?.get('from_at') ?? '').getTime() -
       new Date(sent?.get('compare_from_at') ?? '').getTime()
-  ).toBe(7 * 24 * 60 * 60 * 1000);
+    );
+  };
+  await expect.poll(() => lastComparedFrom('visitor_counts')).toBe(WEEK_MS);
+  await expect.poll(() => lastComparedFrom('engagement')).toBe(WEEK_MS);
+  expect(
+    api.requestsTo('visitor_counts').at(-1)?.get('compare_from_at')
+  ).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/);
 });
