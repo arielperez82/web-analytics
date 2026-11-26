@@ -26,7 +26,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
   const onOverview = pathname === "/";
-  const comparable = onOverview || pathname.startsWith("/reports/");
+  const comparable = onOverview || onSpeed || pathname.startsWith("/reports/");
   const tenants = useEndpoint<Row>("tenants", {});
   const domains = useEndpoint<Row>("domains", { tenant_id: state.tenant });
   const online = useEndpoint<Row>("current_visitors", { tenant_id: state.tenant, domain: state.domain });
