@@ -22,6 +22,15 @@ const vital = (metric_name: string, p75: number): ApiRow => ({
   status: "Good",
 });
 
+const badgeOf = (element: HTMLElement): HTMLElement => {
+  const badge = element.closest<HTMLElement>(".ds-badge");
+  if (badge === null) throw new Error("not inside a badge");
+  return badge;
+};
+
+const spokenOf = (badge: HTMLElement): string | null | undefined =>
+  Array.from(badge.querySelectorAll(".ds-sr")).at(-1)?.textContent;
+
 const renderPage = (vitals: readonly ApiRow[] = [vital("LCP", 2100)], pageParams: Record<string, string> = params) => {
   const api = installFakeApi({ web_vitals_current: vitals, web_vitals_routes: [] });
   render(<SpeedInsights params={pageParams} />);
@@ -166,7 +175,7 @@ describe("SpeedInsights", () => {
     it("shows a vital that got faster as a good change, with the API's figures", async () => {
       renderCompared([{ ...vital("LCP", 2100), previous_p75: 2300, p75_change: -200, p75_change_percent: -8.7 }]);
 
-      const badge = await screen.findByText("-200 (-8.7%)", { exact: false });
+      const badge = badgeOf(await screen.findByText("-200 (-8.7%)"));
 
       expect(badge.getAttribute("data-tone")).toBe("good");
       expect(within(badge).getByText("Down")).toBeTruthy();
@@ -176,7 +185,7 @@ describe("SpeedInsights", () => {
     it("shows a vital that got slower as a bad change", async () => {
       renderCompared([{ ...vital("LCP", 2100), previous_p75: 1600, p75_change: 500, p75_change_percent: 31.25 }]);
 
-      const badge = await screen.findByText("+500 (+31.25%)", { exact: false });
+      const badge = badgeOf(await screen.findByText("+500 (+31.25%)"));
 
       expect(badge.getAttribute("data-tone")).toBe("bad");
       expect(within(badge).getByText("Up")).toBeTruthy();
@@ -185,7 +194,7 @@ describe("SpeedInsights", () => {
     it("shows a change without a percentage when the API gives none", async () => {
       renderCompared([{ ...vital("CLS", 0.2), previous_p75: 0, p75_change: 0.2, p75_change_percent: null }]);
 
-      const badge = await screen.findByText("+0.2", { exact: false });
+      const badge = badgeOf(await screen.findByText("+0.2"));
 
       expect(badge.textContent).not.toContain("%");
       expect(badge.getAttribute("data-tone")).toBe("bad");
@@ -201,7 +210,7 @@ describe("SpeedInsights", () => {
       renderCompared([vital("LCP", 2100)], [route(10)]);
 
       expect(await screen.findByRole("columnheader", { name: "Score vs previous" })).toBeTruthy();
-      const badge = await screen.findByText("+10", { exact: false });
+      const badge = badgeOf(await screen.findByText("+10"));
       expect(badge.getAttribute("data-tone")).toBe("good");
       expect(within(badge).getByText("Up")).toBeTruthy();
     });
@@ -209,11 +218,47 @@ describe("SpeedInsights", () => {
     it("shows a fallen route score as a bad change, and none where the API gives none", async () => {
       renderCompared([vital("LCP", 2100)], [route(-12.5), { ...route(null), route: "/new" }]);
 
-      const badge = await screen.findByText("-12.5", { exact: false });
+      const badge = badgeOf(await screen.findByText("-12.5"));
       expect(badge.getAttribute("data-tone")).toBe("bad");
       const fresh = (await screen.findByText("/new")).closest("tr");
       expect(fresh?.querySelector(".ds-badge")).toBeNull();
-      expect(fresh?.lastElementChild?.textContent).toBe("—");
+      const cell = fresh?.lastElementChild;
+      expect(cell?.querySelector('[aria-hidden="true"]')?.textContent).toBe("—");
+      expect(cell?.querySelector(".ds-sr")?.textContent).toBe("No earlier data");
+    });
+
+    it("speaks a vital's change in words with the vital's unit, and hides the symbols", async () => {
+      renderCompared([{ ...vital("LCP", 2100), previous_p75: 2300, p75_change: -200, p75_change_percent: -8.69 }]);
+
+      const badge = badgeOf(await screen.findByText("-200 (-8.69%)"));
+
+      expect(spokenOf(badge)).toBe("minus 200 milliseconds, minus 8.69 percent");
+      expect(screen.getByText("-200 (-8.69%)").getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("speaks a unitless vital's change without a unit", async () => {
+      renderCompared([{ ...vital("CLS", 0.2), units: "score", previous_p75: 0.1, p75_change: 0.1, p75_change_percent: 100 }]);
+
+      const badge = badgeOf(await screen.findByText("+0.1 (+100%)"));
+
+      expect(spokenOf(badge)).toBe("plus 0.1, plus 100 percent");
+    });
+
+    it("says there was no change when a vital's change is zero", async () => {
+      renderCompared([{ ...vital("LCP", 2100), previous_p75: 2100, p75_change: 0, p75_change_percent: 0 }]);
+
+      const badge = badgeOf(await screen.findByText("0 (0%)"));
+
+      expect(badge.getAttribute("data-tone")).toBe("neutral");
+      expect(within(badge).getByText("No change")).toBeTruthy();
+    });
+
+    it("speaks a route's score change in points", async () => {
+      renderCompared([vital("LCP", 2100)], [route(10)]);
+
+      const badge = badgeOf(await screen.findByText("+10"));
+
+      expect(spokenOf(badge)).toBe("plus 10 points");
     });
   });
 });
