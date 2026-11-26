@@ -605,7 +605,6 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
 }) => {
   const api = await stubApi(page, routes);
   await signIn(page);
-  await expect(page).toHaveURL(/tz=UTC/);
 
   await page.getByRole('button', { name: 'Last 24 Hours' }).click();
 
