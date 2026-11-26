@@ -233,6 +233,8 @@ describe.concurrent('engagement', () => {
       bounce_rate_percent: 100,
       previous_bounce_rate_percent: 0,
       bounce_rate_change: 100,
+      bounce_rate_growth_percent: 100,
+      avg_session_sec_growth_percent: -100,
     });
     expect(Number(row.avg_session_sec_change)).toBeLessThan(0);
     expect(Number(row.avg_session_sec_change)).toBeCloseTo(
@@ -263,6 +265,28 @@ describe.concurrent('engagement', () => {
       avg_session_sec_growth_percent: null,
       pageviews_change: 3,
       pageviews_growth_percent: 100,
+    });
+  });
+
+  it('compares the rates against a previous period of exactly one session', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 3),
+    ]);
+
+    const row = await engagement(scope, 3, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+    });
+
+    expect(row).toMatchObject({
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 0,
+      bounce_rate_change: 100,
+      bounce_rate_growth_percent: 100,
+      avg_session_sec_change: -30,
+      avg_session_sec_growth_percent: -100,
     });
   });
 
