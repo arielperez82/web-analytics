@@ -28,7 +28,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
       <h2 className="section">Breakdowns</h2>
       <div className="grid">
         {REPORTS.map((report) => (
-          <RankedTable key={report.slug} report={report} state={state} params={params} />
+          <RankedTable key={report.slug} report={report} state={state} params={params} comparison={comparison} />
         ))}
       </div>
     </>

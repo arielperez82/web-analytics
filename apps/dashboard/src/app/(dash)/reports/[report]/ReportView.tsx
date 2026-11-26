@@ -12,12 +12,12 @@ const PAGE_SIZE = 100;
 const MAX_ROWS = 1000;
 
 export const ReportView = ({ report }: { report: Report }) => {
-  const { state, params } = useDashboardState();
+  const { state, params, comparison } = useDashboardState();
   const [limit, setLimit] = useState(PAGE_SIZE);
   return (
     <>
       <p><Link href={hrefFor("/", state)}>← Overview</Link></p>
-      <RankedTable report={report} state={state} params={params} limit={limit}
+      <RankedTable report={report} state={state} params={params} comparison={comparison} limit={limit}
         detail
         onMore={limit < MAX_ROWS ? () => setLimit(limit + PAGE_SIZE) : undefined}
       />

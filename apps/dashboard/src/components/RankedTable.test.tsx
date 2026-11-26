@@ -23,10 +23,13 @@ const report = (slug: string): Report => {
   return found;
 };
 
+const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+
 const rows: readonly ApiRow[] = [
-  { location: "ES", sessions: 10, hits: 30, bar_percent: 100, sessions_growth_percentage: 12.5 },
-  { location: "", sessions: 9, hits: 12, bar_percent: 37, sessions_growth_percentage: -4.2 },
-  { location: "FR", sessions: 8, hits: 11, bar_percent: 11, sessions_growth_percentage: 0 },
+  { location: "ES", sessions: 10, hits: 30, bar_percent: 100, previous_sessions: 8, previous_bar_percent: 80, sessions_change: 2, sessions_growth_percentage: 25, status: "" },
+  { location: "", sessions: 9, hits: 12, bar_percent: 37, previous_sessions: 10, previous_bar_percent: 100, sessions_change: -1, sessions_growth_percentage: -10, status: "" },
+  { location: "FR", sessions: 8, hits: 11, bar_percent: 11, previous_sessions: 0, previous_bar_percent: 0, sessions_change: 8, sessions_growth_percentage: 100, status: "new" },
+  { location: "DE", sessions: 0, hits: 0, bar_percent: 0, previous_sessions: 3, previous_bar_percent: 30, sessions_change: -3, sessions_growth_percentage: -100, status: "gone" },
 ];
 
 type Overrides = Partial<Parameters<typeof RankedTable>[0]>;
@@ -57,7 +60,7 @@ describe("RankedTable", () => {
 
     await rowOf("ES");
     const widths = Array.from(document.querySelectorAll<HTMLElement>("span.bar")).map((bar) => bar.style.width);
-    expect(widths).toEqual(["100%", "37%", "11%"]);
+    expect(widths).toEqual(["100%", "37%", "11%", "0%"]);
   });
 
   it("keeps the order the API ranked the rows in", async () => {
@@ -65,7 +68,7 @@ describe("RankedTable", () => {
 
     await rowOf("ES");
     const labels = Array.from(document.querySelectorAll("td.label")).map((cell) => cell.textContent);
-    expect(labels).toEqual(["ES", "(direct)", "FR"]);
+    expect(labels).toEqual(["ES", "(direct)", "FR", "DE"]);
   });
 
   it("shows sessions and hits as the API returned them", async () => {
@@ -82,15 +85,7 @@ describe("RankedTable", () => {
     expect(await screen.findByText("(direct)")).toBeTruthy();
   });
 
-  it("shows the API's growth with its sign on the detail view", async () => {
-    renderTable({ detail: true, report: report("locations") });
-
-    expect(within(await rowOf("ES")).getByText("+12.5%")).toBeTruthy();
-    expect(within(await rowOf("(direct)")).getByText("-4.2%")).toBeTruthy();
-    expect(within(await rowOf("FR")).getByText("0%")).toBeTruthy();
-  });
-
-  it("asks for the previous period only on the detail view", async () => {
+  it("shows no comparison, on the overview or the detail view, when compare is off", async () => {
     const overview = renderTable();
     await rowOf("ES");
     expect(overview.requestsTo("top_locations")[0]?.get("include_previous_period")).toBeNull();
@@ -99,16 +94,73 @@ describe("RankedTable", () => {
 
     const detail = renderTable({ detail: true });
     await rowOf("ES");
-    expect(detail.requestsTo("top_locations")[0]?.get("include_previous_period")).toBe("true");
+    expect(detail.requestsTo("top_locations")[0]?.get("include_previous_period")).toBeNull();
+    expect(screen.queryByText("vs previous")).toBeNull();
   });
 
-  it("shows no growth column for a report that has no previous period", async () => {
+  it("asks for the comparison it is given, on the overview too", async () => {
+    const api = renderTable({ comparison });
+
+    await rowOf("ES");
+    const query = api.requestsTo("top_locations")[0];
+    expect(query?.get("include_previous_period")).toBe("true");
+    expect(query?.get("compare_from")).toBe("2026-11-03");
+    expect(query?.get("compare_to")).toBe("2026-11-09");
+    expect(query?.get("compare_from_at")).toBeNull();
+  });
+
+  it("passes the comparison hour along for an exact window", async () => {
+    const api = renderTable({ comparison: { ...comparison, compare_from_at: "2026-11-03T05:00:00Z" } });
+
+    await rowOf("ES");
+    expect(api.requestsTo("top_locations")[0]?.get("compare_from_at")).toBe("2026-11-03T05:00:00Z");
+  });
+
+  it("compares channels like every other breakdown", async () => {
     const api = installFakeApi({ channels: [{ channel: "Organic", sessions: 5, hits: 6, bar_percent: 100 }] });
-    render(<RankedTable report={report("channels")} state={state} params={params} detail />);
+    render(<RankedTable report={report("channels")} state={state} params={params} comparison={comparison} />);
 
     await screen.findByText("Organic");
-    expect(screen.queryByText("vs previous")).toBeNull();
-    expect(api.requestsTo("channels")[0]?.get("include_previous_period")).toBeNull();
+    expect(api.requestsTo("channels")[0]?.get("include_previous_period")).toBe("true");
+  });
+
+  it("shows each row's change as the API computed it, in the KPI style", async () => {
+    renderTable({ comparison });
+
+    expect(within(await rowOf("ES")).getByText("+2 (+25%)")).toBeTruthy();
+    expect(within(await rowOf("(direct)")).getByText("-1 (-10%)")).toBeTruthy();
+  });
+
+  it("says New for a row that only the current period has", async () => {
+    renderTable({ comparison });
+
+    expect(within(await rowOf("FR")).getByText("New")).toBeTruthy();
+  });
+
+  it("lists a gone row last, with what it had", async () => {
+    renderTable({ comparison });
+
+    const gone = within(await rowOf("DE"));
+    expect(gone.getByText("Gone (was 3)")).toBeTruthy();
+    const labels = Array.from(document.querySelectorAll("td.label")).map((cell) => cell.textContent);
+    expect(labels.at(-1)).toContain("DE");
+  });
+
+  it("draws the previous period as a ghost bar the screen reader skips, and says its value in words", async () => {
+    renderTable({ comparison });
+
+    const es = await rowOf("ES");
+    const ghost = es.querySelector<HTMLElement>("span.bar.ghost");
+    expect(ghost?.style.width).toBe("80%");
+    expect(ghost?.getAttribute("aria-hidden")).toBe("true");
+    expect(within(es).getByText("Previous period: 8 sessions")).toBeTruthy();
+  });
+
+  it("draws no ghost bar without a comparison", async () => {
+    renderTable();
+
+    await rowOf("ES");
+    expect(document.querySelector("span.bar.ghost")).toBeNull();
   });
 
   it("sends the limit and the range it was given", async () => {
@@ -137,7 +189,7 @@ describe("RankedTable", () => {
     cleanup();
     removeFakeApi();
 
-    renderTable({ limit: 4, onMore });
+    renderTable({ limit: 5, onMore });
     await rowOf("ES");
     await waitFor(() => expect(screen.queryByRole("button", { name: "Show more" })).toBeNull());
   });
