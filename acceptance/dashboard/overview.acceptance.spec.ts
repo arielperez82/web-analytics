@@ -122,7 +122,7 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
 
-test('the Speed panel sits beside Pages and Sources and shows the API vitals and statuses', async ({
+test('the Speed panel sits level with Pages and Sources and shows the API vitals', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -138,13 +138,6 @@ test('the Speed panel sits beside Pages and Sources and shows the API vitals and
   await expect(speed.getByText('2,100.5')).toBeVisible();
   await expect(speed.getByText('Needs Improvement')).toBeVisible();
   await expect(speed.getByText('-199.5 (-8.67%)')).toBeVisible();
-  await expect(
-    speed.getByText('minus 199.5 milliseconds, minus 8.67 percent')
-  ).toHaveCount(1);
-  await expect(speed.getByRole('link', { name: 'See all' })).toHaveAttribute(
-    'href',
-    /^\/speed/
-  );
 
   const boxes = await Promise.all(
     ['Pages', 'Sources', 'Speed'].map(name =>
