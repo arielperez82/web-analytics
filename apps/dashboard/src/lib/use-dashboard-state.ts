@@ -1,12 +1,13 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { comparisonRange } from "./comparison-range";
-import { type DashboardState,hrefFor, parseState } from "./dashboard-state";
+import { type DashboardState, parseState, toSearch } from "./dashboard-state";
 import { rangeToParams } from "./time-range";
 import { browserTimeZone } from "./time-zone";
+import { useUrlSearch } from "./url-search-context";
 
 const noSubscription = () => () => undefined;
 const serverZone = () => "UTC";
@@ -21,19 +22,16 @@ export type ComparisonParams = {
 
 export const useDashboardState = () => {
   const search = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
   const key = search.toString();
   const state = useMemo(() => parseState(new URLSearchParams(key)), [key]);
   const browserZone = useSyncExternalStore(noSubscription, browserTimeZone, serverZone);
   const zone = state.tz ?? browserZone;
-  const update = useCallback(
-    (next: DashboardState) => router.replace(hrefFor(pathname, next), { scroll: false }),
-    [pathname, router],
-  );
+  const urlSearch = useUrlSearch();
+  const update = useCallback((next: DashboardState) => urlSearch.replace(toSearch(next)), [urlSearch]);
   useEffect(() => {
-    if (state.tz === undefined) update({ ...state, tz: browserTimeZone() });
-  }, [state, update]);
+    const latest = parseState(new URLSearchParams(urlSearch.read()));
+    if (latest.tz === undefined) update({ ...latest, tz: browserTimeZone() });
+  }, [state, urlSearch, update]);
   const params = useMemo<QueryParams>(
     () => ({
       ...rangeToParams(state.range, new Date(), zone),

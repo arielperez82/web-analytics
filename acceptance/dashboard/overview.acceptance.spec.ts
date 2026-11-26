@@ -400,6 +400,9 @@ test('the chart granularity is chosen apart from what it counts', async ({
 
   await expect(page).toHaveURL(/grain=hour/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
+  await expect
+    .poll(() => api.requestsTo('series').filter(q => q.get('grain') === 'hour'))
+    .toHaveLength(1);
   const asked = api.requestsTo('series').length;
   await page.getByRole('button', { name: 'Pageviews' }).click();
   await expect(page.getByText('Pageviews per hour')).toBeVisible();
@@ -606,6 +609,7 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
   await page.getByRole('button', { name: 'Last 24 Hours' }).click();
 
   await expect(page).toHaveURL(/range=last_24_hours/);
+  await expect(page).toHaveURL(/tz=UTC/);
   const exactHour = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
   await expect
     .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('from_at'))

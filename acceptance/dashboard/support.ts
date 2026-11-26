@@ -66,6 +66,9 @@ export const signIn = async (page: Page): Promise<void> => {
   await page.waitForURL(url => !url.pathname.startsWith('/login'), {
     timeout: 30_000,
   });
+  await page.waitForURL(url => url.searchParams.has('tz'), {
+    timeout: 30_000,
+  });
 };
 
 export const pickFilter = async (
