@@ -19,10 +19,6 @@ export const currentWindowSql = `
             {% if defined(from_at) %} parseDateTimeBestEffort(${FROM_AT}, 'UTC') {% else %} toDateTime(current_start, ${tzSql}) {% end %} AS current_start_at,
             {% if defined(from_at) %} {% if defined(to_at) %} parseDateTimeBestEffort(${TO_AT}, 'UTC') {% else %} addHours(toStartOfHour(now('UTC')), 1) {% end %} {% else %} toDateTime(current_end + 1, ${tzSql}) {% end %} AS current_end_at`;
 
-export const previousWindowSql = `${currentWindowSql},
-            {% if defined(from_at) %} subtractSeconds(current_start_at, dateDiff('second', current_start_at, current_end_at)) {% else %} toDateTime(previous_start, ${tzSql}) {% end %} AS previous_start_at,
-            current_start_at AS previous_end_at`;
-
 export const compareWindowParams = {
   compare_from: p.string().optional().describe("First day of the comparison period; with compare_to replaces the period just before"),
   compare_to: p.string().optional().describe("Last day of the comparison period, inclusive"),
