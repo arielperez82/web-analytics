@@ -14,7 +14,64 @@ import { crossFilterParams, crossFilters } from "./cross-filters";
 import { dashboardToken } from "./tokens";
 import { browserSql, deviceSql } from "./user-agent";
 import { tzParam, tzSql } from "./time-zone";
-import { exactRangeSql, windowParams } from "./window";
+import { compareWindowParams, comparedWindowSql, exactRangeSql, windowParams } from "./window";
+
+const COMPARING = `defined(include_previous_period) and include_previous_period == 'true'`;
+
+const DAYS_SQL = `{{Int32(days, 1, description="Number of days to analyze")}}`;
+
+/**
+ * The comparison window of a vitals request: the one the request names (compare_from_at, or
+ * compare_from with compare_to), else the equal-length period just before the current one. A request
+ * that gives only a number of days is compared with the same number of days before them.
+ */
+const vitalsCompareWindowNode = () =>
+  node({
+    name: "compare_window",
+    description: "The current window and the one it is compared with",
+    sql: `
+        {% if defined(from_at) or (defined(date_from) and defined(date_to)) %}
+        WITH
+            {% if defined(date_from) and defined(date_to) %}
+                toDate({{ Date(date_from) }}) as current_start,
+                toDate({{ Date(date_to) }}) as current_end,
+            {% else %}
+                today() as current_start,
+                today() as current_end,
+            {% end %}
+            current_start - (dateDiff('day', current_start, current_end) + 1) as previous_start
+        SELECT${comparedWindowSql}
+        {% else %}
+        SELECT
+            now() - interval ${DAYS_SQL} day AS current_start_at,
+            now() AS current_end_at,
+            {% if defined(compare_from_at) %} parseDateTimeBestEffort({{ String(compare_from_at) }}, 'UTC')
+            {% elif defined(compare_from) and defined(compare_to) %} toDateTime(toDate({{ String(compare_from) }}), ${tzSql})
+            {% else %} current_start_at - interval ${DAYS_SQL} day {% end %} AS previous_start_at,
+            {% if defined(compare_from) and defined(compare_to) and not defined(compare_from_at) %} toDateTime(toDate({{ String(compare_to) }}) + 1, ${tzSql})
+            {% else %} previous_start_at + interval ${DAYS_SQL} day {% end %} AS previous_end_at
+        {% end %}
+      `,
+  });
+
+const previousWindowRangeSql = `timestamp >= (SELECT previous_start_at FROM compare_window)
+            AND timestamp < (SELECT previous_end_at FROM compare_window)`;
+
+const vitalsScopeSql = `
+            {% if defined(tenant_id) %}
+            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
+            {% end %}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Domain to filter") }}
+            {% end %}${crossFilters}`;
+
+const comparisonParams = {
+  include_previous_period: p
+    .string()
+    .optional()
+    .describe("Set to 'true' to add the comparison period's figures and the change from them"),
+  ...compareWindowParams,
+};
 
 /**
  * Web vitals events - parsed web_vital events with metadata
@@ -194,7 +251,7 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
  */
 export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
   description:
-    "Current web vitals metrics with average values, scores, and descriptions",
+    "Current web vitals metrics with average values, scores, and descriptions. With include_previous_period=true each vital also has its p75 over the comparison window (previous_p75), the change from it in the vital's own unit (p75_change) and in percent (p75_change_percent); all three are null when the vital was not measured then, and the percent also when the earlier p75 was zero",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -224,14 +281,30 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             {% else %}
                 timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
             {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}${crossFilters}
+${vitalsScopeSql}
         GROUP BY metric_name, domain, tenant_id
         HAVING measurements >= 1
+      `,
+    }),
+    vitalsCompareWindowNode(),
+    node({
+      name: "previous_vitals",
+      description: "Each vital's p75 over the comparison window (only when include_previous_period is true)",
+      sql: `
+        {% if ${COMPARING} %}
+        SELECT
+            metric_name as previous_metric_name,
+            domain as previous_domain,
+            tenant_id as previous_tenant_id,
+            round(quantile(0.75)(value), 2) as previous_p75_value,
+            count() as previous_measurements
+        FROM web_vitals_events
+        WHERE ${previousWindowRangeSql}${vitalsScopeSql}
+        GROUP BY metric_name, domain, tenant_id
+        {% else %}
+        SELECT '' as previous_metric_name, '' as previous_domain, '' as previous_tenant_id,
+               0 as previous_p75_value, 0 as previous_measurements WHERE 1=0
+        {% end %}
       `,
     }),
     node({
@@ -277,7 +350,18 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
             thresholds_text as thresholds,
             domain,
             tenant_id
+            {% if ${COMPARING} %},
+            if(previous_measurements > 0, previous_p75_value, NULL) as previous_p75,
+            if(previous_measurements > 0, round(round(daily_vitals.p75, 2) - previous_p75_value, 2), NULL) as p75_change,
+            if(previous_measurements > 0 AND previous_p75_value != 0, round((round(daily_vitals.p75, 2) - previous_p75_value) * 100.0 / previous_p75_value, 2), NULL) as p75_change_percent
+            {% end %}
         FROM daily_vitals
+        {% if ${COMPARING} %}
+        LEFT JOIN previous_vitals
+            ON daily_vitals.metric_name = previous_vitals.previous_metric_name
+            AND daily_vitals.domain = previous_vitals.previous_domain
+            AND daily_vitals.tenant_id = previous_vitals.previous_tenant_id
+        {% end %}
         ORDER BY metric_name
       `,
     }),
@@ -297,6 +381,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
       .describe("End date; with date_from it replaces days"),
     tenant_id: p.string().optional().describe("Filter by tenant ID"),
     domain: p.string().optional().describe("Domain to filter"),
+    ...comparisonParams,
   },
   output: {
     metric_name: t.string(),
@@ -313,6 +398,9 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
     thresholds: t.string(),
     domain: t.string(),
     tenant_id: t.string(),
+    previous_p75: t.float64().nullable(),
+    p75_change: t.float64().nullable(),
+    p75_change_percent: t.float64().nullable(),
   },
 });
 
