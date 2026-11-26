@@ -79,7 +79,7 @@ const renderKpis = (
     <Kpis
       state={overrides.state ?? state}
       params={overrides.params ?? params}
-      comparison={overrides.comparison}
+      comparison={"comparison" in overrides ? overrides.comparison : comparison}
       onChange={overrides.onChange ?? (() => undefined)}
     />,
   );
@@ -379,11 +379,46 @@ describe("Kpis", () => {
   });
 
   it("asks for no comparison when there is none", async () => {
-    const api = renderKpis();
+    const api = renderKpis({ comparison: undefined });
 
     await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
+    await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
     expect(seriesRequests(api).at(-1)?.has("compare_from")).toBe(false);
+    const sent = (endpoint: string) => Object.keys(Object.fromEntries(api.requestsTo(endpoint).at(-1) ?? []));
+    const compareKeys = ["compare_from", "compare_to", "compare_from_at"];
+    expect(sent("visitor_counts")).toContain("date_from");
+    expect(sent("visitor_counts").filter((key) => compareKeys.includes(key))).toEqual([]);
+    expect(sent("engagement")).toContain("date_from");
+    expect(sent("engagement").filter((key) => compareKeys.includes(key))).toEqual([]);
     expect(within(screen.getByLabelText("Chart legend")).queryByText(/Previous period/)).toBeNull();
+  });
+
+  it.each([
+    { name: "days", chosen: { compare_from: "2026-11-03", compare_to: "2026-11-09" } },
+    {
+      name: "exact hours",
+      chosen: { compare_from: "2026-11-03", compare_to: "2026-11-04", compare_from_at: "2026-11-03T09:00:00Z" },
+    },
+  ])("asks for the card figures against the chosen comparison in $name", async ({ chosen }) => {
+    const api = renderKpis({ comparison: chosen });
+
+    await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
+    const sent = (endpoint: string) => Object.fromEntries(api.requestsTo(endpoint).at(-1) ?? []);
+    expect(sent("visitor_counts")).toMatchObject(chosen);
+    expect(sent("engagement")).toMatchObject(chosen);
+    expect(within(await card("Sessions")).getByText("+30 (+7.89%)")).toBeTruthy();
+  });
+
+  it("shows the figures without a change when nothing is compared", async () => {
+    const api = renderKpis({ comparison: undefined });
+
+    const sessions = within(await card("Sessions"));
+    await waitFor(() => expect(sessions.getByText("410")).toBeTruthy());
+    expect(within(await card("Bounce rate")).getByText("37.5%")).toBeTruthy();
+    expect(screen.queryAllByText("vs previous period")).toHaveLength(0);
+    expect(screen.queryAllByText("+30 (+7.89%)")).toHaveLength(0);
+    expect(screen.queryAllByText("-1.5 pp (-3.85%)")).toHaveLength(0);
+    expect(api.requestsTo("visitor_counts").at(-1)?.has("compare_from")).toBe(false);
   });
 
   it("drills into a day when its point is clicked", async () => {

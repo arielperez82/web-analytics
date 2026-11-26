@@ -679,3 +679,62 @@ test('the breakdowns compare with the same hours last week when asked', async ({
     .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare_from_at'))
     .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/);
 });
+
+test('the key figures are compared with the period before, and show no change once the viewer switches that off', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  const sessions = page.getByRole('button', { name: 'Sessions' });
+
+  await expect
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('compare_from'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await expect
+    .poll(() => api.requestsTo('engagement').at(-1)?.get('compare_to'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(sessions).toContainText('+30 (+7.89%)');
+  await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
+
+  await page
+    .getByRole('group', { name: 'Compare to' })
+    .getByRole('button', { name: 'None' })
+    .click();
+
+  await expect
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.has('compare_from'))
+    .toBe(false);
+  await expect
+    .poll(() => api.requestsTo('engagement').at(-1)?.has('compare_from'))
+    .toBe(false);
+  await expect(sessions).toContainText('410');
+  await expect(sessions).not.toContainText('+30 (+7.89%)');
+  await expect(page.getByText('-1.5 pp (-3.85%)')).toHaveCount(0);
+});
+
+test('the key figures compare with the same hours last week when asked', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  await page.getByRole('button', { name: 'Last 24 Hours' }).click();
+
+  await page
+    .getByRole('group', { name: 'Compare to' })
+    .getByRole('button', { name: 'Same hours last week' })
+    .click();
+
+  await expect(page).toHaveURL(/compare=last_week/);
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const exactHour = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
+  const lastComparedFrom = (endpoint: string): number | undefined => {
+    const sent = api.requestsTo(endpoint).at(-1);
+    const compareFromAt = sent?.get('compare_from_at') ?? '';
+    return exactHour.test(compareFromAt)
+      ? new Date(sent?.get('from_at') ?? '').getTime() -
+          new Date(compareFromAt).getTime()
+      : undefined;
+  };
+  await expect.poll(() => lastComparedFrom('visitor_counts')).toBe(WEEK_MS);
+  await expect.poll(() => lastComparedFrom('engagement')).toBe(WEEK_MS);
+});

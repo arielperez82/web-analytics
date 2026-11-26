@@ -386,4 +386,180 @@ describe.concurrent('visitor counts', () => {
       expect(row).toMatchObject({ consented_sessions_percent: 25 });
     });
   });
+  describe('against a chosen period', () => {
+    type Row = Record<string, number | string>;
+    const HOUR_MS = 60 * 60 * 1000;
+    const MINUTE_MS = 60 * 1000;
+    const stamped = (instant: number): Date => new Date(instant + MINUTE_MS);
+
+    const spaniard = (
+      scope: Scope,
+      visitorId: string,
+      now: Date,
+      idMode = 'persistent'
+    ) =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        visitorId,
+        idMode,
+        location: 'ES',
+        now,
+      });
+
+    const compared = (
+      scope: Scope,
+      params: Readonly<Record<string, string>>,
+      ready: (row: Row) => boolean
+    ) =>
+      waitForRow(
+        () =>
+          pipeRows<Row>(env, 'visitor_counts', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            ...params,
+          }),
+        rows => ready(rows[0] ?? {})
+      ).then(rows => rows[0] ?? {});
+
+    it.each([
+      { path: 'every visitor', filter: {} },
+      { path: 'one country', filter: { location: 'ES' } },
+    ])(
+      'compares $path with the days it is given, not the days just before',
+      async ({ filter }) => {
+        const scope = createScope();
+        await ingestEvents(env, [
+          spaniard(scope, 'v-today', daysAgo(0)),
+          ...['v-a', 'v-b', 'v-c'].map(id => spaniard(scope, id, daysAgo(1))),
+          spaniard(scope, 'v-week-1', daysAgo(7)),
+          spaniard(scope, 'v-week-2', daysAgo(7)),
+        ]);
+
+        const row = await compared(
+          scope,
+          {
+            date_from: dayOf(0),
+            date_to: dayOf(0),
+            compare_from: dayOf(7),
+            compare_to: dayOf(7),
+            ...filter,
+          },
+          found =>
+            Number(found.sessions) === 1 && Number(found.previous_sessions) >= 2
+        );
+
+        expect(row).toMatchObject({
+          sessions: 1,
+          previous_sessions: 2,
+          previous_known_visitors: 2,
+          sessions_change: -1,
+          sessions_growth_percent: -50,
+        });
+      }
+    );
+
+    it.each([
+      { path: 'every visitor', filter: {} },
+      { path: 'one country', filter: { location: 'ES' } },
+    ])(
+      'compares one day of $path with all of a longer period, and nothing around it',
+      async ({ filter }) => {
+        const scope = createScope();
+        await ingestEvents(env, [
+          spaniard(scope, 'v-today', daysAgo(0)),
+          spaniard(scope, 'v-after', daysAgo(2)),
+          spaniard(scope, 'v-last-1', daysAgo(3)),
+          spaniard(scope, 'v-last-2', daysAgo(3)),
+          spaniard(scope, 'd-middle', daysAgo(4), 'daily_direct'),
+          spaniard(scope, 'v-first', daysAgo(5)),
+          spaniard(scope, 'v-before', daysAgo(6)),
+        ]);
+
+        const row = await compared(
+          scope,
+          {
+            date_from: dayOf(0),
+            date_to: dayOf(0),
+            compare_from: dayOf(5),
+            compare_to: dayOf(3),
+            ...filter,
+          },
+          found => Number(found.sessions) === 1
+        );
+
+        expect(row).toMatchObject({
+          sessions: 1,
+          previous_sessions: 4,
+          previous_known_visitors: 3,
+          previous_anonymous_visitors: 1,
+          sessions_change: -3,
+        });
+      }
+    );
+
+    it.each([
+      { path: 'every visitor', filter: {} },
+      { path: 'one country', filter: { location: 'ES' } },
+    ])(
+      'compares an exact window of $path with the same hours starting where it is told',
+      async ({ filter }) => {
+        const scope = createScope();
+        const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+        const fromAt = hourStart - HOUR_MS;
+        const compareFromAt = fromAt - 7 * DAY_MS;
+        const halfPast = 30 * MINUTE_MS;
+        await ingestEvents(env, [
+          spaniard(scope, 'v-now', stamped(fromAt + halfPast)),
+          spaniard(scope, 'v-yesterday', stamped(fromAt - DAY_MS + halfPast)),
+          spaniard(scope, 'v-week-1', stamped(compareFromAt + halfPast)),
+          spaniard(scope, 'v-week-2', stamped(compareFromAt + halfPast)),
+          spaniard(scope, 'v-too-early', stamped(compareFromAt - 3 * halfPast)),
+          spaniard(
+            scope,
+            'v-too-late',
+            stamped(compareFromAt + 5 * HOUR_MS + halfPast)
+          ),
+        ]);
+
+        const row = await compared(
+          scope,
+          {
+            from_at: new Date(fromAt).toISOString(),
+            compare_from_at: new Date(compareFromAt).toISOString(),
+            ...filter,
+          },
+          found => Number(found.sessions) === 1
+        );
+
+        expect(row).toMatchObject({
+          sessions: 1,
+          previous_sessions: 2,
+          sessions_change: -1,
+        });
+      }
+    );
+
+    it('counts a day in both periods when the chosen period overlaps the range', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        spaniard(scope, 'v-today', daysAgo(0)),
+        spaniard(scope, 'v-yesterday', daysAgo(1)),
+        spaniard(scope, 'v-before', daysAgo(2)),
+      ]);
+
+      const row = await compared(
+        scope,
+        {
+          date_from: dayOf(1),
+          date_to: dayOf(0),
+          compare_from: dayOf(2),
+          compare_to: dayOf(1),
+        },
+        found => Number(found.sessions) === 2
+      );
+
+      expect(row).toMatchObject({ sessions: 2, previous_sessions: 2 });
+    });
+  });
 });

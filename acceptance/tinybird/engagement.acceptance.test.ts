@@ -280,4 +280,124 @@ describe.concurrent('engagement', () => {
 
     expect(row).toMatchObject({ pageviews: 1 });
   });
+
+  it('compares with the days it is given, not the days just before', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0, 30], 7),
+      ...visit(scope, [0], 7),
+    ]);
+
+    const row = await engagement(scope, 4, {
+      date_from: dayOf(0),
+      date_to: dayOf(0),
+      compare_from: dayOf(7),
+      compare_to: dayOf(7),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 3,
+      pageviews_change: -2,
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 50,
+      bounce_rate_change: 50,
+      previous_avg_session_sec: 15,
+    });
+  });
+
+  it('compares one day with all of a longer period, and nothing around it', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0], 2),
+      ...visit(scope, [0, 30, 60], 3),
+      ...visit(scope, [0], 4),
+      ...visit(scope, [0, 30], 5),
+      ...visit(scope, [0], 6),
+    ]);
+
+    const row = await engagement(scope, 7, {
+      date_from: dayOf(0),
+      date_to: dayOf(0),
+      compare_from: dayOf(5),
+      compare_to: dayOf(3),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 6,
+      pageviews_change: -5,
+      previous_avg_session_sec: 30,
+    });
+  });
+
+  it('compares an exact window with the same hours starting where it is told', async () => {
+    const scope = createScope();
+    const HOUR_MS = 60 * 60 * 1000;
+    const MINUTE_MS = 60 * 1000;
+    const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+    const fromAt = hourStart - HOUR_MS;
+    const compareFromAt = fromAt - 7 * DAY_MS;
+    const halfPast = 30 * MINUTE_MS;
+    const visitAt = (pages: readonly number[], instant: number) => {
+      const sessionId = crypto.randomUUID();
+      return pages.map(offsetSeconds =>
+        createPageHitEvent({
+          ...scope,
+          pathname: `/page-${String(offsetSeconds)}`,
+          sessionId,
+          offsetSeconds,
+          now: new Date(instant + MINUTE_MS),
+        })
+      );
+    };
+    await ingestEvents(env, [
+      ...visitAt([0], fromAt + halfPast),
+      ...visitAt([0, 30, 60], fromAt - DAY_MS + halfPast),
+      ...visitAt([0, 30], compareFromAt + halfPast),
+      ...visitAt([0], compareFromAt - 3 * halfPast),
+      ...visitAt([0], compareFromAt + 5 * HOUR_MS + halfPast),
+    ]);
+
+    const [row] = await waitForRow(
+      () =>
+        pipeRows<Row>(env, 'engagement', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          from_at: new Date(fromAt).toISOString(),
+          compare_from_at: new Date(compareFromAt).toISOString(),
+        }),
+      rows => Number(rows[0]?.pageviews) === 1
+    );
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 2,
+      pageviews_change: -1,
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 0,
+    });
+  });
+
+  it('counts a session in both periods when the chosen period overlaps the range', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0], 2),
+    ]);
+
+    const row = await engagement(scope, 6, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+      compare_from: dayOf(2),
+      compare_to: dayOf(1),
+    });
+
+    expect(row).toMatchObject({ pageviews: 3, previous_pageviews: 3 });
+  });
 });
