@@ -126,8 +126,11 @@ export const Kpis = ({
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");
   const chartPanel = useRef<HTMLElement>(null);
-  const countsFeed = useEndpoint<Row>("visitor_counts", params);
-  const engagementFeed = useEndpoint<Row>("engagement", params);
+  const compared = { ...params, ...comparison };
+  const countsFeed = useEndpoint<Row>("visitor_counts", compared);
+  const engagementFeed = useEndpoint<Row>("engagement", compared);
+  const growthFor = (figure: Parameters<typeof growthOf>[0]) =>
+    comparison === undefined ? undefined : growthOf(figure);
   const counts = countsFeed.data?.[0];
   const engagement = engagementFeed.data?.[0];
   const figuresError = countsFeed.error ?? engagementFeed.error;
@@ -181,7 +184,7 @@ export const Kpis = ({
           label="Known visitors"
           {...pick("known")}
           value={formatNumber(field(counts, "known_visitors"))}
-          growth={growthOf({ row: counts, key: "known_visitors", format: spokenSignedNumber })}
+          growth={growthFor({ row: counts, key: "known_visitors", format: spokenSignedNumber })}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
           caption="Unique people, counted once across the range"
           approximate
@@ -190,7 +193,7 @@ export const Kpis = ({
           label="Anonymous visitors"
           {...pick("anonymous")}
           value={formatNumber(field(counts, "anonymous_visitors"))}
-          growth={growthOf({ row: counts, key: "anonymous_visitors", format: spokenSignedNumber })}
+          growth={growthFor({ row: counts, key: "anonymous_visitors", format: spokenSignedNumber })}
           caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
@@ -198,26 +201,26 @@ export const Kpis = ({
           label="Sessions"
           {...pick("sessions")}
           value={formatNumber(field(counts, "sessions"))}
-          growth={growthOf({ row: counts, key: "sessions", format: spokenSignedNumber })}
+          growth={growthFor({ row: counts, key: "sessions", format: spokenSignedNumber })}
           approximate
         />
         <SelectableCard
           label="Pageviews"
           {...pick("pageviews")}
           value={formatNumber(field(engagement, "pageviews"))}
-          growth={growthOf({ row: engagement, key: "pageviews", format: spokenSignedNumber })}
+          growth={growthFor({ row: engagement, key: "pageviews", format: spokenSignedNumber })}
         />
         <StaticCard
           label="Bounce rate"
           {...trendOf("bounce_rate")}
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
-          growth={growthOf({ row: engagement, key: "bounce_rate", format: spokenSignedPoints, higherIsBetter: false })}
+          growth={growthFor({ row: engagement, key: "bounce_rate", format: spokenSignedPoints, higherIsBetter: false })}
         />
         <StaticCard
           label="Avg session"
           {...trendOf("avg_session")}
           value={formatSeconds(field(engagement, "avg_session_sec"))}
-          growth={growthOf({ row: engagement, key: "avg_session_sec", format: spokenSignedSeconds })}
+          growth={growthFor({ row: engagement, key: "avg_session_sec", format: spokenSignedSeconds })}
         />
       </div>
       <Panel
