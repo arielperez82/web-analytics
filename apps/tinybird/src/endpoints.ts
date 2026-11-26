@@ -1074,7 +1074,7 @@ const rankedBarPercentNode = (label: string) =>
     sql: `
         {% if defined(include_previous_period) and include_previous_period == 'true' %}
         SELECT
-            *,
+            * EXCEPT (scale),
             round(if(scale = 0, 0, sessions * 100.0 / scale), 2) AS bar_percent,
             round(if(scale = 0, 0, previous_sessions * 100.0 / scale), 2) AS previous_bar_percent
         FROM (SELECT *, greatest(max(sessions) OVER (), max(previous_sessions) OVER ()) AS scale FROM ranked)

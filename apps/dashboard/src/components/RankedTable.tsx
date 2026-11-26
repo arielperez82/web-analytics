@@ -72,13 +72,9 @@ export const RankedTable = ({
               <tr key={label}>
                 <td className="label">
                   <span className="bar" style={{ width: `${Number(row.bar_percent ?? 0)}%` }} />
-                  {comparing && (
-                    <>
-                      <span className="bar ghost" aria-hidden="true" style={{ width: `${Number(row.previous_bar_percent ?? 0)}%` }} />
-                      <span className="ds-sr">Previous period: {fmt(row.previous_sessions)} sessions</span>
-                    </>
-                  )}
+                  {comparing && <span className="bar ghost" aria-hidden="true" style={{ width: `${Number(row.previous_bar_percent ?? 0)}%` }} />}
                   <span className="text">{label || "(direct)"}</span>
+                  {comparing && <span className="ds-sr">Previous period: {fmt(row.previous_sessions)} sessions</span>}
                 </td>
                 <td className="num">{fmt(row.sessions)}</td>
                 <td className="num muted">{fmt(row.hits)}</td>

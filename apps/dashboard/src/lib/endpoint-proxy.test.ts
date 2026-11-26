@@ -116,6 +116,13 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it.each(["compare_from", "compare_to"])("refuses a %s that is not a plain day", async (key) => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("channels", `${key}=2000-01-01'%20OR%201`), deps);
+    expect(result.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it("pins tenant_id server-side, overriding any client value", async () => {
     const { deps, calls } = createFakeDeps({
       tenantId: "my-tenant",

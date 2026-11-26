@@ -26,6 +26,8 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "web_vitals_timeseries",
 ];
 
+const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
 
 const UNPINNED_ONLY: readonly string[] = ["tenants"];
@@ -144,6 +146,12 @@ export const proxyEndpoint = async (
   for (const key of ["from_at", "to_at", "compare_from_at"]) {
     const instant = query.get(key);
     if (instant !== null && !ISO_INSTANT.test(instant))
+      return { status: 400, body: { error: `Invalid ${key}` } };
+  }
+
+  for (const key of ["compare_from", "compare_to"]) {
+    const day = query.get(key);
+    if (day !== null && !PLAIN_DAY.test(day))
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
 

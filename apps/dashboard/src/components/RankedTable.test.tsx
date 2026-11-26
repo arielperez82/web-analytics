@@ -156,6 +156,13 @@ describe("RankedTable", () => {
     expect(within(es).getByText("Previous period: 8 sessions")).toBeTruthy();
   });
 
+  it("names the row before it says what the previous period had", async () => {
+    renderTable({ comparison });
+
+    const cell = (await rowOf("ES")).querySelector("td.label");
+    expect(cell?.textContent).toBe("ESPrevious period: 8 sessions");
+  });
+
   it("draws no ghost bar without a comparison", async () => {
     renderTable();
 
