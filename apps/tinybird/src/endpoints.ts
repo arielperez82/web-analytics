@@ -74,22 +74,22 @@ const growthPercentSql = (current: string, previous: string): string =>
   `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
 
 /**
- * Per-day visitor states from `startColumn` of date_calculations to its current_end, tagged with
- * their period. Without a cross filter they come from the daily visitor state; with one, they are
- * built from the hits in the same shape, so one merge serves both paths.
+ * Per-day visitor states inside one period of date_calculations, tagged with that period. Without a
+ * cross filter they come from the hourly visitor state; with one, they are built from the hits in
+ * the same shape, so one merge serves both paths.
  */
-const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): string => `
+const visitorStateSql = (period: "current" | "previous"): string => `
         {% if defined(location) or defined(device) or defined(browser) %}
         SELECT
             toDate(toTimeZone(timestamp, ${tzSql})) AS date,
-            if(timestamp >= (SELECT current_start_at FROM date_calculations), 'current', 'previous') AS period,
+            '${period}' AS period,
             ${visitorClassSql} AS visitor_class,
             uniqCombined64State(visitor_key) AS visitors_state,
             uniqCombined64State(session_id) AS sessions_state,
             countState() AS hits_state
         FROM analytics_hits
-        WHERE timestamp >= (SELECT ${startColumn}_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)
+        WHERE timestamp >= (SELECT ${period}_start_at FROM date_calculations)
+            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
             {% end %}
@@ -103,14 +103,14 @@ const dailyVisitorStateSql = (startColumn: "previous_start" | "current_start"): 
         {% else %}
         SELECT
             toDate(toTimeZone(bucket, ${tzSql})) AS date,
-            if(bucket >= (SELECT current_start_at FROM date_calculations), 'current', 'previous') AS period,
+            '${period}' AS period,
             visitor_class,
             uniqCombined64MergeState(visitors) AS visitors_state,
             uniqCombined64MergeState(visits) AS sessions_state,
             countMergeState(hits) AS hits_state
         FROM visitor_state_hourly_mv
-        WHERE bucket >= (SELECT ${startColumn}_at FROM date_calculations)
-            AND bucket < (SELECT current_end_at FROM date_calculations)
+        WHERE bucket >= (SELECT ${period}_start_at FROM date_calculations)
+            AND bucket < (SELECT ${period}_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
             {% end %}
@@ -136,21 +136,34 @@ export const visitorCounts = defineEndpoint("visitor_counts", {
   nodes: [
     node({
       name: "date_calculations",
-      description: "The range and the equal-length period before it",
+      description: "The range and the period it is compared with: the one asked for, or the equal-length period before it",
       sql: `
         SELECT
             {% if defined(date_from) %} toDate({{ String(date_from, description="First UTC day, inclusive") }}) {% else %} today() - 6 {% end %} AS current_start,
             {% if defined(date_to) %} toDate({{ String(date_to, description="Last UTC day, inclusive") }}) {% else %} today() {% end %} AS current_end,
             dateDiff('day', current_start, current_end) + 1 AS period_days,
             current_start - period_days AS previous_start,
-${previousWindowSql}
+${comparedWindowSql}
       `,
     }),
     node({
+      name: "current_state",
+      description: "Per-day visitor states inside the range",
+      sql: visitorStateSql("current"),
+    }),
+    node({
+      name: "previous_state",
+      description: "Per-day visitor states inside the period the range is compared with",
+      sql: visitorStateSql("previous"),
+    }),
+    node({
       name: "state_in_range",
-      description:
-        "Per-day visitor states for both periods. Without a cross filter they come from the daily visitor state; with one, from the hits, in the same shape",
-      sql: dailyVisitorStateSql("previous_start"),
+      description: "Both periods, each scanned on its own so they may lie apart or overlap",
+      sql: `
+        SELECT * FROM current_state
+        UNION ALL
+        SELECT * FROM previous_state
+      `,
     }),
     node({
       name: "period_counts",
@@ -197,6 +210,7 @@ ${previousWindowSql}
     ...crossFilterParams,
     ...tzParam,
     ...windowParams,
+    ...compareWindowParams,
   },
   output: {
     known_visitors: t.uint64(),
@@ -386,7 +400,7 @@ export const dailySeries = defineEndpoint("daily_series", {
     node({
       name: "state_in_range",
       description: "Per-day visitor states inside the range",
-      sql: dailyVisitorStateSql("current_start"),
+      sql: visitorStateSql("current"),
     }),
     node({
       name: "per_day",

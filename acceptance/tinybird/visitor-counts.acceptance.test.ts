@@ -386,4 +386,127 @@ describe.concurrent('visitor counts', () => {
       expect(row).toMatchObject({ consented_sessions_percent: 25 });
     });
   });
+  describe('against a chosen period', () => {
+    type Row = Record<string, number | string>;
+    const HOUR_MS = 60 * 60 * 1000;
+
+    const spaniard = (scope: Scope, visitorId: string, now: Date) =>
+      createPageHitEvent({
+        ...scope,
+        pathname: '/a',
+        visitorId,
+        idMode: 'persistent',
+        location: 'ES',
+        now,
+      });
+
+    const compared = (
+      scope: Scope,
+      params: Readonly<Record<string, string>>,
+      ready: (row: Row) => boolean
+    ) =>
+      waitForRow(
+        () =>
+          pipeRows<Row>(env, 'visitor_counts', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            ...params,
+          }),
+        rows => ready(rows[0] ?? {})
+      ).then(rows => rows[0] ?? {});
+
+    it.each([
+      { path: 'every visitor', filter: {} },
+      { path: 'one country', filter: { location: 'ES' } },
+    ])(
+      'compares $path with the days it is given, not the days just before',
+      async ({ filter }) => {
+        const scope = createScope();
+        await ingestEvents(env, [
+          spaniard(scope, 'v-today', daysAgo(0)),
+          ...['v-a', 'v-b', 'v-c'].map(id => spaniard(scope, id, daysAgo(1))),
+          spaniard(scope, 'v-week-1', daysAgo(7)),
+          spaniard(scope, 'v-week-2', daysAgo(7)),
+        ]);
+
+        const row = await compared(
+          scope,
+          {
+            date_from: dayOf(0),
+            date_to: dayOf(0),
+            compare_from: dayOf(7),
+            compare_to: dayOf(7),
+            ...filter,
+          },
+          found =>
+            Number(found.sessions) === 1 && Number(found.previous_sessions) >= 2
+        );
+
+        expect(row).toMatchObject({
+          sessions: 1,
+          previous_sessions: 2,
+          previous_known_visitors: 2,
+          sessions_change: -1,
+          sessions_growth_percent: -50,
+        });
+      }
+    );
+
+    it.each([
+      { path: 'every visitor', filter: {} },
+      { path: 'one country', filter: { location: 'ES' } },
+    ])(
+      'compares an exact window of $path with the same hours starting where it is told',
+      async ({ filter }) => {
+        const scope = createScope();
+        const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+        const fromAt = new Date(hourStart - HOUR_MS);
+        const compareFromAt = new Date(fromAt.getTime() - 7 * DAY_MS);
+        await ingestEvents(env, [
+          spaniard(scope, 'v-now', daysAgo(0)),
+          spaniard(scope, 'v-yesterday-1', daysAgo(1)),
+          spaniard(scope, 'v-yesterday-2', daysAgo(1)),
+          spaniard(scope, 'v-week', daysAgo(7)),
+        ]);
+
+        const row = await compared(
+          scope,
+          {
+            from_at: fromAt.toISOString(),
+            compare_from_at: compareFromAt.toISOString(),
+            ...filter,
+          },
+          found => Number(found.sessions) === 1
+        );
+
+        expect(row).toMatchObject({
+          sessions: 1,
+          previous_sessions: 1,
+          sessions_change: 0,
+        });
+      }
+    );
+
+    it('counts a day in both periods when the chosen period overlaps the range', async () => {
+      const scope = createScope();
+      await ingestEvents(env, [
+        spaniard(scope, 'v-today', daysAgo(0)),
+        spaniard(scope, 'v-yesterday', daysAgo(1)),
+        spaniard(scope, 'v-before', daysAgo(2)),
+      ]);
+
+      const row = await compared(
+        scope,
+        {
+          date_from: dayOf(1),
+          date_to: dayOf(0),
+          compare_from: dayOf(2),
+          compare_to: dayOf(1),
+        },
+        found => Number(found.sessions) === 2
+      );
+
+      expect(row).toMatchObject({ sessions: 2, previous_sessions: 2 });
+    });
+  });
 });
