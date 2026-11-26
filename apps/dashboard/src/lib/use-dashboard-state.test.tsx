@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browserTimeZone } from "./time-zone";
@@ -7,11 +8,8 @@ import { useDashboardState } from "./use-dashboard-state";
 
 const visit = (query: string) => window.history.replaceState(null, "", query === "" ? "/" : `/?${query}`);
 const urlQuery = () => new URLSearchParams(window.location.search);
-const router = { replace: (href: string) => window.history.replaceState(null, "", href) };
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => window.location.pathname,
-  useRouter: () => router,
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
@@ -91,6 +89,18 @@ describe("useDashboardState", () => {
     expect(urlQuery().get("tz")).toBe(browserTimeZone());
     expect(urlQuery().get("days")).toBe("30");
     expect(urlQuery().get("domain")).toBe("a.example");
+  });
+
+  it("keeps a range picked before the time zone was written into the URL", () => {
+    visit("domain=a.example");
+    renderHook(() => {
+      const { state, update } = useDashboardState();
+      useLayoutEffect(() => update({ ...state, range: { preset: "last_24_hours" } }), []);
+    });
+
+    expect(urlQuery().get("range")).toBe("last_24_hours");
+    expect(urlQuery().get("domain")).toBe("a.example");
+    expect(urlQuery().get("tz")).toBe(browserTimeZone());
   });
 
   it("leaves a URL that already names a time zone alone", () => {
