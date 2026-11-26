@@ -9,6 +9,7 @@ import {
   formatSignedPercent,
   formatSignedPoints,
   formatSignedSeconds,
+  spokenSignedPoints,
 } from "./format";
 
 describe("format", () => {
@@ -39,6 +40,21 @@ describe("format", () => {
     expect(formatSignedSeconds(12.25)).toBe("+12.25s");
     expect(formatSignedSeconds(-45)).toBe("-45s");
     expect(formatSignedSeconds(0)).toBe("0s");
+  });
+
+  describe("a change that is also read aloud", () => {
+    it("keeps the short percentage-point text and spells the unit and the sign out for speech", () => {
+      expect(spokenSignedPoints(-1.5)).toEqual({ text: "-1.5 pp", spoken: "minus 1.5 percentage points" });
+      expect(spokenSignedPoints(100)).toEqual({ text: "+100 pp", spoken: "plus 100 percentage points" });
+      expect(spokenSignedPoints(0)).toEqual({ text: "0 pp", spoken: "0 percentage points" });
+    });
+
+    it("says one percentage point in the singular, judged on the figure as it is shown", () => {
+      expect(spokenSignedPoints(1).spoken).toBe("plus 1 percentage point");
+      expect(spokenSignedPoints(-1).spoken).toBe("minus 1 percentage point");
+      expect(spokenSignedPoints(1.001)).toEqual({ text: "+1 pp", spoken: "plus 1 percentage point" });
+      expect(spokenSignedPoints(1.5).spoken).toBe("plus 1.5 percentage points");
+    });
   });
 
   it("writes seconds with a short unit", () => {
