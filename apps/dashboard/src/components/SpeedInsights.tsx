@@ -1,14 +1,36 @@
 "use client";
 
 import { Badge } from "@/ds/Badge";
+import { spokenSignedMilliseconds, spokenSignedNumber, spokenSignedScorePoints } from "@/lib/format";
 import { statusClass, statusTone } from "@/lib/status-class";
-import type { QueryParams } from "@/lib/use-dashboard-state";
+import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { orderVitals } from "@/lib/vitals-order";
 
+import { ChangeBadge } from "./ChangeBadge";
 import { fmt, Panel, type Row,Status } from "./ui";
 
-export const SpeedInsights = ({ params }: { params: QueryParams }) => {
+const vitalAmount = (units: unknown) => (units === "ms" ? spokenSignedMilliseconds : spokenSignedNumber);
+
+const NoEarlierData = () => (
+  <>
+    <span aria-hidden="true">—</span>
+    <span className="ds-sr">No earlier data</span>
+  </>
+);
+
+const VitalChange = ({ row }: { row: Row }) => {
+  if (typeof row.p75_change !== "number") return <small className="muted">No earlier data</small>;
+  return (
+    <div className="delta">
+      <ChangeBadge change={row.p75_change} percent={typeof row.p75_change_percent === "number" ? row.p75_change_percent : null} higherIsBetter={false} amount={vitalAmount(row.units)} />
+      <small className="muted">was {fmt(row.previous_p75)} {row.units}</small>
+    </div>
+  );
+};
+
+export const SpeedInsights = ({ params, comparison }: { params: QueryParams; comparison?: ComparisonParams }) => {
+  const comparing = comparison !== undefined;
   const scope = {
     tenant_id: params.tenant_id,
     domain: params.domain,
@@ -20,6 +42,8 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
     device: params.device,
     browser: params.browser,
     include_bots: params.include_bots,
+    ...comparison,
+    include_previous_period: comparing ? "true" : undefined,
   };
   const vitals = useEndpoint<Row>("web_vitals_current", scope);
   const routes = useEndpoint<Row>("web_vitals_routes", { ...scope, sort_order: "asc", limit: "10" });
@@ -35,6 +59,7 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
               <span>{row.metric_name} p75{multiDomain ? ` · ${row.domain}` : ""}</span>
               <strong>{fmt(row.p75)} <small>{row.units}</small></strong>
               <Badge tone={statusTone(row.status)}>{fmt(row.status)}</Badge>
+              {comparing && <VitalChange row={row} />}
             </div>
           ))}
         </div>
@@ -42,12 +67,13 @@ export const SpeedInsights = ({ params }: { params: QueryParams }) => {
       <Panel title="Slowest routes (worst first)">
         <Status loading={routes.loading} refreshing={routes.refreshing} error={routes.error} stale={routes.data !== undefined} empty={routes.data?.length === 0} onRetry={routes.retry} />
         <table>
-          <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th></tr></thead>
+          <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th>{comparing && <th className="num">Score vs previous</th>}</tr></thead>
           <tbody>
             {(routes.data ?? []).map((row) => (
               <tr key={`${row.domain}-${row.route}`}>
                 <td>{fmt(row.route)}</td><td className="muted">{fmt(row.domain)}</td><td className="num">{fmt(row.overall_score)}</td>
                 <td className="num">{fmt(row.lcp_avg)}</td><td className="num">{fmt(row.inp_avg)}</td><td className="num">{fmt(row.cls_avg)}</td>
+                {comparing && <td className="num">{typeof row.overall_score_change === "number" ? <ChangeBadge change={row.overall_score_change} higherIsBetter amount={spokenSignedScorePoints} /> : <NoEarlierData />}</td>}
               </tr>
             ))}
           </tbody>

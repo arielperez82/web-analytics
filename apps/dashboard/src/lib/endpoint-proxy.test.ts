@@ -123,6 +123,15 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("refuses a comparison that ends before it starts, and accepts a single day", async () => {
+    const { deps, calls } = createFakeDeps();
+    const reversed = await proxyEndpoint(request("channels", "compare_from=2026-11-09&compare_to=2026-11-03"), deps);
+    const single = await proxyEndpoint(request("channels", "compare_from=2026-11-03&compare_to=2026-11-03"), deps);
+    expect(reversed.status).toBe(400);
+    expect(single.status).toBe(200);
+    expect(calls).toHaveLength(1);
+  });
+
   it("pins tenant_id server-side, overriding any client value", async () => {
     const { deps, calls } = createFakeDeps({
       tenantId: "my-tenant",

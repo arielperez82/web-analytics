@@ -257,7 +257,9 @@ test('speed insights apply the same filters as the overview', async ({
   await expect(
     page.getByRole('checkbox', { name: 'Include bots' })
   ).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Compare to' })).toHaveCount(0);
+  await expect(
+    page.getByRole('banner').getByRole('group', { name: 'Compare to' })
+  ).toBeVisible();
 });
 
 test('clicking a day on the chart shows that day hour by hour', async ({

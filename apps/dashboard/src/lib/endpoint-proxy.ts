@@ -155,6 +155,11 @@ export const proxyEndpoint = async (
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
 
+  const compareFrom = query.get("compare_from");
+  const compareTo = query.get("compare_to");
+  if (compareFrom !== null && compareTo !== null && compareFrom > compareTo)
+    return { status: 400, body: { error: "compare_from is after compare_to" } };
+
   const bucket = query.get("bucket_hours");
   if (bucket !== null && !(/^\d{1,2}$/.test(bucket) && Number(bucket) >= 1 && Number(bucket) <= 24))
     return { status: 400, body: { error: "Invalid bucket_hours" } };

@@ -21,6 +21,13 @@ const signedSecondsInWords = new Intl.NumberFormat("en-US", {
   unit: "second",
   unitDisplay: "long",
 });
+const signedMillisecondsInWords = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  signDisplay: "exceptZero",
+  style: "unit",
+  unit: "millisecond",
+  unitDisplay: "long",
+});
 const seconds = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   style: "unit",
@@ -64,6 +71,16 @@ export const spokenSignedPercent = (value: number): Spoken => ({
 export const spokenSignedPoints = (value: number): Spoken => ({
   text: `${signedNumber.format(value)} pp`,
   spoken: `${speak({ formatter: signedNumber, value })} percentage ${plural.select(value) === "one" ? "point" : "points"}`,
+});
+
+export const spokenSignedMilliseconds = (value: number): Spoken => ({
+  text: formatSignedNumber(value),
+  spoken: speak({ formatter: signedMillisecondsInWords, value }),
+});
+
+export const spokenSignedScorePoints = (value: number): Spoken => ({
+  text: formatSignedNumber(value),
+  spoken: `${speak({ formatter: signedNumber, value })} ${plural.select(value) === "one" ? "point" : "points"}`,
 });
 
 export const spokenSignedSeconds = (value: number): Spoken => ({
