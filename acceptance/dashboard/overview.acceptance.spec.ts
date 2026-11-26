@@ -400,6 +400,9 @@ test('the chart granularity is chosen apart from what it counts', async ({
 
   await expect(page).toHaveURL(/grain=hour/);
   await expect(page.getByText('Sessions per hour')).toBeVisible();
+  await expect
+    .poll(() => api.requestsTo('series').filter(q => q.get('grain') === 'hour'))
+    .toHaveLength(1);
   const asked = api.requestsTo('series').length;
   await page.getByRole('button', { name: 'Pageviews' }).click();
   await expect(page.getByText('Pageviews per hour')).toBeVisible();
