@@ -184,14 +184,34 @@ describe("Kpis", () => {
     const bounce = within(await card("Bounce rate"));
     const avg = within(await card("Avg session"));
 
-    expect(await bounce.findAllByText("No previous data")).toHaveLength(2);
+    expect(await bounce.findByText("No previous data")).toBeTruthy();
     expect(bounce.queryByText(/pp/)).toBeNull();
     expect(bounce.queryByText("Up")).toBeNull();
     expect(bounce.queryByText("Down")).toBeNull();
-    expect(heard((await card("Bounce rate")).querySelector(".delta"))).toBe("No previous data vs previous period");
-    expect(heard((await card("Avg session")).querySelector(".delta"))).toBe("No previous data vs previous period");
-    expect(avg.getAllByText("No previous data")[0]?.closest(".ds-badge")?.getAttribute("data-tone")).toBe("neutral");
+    expect(heard((await card("Bounce rate")).querySelector(".delta"))).toBe("No previous data");
+    expect(heard((await card("Avg session")).querySelector(".delta"))).toBe("No previous data");
+    expect(avg.getByText("No previous data").closest(".ds-badge")?.getAttribute("data-tone")).toBe("neutral");
     expect(within(await card("Pageviews")).getByText("+234 (+23.4%)")).toBeTruthy();
+  });
+
+  it("reads no previous data when only the growth is null", async () => {
+    renderKpis({ engagement: { ...engagement, bounce_rate_change: 5, bounce_rate_growth_percent: null } });
+
+    expect(await within(await card("Bounce rate")).findByText("No previous data")).toBeTruthy();
+  });
+
+  it("reads no previous data when the growth is missing from the row", async () => {
+    const { bounce_rate_growth_percent: _omitted, ...rest } = engagement;
+    renderKpis({ engagement: rest });
+
+    expect(await within(await card("Bounce rate")).findByText("No previous data")).toBeTruthy();
+  });
+
+  it("reads no previous data when the change is missing from the row", async () => {
+    const { bounce_rate_change: _omitted, ...rest } = engagement;
+    renderKpis({ engagement: rest });
+
+    expect(await within(await card("Bounce rate")).findByText("No previous data")).toBeTruthy();
   });
 
   it("says a single second and a single percentage point in the singular", async () => {

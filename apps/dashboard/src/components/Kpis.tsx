@@ -72,7 +72,7 @@ const growthOf = ({
   readonly format: (value: number) => Spoken;
   readonly higherIsBetter?: boolean;
 }): Growth => {
-  if (row?.[`${key}_change`] === null) return "no-previous-data";
+  if (row?.[`${key}_change`] == null || row[`${key}_growth_percent`] == null) return "no-previous-data";
   const change = field(row, `${key}_change`);
   const amount = format(change);
   const percent = spokenSignedPercent(field(row, `${key}_growth_percent`));
@@ -87,13 +87,7 @@ const deltaOfGrowth = (growth: Growth | undefined) => {
   if (growth === undefined) return undefined;
   if (growth === "no-previous-data")
     return (
-      <>
-        <Badge tone="neutral">
-          <span aria-hidden="true">{NO_PREVIOUS_DATA}</span>
-          <span className="ds-sr">{NO_PREVIOUS_DATA}</span>
-        </Badge>
-        <span className="ds-sr">vs previous period</span>
-      </>
+      <Badge tone="neutral">{NO_PREVIOUS_DATA}</Badge>
     );
   return (
     <>
