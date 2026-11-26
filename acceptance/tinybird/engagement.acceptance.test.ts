@@ -241,6 +241,31 @@ describe.concurrent('engagement', () => {
     );
   });
 
+  it('gives no change or growth for the rates when the previous period has no sessions', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 0),
+    ]);
+
+    const row = await engagement(scope, 3, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 3,
+      previous_pageviews: 0,
+      bounce_rate_percent: 50,
+      bounce_rate_change: null,
+      bounce_rate_growth_percent: null,
+      avg_session_sec_change: null,
+      avg_session_sec_growth_percent: null,
+      pageviews_change: 3,
+      pageviews_growth_percent: 100,
+    });
+  });
+
   it('leaves bots out unless asked to include them', async () => {
     const scope = createScope();
     await ingestEvents(env, [
