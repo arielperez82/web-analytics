@@ -73,7 +73,6 @@ const rateChangeSql = (current: string, previous: string): string => `round(${cu
 const growthPercentSql = (current: string, previous: string): string =>
   `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
 
-/** A rate has nothing to change from when the previous period has no sessions, so its change and growth are null. */
 const whenPreviousHasSessionsSql = (figure: string): string => `if(previous_session_count = 0, NULL, ${figure})`;
 
 /**
