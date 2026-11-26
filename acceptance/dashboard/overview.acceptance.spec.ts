@@ -102,6 +102,7 @@ test('a screen reader hears each change with its sign and unit in words, while t
   await expect(page.getByRole('group', { name: 'Bounce rate' }))
     .toMatchAriaSnapshot(`
     - group "Bounce rate":
+      - /children: equal
       - text: Bounce rate
       - strong: 37.5%
       - text: Down minus 1.5 percentage points, minus 3.85 percent vs previous period
@@ -109,6 +110,7 @@ test('a screen reader hears each change with its sign and unit in words, while t
   await expect(page.getByRole('group', { name: 'Avg session' }))
     .toMatchAriaSnapshot(`
     - group "Avg session":
+      - /children: equal
       - text: Avg session
       - strong: 95s
       - text: No change 0 seconds, 0 percent vs previous period
@@ -121,6 +123,16 @@ test('a screen reader hears each change with its sign and unit in words, while t
   await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
   await expect(page.getByText('0s (0%)')).toBeVisible();
   await expect(page.getByText('+20 (+20%)')).toBeVisible();
+  for (const spoken of [
+    'minus 1.5 percentage points, minus 3.85 percent',
+    '0 seconds, 0 percent',
+    'plus 20, plus 20 percent',
+  ]) {
+    const words = page.getByText(spoken, { exact: true });
+    await expect(words).toHaveCSS('position', 'absolute');
+    await expect(words).toHaveCSS('width', '1px');
+    await expect(words).toHaveCSS('overflow', 'hidden');
+  }
 });
 
 for (const width of [1280, 375]) {

@@ -200,6 +200,16 @@ describe("Kpis", () => {
     expect(await shown("Sessions", "+30 (+7.89%)")).toBe("true");
   });
 
+  it("keeps the words that are read aloud off the screen", async () => {
+    renderKpis();
+    const hidden = async (name: string, words: string) =>
+      (await within(await card(name)).findByText(words)).classList.contains("ds-sr");
+
+    expect(await hidden("Bounce rate", "minus 1.5 percentage points, minus 3.85 percent")).toBe(true);
+    expect(await hidden("Avg session", "0 seconds, 0 percent")).toBe(true);
+    expect(await hidden("Sessions", "plus 30, plus 7.89 percent")).toBe(true);
+  });
+
   it("names each metric card by its label alone and groups them as the key figures", async () => {
     renderKpis();
 
