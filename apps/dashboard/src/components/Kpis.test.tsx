@@ -170,6 +170,30 @@ describe("Kpis", () => {
     expect(await change("Known visitors")).toBe("Up plus 20, plus 20 percent vs previous period");
   });
 
+  it("says there is no previous data, in place of a change, when the API returns none", async () => {
+    renderKpis({
+      engagement: {
+        ...engagement,
+        bounce_rate_change: null,
+        bounce_rate_growth_percent: null,
+        avg_session_sec_change: null,
+        avg_session_sec_growth_percent: null,
+      },
+    });
+
+    const bounce = within(await card("Bounce rate"));
+    const avg = within(await card("Avg session"));
+
+    expect(await bounce.findAllByText("No previous data")).toHaveLength(2);
+    expect(bounce.queryByText(/pp/)).toBeNull();
+    expect(bounce.queryByText("Up")).toBeNull();
+    expect(bounce.queryByText("Down")).toBeNull();
+    expect(heard((await card("Bounce rate")).querySelector(".delta"))).toBe("No previous data vs previous period");
+    expect(heard((await card("Avg session")).querySelector(".delta"))).toBe("No previous data vs previous period");
+    expect(avg.getAllByText("No previous data")[0]?.closest(".ds-badge")?.getAttribute("data-tone")).toBe("neutral");
+    expect(within(await card("Pageviews")).getByText("+234 (+23.4%)")).toBeTruthy();
+  });
+
   it("says a single second and a single percentage point in the singular", async () => {
     renderKpis({
       engagement: {

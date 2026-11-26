@@ -47,7 +47,9 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
 const field = (row: Row | undefined, key: string): number =>
   Number(row?.[key] ?? 0);
 
-type Growth = Spoken & { readonly delta: Delta };
+type Growth = (Spoken & { readonly delta: Delta }) | "no-previous-data";
+
+const NO_PREVIOUS_DATA = "No previous data";
 
 type CardContent = {
   readonly label: string;
@@ -70,6 +72,7 @@ const growthOf = ({
   readonly format: (value: number) => Spoken;
   readonly higherIsBetter?: boolean;
 }): Growth => {
+  if (row?.[`${key}_change`] === null) return "no-previous-data";
   const change = field(row, `${key}_change`);
   const amount = format(change);
   const percent = spokenSignedPercent(field(row, `${key}_growth_percent`));
@@ -80,19 +83,33 @@ const growthOf = ({
   };
 };
 
-const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
-  label,
-  value,
-  delta:
-    growth === undefined ? undefined : (
+const deltaOfGrowth = (growth: Growth | undefined) => {
+  if (growth === undefined) return undefined;
+  if (growth === "no-previous-data")
+    return (
       <>
-        <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
-          <span aria-hidden="true">{growth.text}</span>
-          <span className="ds-sr">{growth.spoken}</span>
+        <Badge tone="neutral">
+          <span aria-hidden="true">{NO_PREVIOUS_DATA}</span>
+          <span className="ds-sr">{NO_PREVIOUS_DATA}</span>
         </Badge>
         <span className="ds-sr">vs previous period</span>
       </>
-    ),
+    );
+  return (
+    <>
+      <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
+        <span aria-hidden="true">{growth.text}</span>
+        <span className="ds-sr">{growth.spoken}</span>
+      </Badge>
+      <span className="ds-sr">vs previous period</span>
+    </>
+  );
+};
+
+const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
+  label,
+  value,
+  delta: deltaOfGrowth(growth),
   tips: [caption, note, approximate ? APPROXIMATE_COUNT_NOTE : undefined].filter(
     (tip): tip is string => tip !== undefined,
   ),
