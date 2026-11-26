@@ -382,7 +382,14 @@ describe("Kpis", () => {
     const api = renderKpis({ comparison: undefined });
 
     await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
+    await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
     expect(seriesRequests(api).at(-1)?.has("compare_from")).toBe(false);
+    const sent = (endpoint: string) => Object.keys(Object.fromEntries(api.requestsTo(endpoint).at(-1) ?? []));
+    const compareKeys = ["compare_from", "compare_to", "compare_from_at"];
+    expect(sent("visitor_counts")).toContain("date_from");
+    expect(sent("visitor_counts").filter((key) => compareKeys.includes(key))).toEqual([]);
+    expect(sent("engagement")).toContain("date_from");
+    expect(sent("engagement").filter((key) => compareKeys.includes(key))).toEqual([]);
     expect(within(screen.getByLabelText("Chart legend")).queryByText(/Previous period/)).toBeNull();
   });
 
