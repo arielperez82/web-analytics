@@ -65,6 +65,13 @@ const vitalsScopeSql = `
             AND domain = {{ String(domain, description="Domain to filter") }}
             {% end %}${crossFilters}`;
 
+const routeScopeSql = `${vitalsScopeSql}
+            {% if defined(route) %}
+            AND route = {{ String(route, description="Route to filter by") }}
+            {% end %}`;
+
+const MIN_MEASUREMENTS_SQL = `{{Int32(min_measurements, 3, description="Fewest measurements a route or page needs to be listed")}}`;
+
 const comparisonParams = {
   include_previous_period: p
     .string()
@@ -279,7 +286,7 @@ export const webVitalsCurrent = defineEndpoint("web_vitals_current", {
                 timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
                 AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
-                timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+                timestamp >= now() - interval ${DAYS_SQL} day
             {% end %}
 ${vitalsScopeSql}
         GROUP BY metric_name, domain, tenant_id
@@ -715,7 +722,8 @@ export type WebVitalsDistributionOutput = InferOutputRow<
  * Web vitals routes - routes with vitals scores
  */
 export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
-  description: "Routes with web vitals scores, sortable by performance",
+  description:
+    "Routes with web vitals scores, sortable by performance. With include_previous_period=true each row also has its overall score over the comparison window (previous_overall_score) and the change from it in score points (overall_score_change); both are null when the route had too few measurements then",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -742,17 +750,9 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
                 timestamp >= toDateTime(toDate({{ Date(date_from) }}), ${tzSql})
                 AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
             {% else %}
-                timestamp >= now() - interval {{Int32(days, 1, description="Number of days to analyze")}} day
+                timestamp >= now() - interval ${DAYS_SQL} day
             {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Domain to filter") }}
-            {% end %}${crossFilters}
-            {% if defined(route) %}
-            AND route = {{ String(route, description="Route to filter by") }}
-            {% end %}
+${routeScopeSql}
       `,
     }),
     node({
@@ -776,7 +776,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             {% if defined(analysis_type) and analysis_type == 'pathnames' %}
             , full_pathname, route
             {% end %}
-        HAVING measurements >= {{Int32(min_measurements, 3, description="Fewest measurements a route or page needs to be listed")}}
+        HAVING measurements >= ${MIN_MEASUREMENTS_SQL}
       `,
     }),
     node({
@@ -809,6 +809,44 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             {% end %}
       `,
     }),
+    vitalsCompareWindowNode(),
+    node({
+      name: "previous_route_scores",
+      description:
+        "Each route's or page's overall score over the comparison window, by the same rules as the current one (only when include_previous_period is true)",
+      sql: `
+        {% if ${COMPARING} %}
+        SELECT
+            path_key as previous_path_key,
+            domain as previous_domain,
+            round(avg(avg_score), 2) as previous_score,
+            toUInt8(1) as previous_listed
+        FROM (
+            SELECT
+                path_key,
+                metric_name,
+                avg(score) as avg_score,
+                count() as measurements,
+                domain
+            FROM (
+                SELECT
+                    {% if defined(analysis_type) and analysis_type == 'pathnames' %} pathname {% else %} route {% end %} as path_key,
+                    metric_name,
+                    score,
+                    domain
+                FROM web_vitals_events
+                WHERE ${previousWindowRangeSql}${routeScopeSql}
+            )
+            WHERE path_key != ''
+            GROUP BY path_key, metric_name, domain
+            HAVING measurements >= ${MIN_MEASUREMENTS_SQL}
+        )
+        GROUP BY path_key, domain
+        {% else %}
+        SELECT '' as previous_path_key, '' as previous_domain, 0 as previous_score, toUInt8(0) as previous_listed WHERE 1=0
+        {% end %}
+      `,
+    }),
     node({
       name: "endpoint",
       sql: `
@@ -836,7 +874,16 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             {% else %}
                 'routes' as analysis_type
             {% end %}
+            {% if ${COMPARING} %},
+            if(previous_listed = 1, previous_score, NULL) as previous_overall_score,
+            if(previous_listed = 1, round(route_summary.overall_score - previous_score, 2), NULL) as overall_score_change
+            {% end %}
         FROM route_summary
+        {% if ${COMPARING} %}
+        LEFT JOIN previous_route_scores
+            ON route_summary.path_key = previous_route_scores.previous_path_key
+            AND route_summary.domain = previous_route_scores.previous_domain
+        {% end %}
         ORDER BY
             {% if defined(sort_order) and sort_order == 'desc' %}
                 overall_score DESC,
@@ -882,6 +929,7 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
       .describe("'asc' for best, 'desc' for worst"),
     skip: p.int32().optional(0).describe("Skip for pagination"),
     limit: p.int32().optional(10).describe("Limit for pagination"),
+    ...comparisonParams,
   },
   output: {
     route: t.string(),
@@ -899,6 +947,8 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
     metric_units: t.string(),
     domain: t.string(),
     analysis_type: t.string(),
+    previous_overall_score: t.float64().nullable(),
+    overall_score_change: t.float64().nullable(),
   },
 });
 

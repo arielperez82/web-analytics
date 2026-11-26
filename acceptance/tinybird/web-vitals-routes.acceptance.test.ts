@@ -33,7 +33,33 @@ const ENOUGH_FOR_A_RELIABLE_AVERAGE = 5;
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const ONE_MINUTE_MS = 60 * 1000;
 
+const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
+
 const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
+
+const instantOf = (date: Date): string => `${date.toISOString().slice(0, 19)}Z`;
+
+type ComparedRouteRow = RouteRow & {
+  previous_overall_score: number | null;
+  overall_score_change: number | null;
+};
+
+const twoHourWindow = () => {
+  const end = new Date(
+    Math.floor(Date.now() / ONE_HOUR_MS) * ONE_HOUR_MS - ONE_HOUR_MS
+  );
+  const start = new Date(end.getTime() - 2 * ONE_HOUR_MS);
+  const before = new Date(start.getTime() - 2 * ONE_HOUR_MS);
+  const earlier = new Date(start.getTime() - 24 * ONE_HOUR_MS);
+  const inside = (from: Date) => new Date(from.getTime() + 31 * ONE_MINUTE_MS);
+  return {
+    params: { from_at: instantOf(start), to_at: instantOf(end) },
+    duringIt: inside(start),
+    justBeforeIt: inside(before),
+    aDayBeforeIt: inside(earlier),
+    aDayEarlier: instantOf(earlier),
+  };
+};
 
 const lcpEvents = (
   scope: Scope,
@@ -273,6 +299,186 @@ describe.concurrent('web_vitals_routes pipe', () => {
           pathname: '/shop/hats',
           overall_score: 75,
         }),
+      ]);
+    });
+  });
+
+  describe('compared with another period', () => {
+    const compared = (
+      scope: Scope,
+      params: Record<string, number | string>,
+      minRows = 1
+    ) =>
+      waitForPipeRows<ComparedRouteRow>(
+        env,
+        'web_vitals_routes',
+        {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          analysis_type: 'routes',
+          include_previous_period: 'true',
+          ...params,
+        },
+        minRows
+      );
+
+    it('gives each route its score in the period just before and the change from it', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', POOR_LCP, 5, window.justBeforeIt),
+        ...lcpEvents(scope, '/shop', GOOD_LCP, 5, window.aDayBeforeIt),
+      ]);
+
+      const rows = await compared(scope, window.params);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          route: 'shop',
+          overall_score: 100,
+          previous_overall_score: 25,
+          overall_score_change: 75,
+        }),
+      ]);
+    });
+
+    it('compares with the window the viewer chose instead', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', POOR_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.justBeforeIt),
+        ...lcpEvents(scope, '/shop', GOOD_LCP, 5, window.aDayBeforeIt),
+      ]);
+
+      const rows = await compared(scope, {
+        ...window.params,
+        compare_from_at: window.aDayEarlier,
+      });
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          overall_score: 25,
+          previous_overall_score: 75,
+          overall_score_change: -50,
+        }),
+      ]);
+    });
+
+    it('compares whole days with the days the viewer chose', async () => {
+      const scope = createScope();
+      const twoDaysAgo = new Date(Date.now() - TWO_DAYS_MS);
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', GOOD_LCP),
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, twoDaysAgo),
+      ]);
+      const today = dayOf(new Date(Date.now() - ONE_MINUTE_MS));
+      const thatDay = dayOf(new Date(twoDaysAgo.getTime() - ONE_MINUTE_MS));
+
+      const rows = await compared(scope, {
+        date_from: today,
+        date_to: today,
+        compare_from: thatDay,
+        compare_to: thatDay,
+      });
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          overall_score: 75,
+          previous_overall_score: 100,
+          overall_score_change: -25,
+        }),
+      ]);
+    });
+
+    it('has no previous score or change for a route with too few measurements before', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', POOR_LCP, 1, window.justBeforeIt),
+      ]);
+
+      const rows = await compared(scope, window.params);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          route: 'shop',
+          overall_score: 100,
+          previous_overall_score: null,
+          overall_score_change: null,
+        }),
+      ]);
+    });
+
+    it('compares each page of a route with itself', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop/shoes', EXCELLENT_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop/hats', GOOD_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop/shoes', GOOD_LCP, 5, window.justBeforeIt),
+        ...lcpEvents(scope, '/shop/hats', POOR_LCP, 5, window.justBeforeIt),
+      ]);
+
+      const rows = await waitForPipeRows<
+        ComparedRouteRow & { pathname: string }
+      >(
+        env,
+        'web_vitals_routes',
+        {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          analysis_type: 'pathnames',
+          route: 'shop',
+          sort_order: 'desc',
+          include_previous_period: 'true',
+          ...window.params,
+        },
+        2
+      );
+
+      expect(
+        rows.map(row => [
+          row.pathname,
+          row.previous_overall_score,
+          row.overall_score_change,
+        ])
+      ).toEqual([
+        ['/shop/shoes', 75, 25],
+        ['/shop/hats', 25, 50],
+      ]);
+    });
+
+    it('returns no comparison figures unless asked', async () => {
+      const scope = createScope();
+      const window = twoHourWindow();
+      await ingestEvents(env, [
+        ...lcpEvents(scope, '/shop', EXCELLENT_LCP, 5, window.duringIt),
+        ...lcpEvents(scope, '/shop', POOR_LCP, 5, window.justBeforeIt),
+      ]);
+
+      const rows = await routes(scope, window.params);
+
+      expect(rows.map(row => Object.keys(row))).toEqual([
+        [
+          'route',
+          'overall_score',
+          'lcp_avg',
+          'ttfb_avg',
+          'fcp_avg',
+          'inp_avg',
+          'cls_avg',
+          'lcp_score',
+          'ttfb_score',
+          'fcp_score',
+          'inp_score',
+          'cls_score',
+          'metric_units',
+          'domain',
+          'analysis_type',
+        ],
       ]);
     });
   });
