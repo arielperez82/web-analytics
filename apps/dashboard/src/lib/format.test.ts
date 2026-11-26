@@ -7,8 +7,10 @@ import {
   formatSeconds,
   formatSignedNumber,
   formatSignedPercent,
-  formatSignedPoints,
-  formatSignedSeconds,
+  spokenSignedNumber,
+  spokenSignedPercent,
+  spokenSignedPoints,
+  spokenSignedSeconds,
 } from "./format";
 
 describe("format", () => {
@@ -33,12 +35,43 @@ describe("format", () => {
     expect(formatSignedNumber(1234)).toBe("+1,234");
     expect(formatSignedNumber(-4)).toBe("-4");
     expect(formatSignedNumber(0)).toBe("0");
-    expect(formatSignedPoints(-1.5)).toBe("-1.5 pp");
-    expect(formatSignedPoints(100)).toBe("+100 pp");
-    expect(formatSignedPoints(0)).toBe("0 pp");
-    expect(formatSignedSeconds(12.25)).toBe("+12.25s");
-    expect(formatSignedSeconds(-45)).toBe("-45s");
-    expect(formatSignedSeconds(0)).toBe("0s");
+  });
+
+  describe("a change that is also read aloud", () => {
+    it("keeps the short percentage-point text and spells the unit and the sign out for speech", () => {
+      expect(spokenSignedPoints(-1.5)).toEqual({ text: "-1.5 pp", spoken: "minus 1.5 percentage points" });
+      expect(spokenSignedPoints(100)).toEqual({ text: "+100 pp", spoken: "plus 100 percentage points" });
+      expect(spokenSignedPoints(0)).toEqual({ text: "0 pp", spoken: "0 percentage points" });
+    });
+
+    it("says one percentage point in the singular, judged on the figure as it is shown", () => {
+      expect(spokenSignedPoints(1).spoken).toBe("plus 1 percentage point");
+      expect(spokenSignedPoints(-1).spoken).toBe("minus 1 percentage point");
+      expect(spokenSignedPoints(1.001)).toEqual({ text: "+1 pp", spoken: "plus 1 percentage point" });
+      expect(spokenSignedPoints(1.5).spoken).toBe("plus 1.5 percentage points");
+    });
+
+    it("keeps the short seconds text and says the word, singular for exactly one", () => {
+      expect(spokenSignedSeconds(5)).toEqual({ text: "+5s", spoken: "plus 5 seconds" });
+      expect(spokenSignedSeconds(-45)).toEqual({ text: "-45s", spoken: "minus 45 seconds" });
+      expect(spokenSignedSeconds(12.25)).toEqual({ text: "+12.25s", spoken: "plus 12.25 seconds" });
+      expect(spokenSignedSeconds(1)).toEqual({ text: "+1s", spoken: "plus 1 second" });
+      expect(spokenSignedSeconds(-1)).toEqual({ text: "-1s", spoken: "minus 1 second" });
+      expect(spokenSignedSeconds(0)).toEqual({ text: "0s", spoken: "0 seconds" });
+    });
+
+    it("says the sign of a plain change in words", () => {
+      expect(spokenSignedNumber(1234)).toEqual({ text: "+1,234", spoken: "plus 1,234" });
+      expect(spokenSignedNumber(-4)).toEqual({ text: "-4", spoken: "minus 4" });
+      expect(spokenSignedNumber(0)).toEqual({ text: "0", spoken: "0" });
+    });
+
+    it("says the sign and the percent of growth in words", () => {
+      expect(spokenSignedPercent(50)).toEqual({ text: "+50%", spoken: "plus 50 percent" });
+      expect(spokenSignedPercent(-3.85)).toEqual({ text: "-3.85%", spoken: "minus 3.85 percent" });
+      expect(spokenSignedPercent(1)).toEqual({ text: "+1%", spoken: "plus 1 percent" });
+      expect(spokenSignedPercent(0)).toEqual({ text: "0%", spoken: "0 percent" });
+    });
   });
 
   it("writes seconds with a short unit", () => {

@@ -18,10 +18,11 @@ import {
   formatNumber,
   formatPercent,
   formatSeconds,
-  formatSignedNumber,
-  formatSignedPercent,
-  formatSignedPoints,
-  formatSignedSeconds,
+  type Spoken,
+  spokenSignedNumber,
+  spokenSignedPercent,
+  spokenSignedPoints,
+  spokenSignedSeconds,
 } from "@/lib/format";
 import { effectiveGrain, hourAvailable, hourBucket, isExactWindow } from "@/lib/grain";
 import type { QueryParams } from "@/lib/use-dashboard-state";
@@ -46,7 +47,7 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
 const field = (row: Row | undefined, key: string): number =>
   Number(row?.[key] ?? 0);
 
-type Growth = { readonly text: string; readonly delta: Delta };
+type Growth = Spoken & { readonly delta: Delta };
 
 type CardContent = {
   readonly label: string;
@@ -66,12 +67,15 @@ const growthOf = ({
 }: {
   readonly row: Row | undefined;
   readonly key: string;
-  readonly format: (value: number) => string;
+  readonly format: (value: number) => Spoken;
   readonly higherIsBetter?: boolean;
 }): Growth => {
   const change = field(row, `${key}_change`);
+  const amount = format(change);
+  const percent = spokenSignedPercent(field(row, `${key}_growth_percent`));
   return {
-    text: `${format(change)} (${formatSignedPercent(field(row, `${key}_growth_percent`))})`,
+    text: `${amount.text} (${percent.text})`,
+    spoken: `${amount.spoken}, ${percent.spoken}`,
     delta: deltaOf({ change, higherIsBetter }),
   };
 };
@@ -83,7 +87,8 @@ const cardProps = ({ label, value, growth, approximate = false, caption, note, t
     growth === undefined ? undefined : (
       <>
         <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
-          {growth.text}
+          <span aria-hidden="true">{growth.text}</span>
+          <span className="ds-sr">{growth.spoken}</span>
         </Badge>
         <span className="ds-sr">vs previous period</span>
       </>
@@ -176,7 +181,7 @@ export const Kpis = ({
           label="Known visitors"
           {...pick("known")}
           value={formatNumber(field(counts, "known_visitors"))}
-          growth={growthOf({ row: counts, key: "known_visitors", format: formatSignedNumber })}
+          growth={growthOf({ row: counts, key: "known_visitors", format: spokenSignedNumber })}
           note={`${formatPercent(field(counts, "consented_sessions_percent"))} of sessions from people who accepted tracking`}
           caption="Unique people, counted once across the range"
           approximate
@@ -185,7 +190,7 @@ export const Kpis = ({
           label="Anonymous visitors"
           {...pick("anonymous")}
           value={formatNumber(field(counts, "anonymous_visitors"))}
-          growth={growthOf({ row: counts, key: "anonymous_visitors", format: formatSignedNumber })}
+          growth={growthOf({ row: counts, key: "anonymous_visitors", format: spokenSignedNumber })}
           caption="Counted per visitor day, which ends at each visitor’s own midnight: a returning person counts again each day"
           approximate
         />
@@ -193,26 +198,26 @@ export const Kpis = ({
           label="Sessions"
           {...pick("sessions")}
           value={formatNumber(field(counts, "sessions"))}
-          growth={growthOf({ row: counts, key: "sessions", format: formatSignedNumber })}
+          growth={growthOf({ row: counts, key: "sessions", format: spokenSignedNumber })}
           approximate
         />
         <SelectableCard
           label="Pageviews"
           {...pick("pageviews")}
           value={formatNumber(field(engagement, "pageviews"))}
-          growth={growthOf({ row: engagement, key: "pageviews", format: formatSignedNumber })}
+          growth={growthOf({ row: engagement, key: "pageviews", format: spokenSignedNumber })}
         />
         <StaticCard
           label="Bounce rate"
           {...trendOf("bounce_rate")}
           value={formatPercent(field(engagement, "bounce_rate_percent"))}
-          growth={growthOf({ row: engagement, key: "bounce_rate", format: formatSignedPoints, higherIsBetter: false })}
+          growth={growthOf({ row: engagement, key: "bounce_rate", format: spokenSignedPoints, higherIsBetter: false })}
         />
         <StaticCard
           label="Avg session"
           {...trendOf("avg_session")}
           value={formatSeconds(field(engagement, "avg_session_sec"))}
-          growth={growthOf({ row: engagement, key: "avg_session_sec", format: formatSignedSeconds })}
+          growth={growthOf({ row: engagement, key: "avg_session_sec", format: spokenSignedSeconds })}
         />
       </div>
       <Panel

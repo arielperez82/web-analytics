@@ -67,11 +67,12 @@ const renderKpis = (
     points?: readonly ApiRow[];
     state?: DashboardState;
     counts?: ApiRow;
+    engagement?: ApiRow;
   } = {},
 ) => {
   const api = installFakeApi({
     visitor_counts: [overrides.counts ?? counts],
-    engagement: [engagement],
+    engagement: [overrides.engagement ?? engagement],
     series: (query) => (query.get("grain") === "hour" ? hours : (overrides.points ?? days)),
   });
   render(
@@ -91,6 +92,15 @@ const card = async (label: string): Promise<HTMLElement> => {
   if (element === null) throw new Error(`no card for ${label}`);
   return element;
 };
+
+const heardIn = (node: Node): string => {
+  if (!(node instanceof Element)) return node.textContent ?? "";
+  if (node.getAttribute("aria-hidden") === "true") return "";
+  return Array.from(node.childNodes).map(heardIn).join(" ");
+};
+
+const heard = (element: Element | null | undefined): string =>
+  element == null ? "" : heardIn(element).replace(/\s+/g, " ").trim();
 
 const seriesRequests = (api: FakeApi) => api.requestsTo("series");
 
@@ -123,7 +133,11 @@ describe("Kpis", () => {
 
   it("marks each change with a direction word and a tone that depends on which way is better", async () => {
     renderKpis();
-    const change = async (name: string, text: string) => within(await card(name)).getByText(text);
+    const change = async (name: string, text: string) => {
+      const badge = within(await card(name)).getByText(text).closest(".ds-badge");
+      if (badge === null) throw new Error(`no badge for ${name}`);
+      return badge;
+    };
 
     expect((await change("Known visitors", "+20 (+20%)")).getAttribute("data-tone")).toBe("good");
     expect((await change("Anonymous visitors", "-10 (-2.86%)")).getAttribute("data-tone")).toBe("bad");
@@ -140,8 +154,60 @@ describe("Kpis", () => {
 
     const sessions = within(await card("Sessions"));
 
-    expect((await sessions.findByText("+1 (0%)")).getAttribute("data-tone")).toBe("good");
+    expect((await sessions.findByText("+1 (0%)")).closest(".ds-badge")?.getAttribute("data-tone")).toBe("good");
     expect(sessions.getByText("Up")).toBeTruthy();
+  });
+
+  it("reads each change aloud with its sign and unit in words", async () => {
+    renderKpis();
+    const change = async (name: string) => heard((await card(name)).querySelector(".delta"));
+
+    await waitFor(async () =>
+      expect(await change("Bounce rate")).toBe("Down minus 1.5 percentage points, minus 3.85 percent vs previous period"),
+    );
+    expect(await change("Avg session")).toBe("No change 0 seconds, 0 percent vs previous period");
+    expect(await change("Anonymous visitors")).toBe("Down minus 10, minus 2.86 percent vs previous period");
+    expect(await change("Known visitors")).toBe("Up plus 20, plus 20 percent vs previous period");
+  });
+
+  it("says a single second and a single percentage point in the singular", async () => {
+    renderKpis({
+      engagement: {
+        ...engagement,
+        bounce_rate_change: 1,
+        bounce_rate_growth_percent: 2.56,
+        avg_session_sec_change: -1,
+        avg_session_sec_growth_percent: -1.05,
+      },
+    });
+    const change = async (name: string) => heard((await card(name)).querySelector(".delta"));
+
+    await waitFor(async () =>
+      expect(await change("Bounce rate")).toBe("Up plus 1 percentage point, plus 2.56 percent vs previous period"),
+    );
+    expect(await change("Avg session")).toBe("Down minus 1 second, minus 1.05 percent vs previous period");
+    expect(within(await card("Bounce rate")).getByText("+1 pp (+2.56%)")).toBeTruthy();
+    expect(within(await card("Avg session")).getByText("-1s (-1.05%)")).toBeTruthy();
+  });
+
+  it("keeps the short change text on screen and out of what is read aloud", async () => {
+    renderKpis();
+    const shown = async (name: string, text: string) =>
+      (await within(await card(name)).findByText(text)).getAttribute("aria-hidden");
+
+    expect(await shown("Bounce rate", "-1.5 pp (-3.85%)")).toBe("true");
+    expect(await shown("Avg session", "0s (0%)")).toBe("true");
+    expect(await shown("Sessions", "+30 (+7.89%)")).toBe("true");
+  });
+
+  it("keeps the words that are read aloud off the screen", async () => {
+    renderKpis();
+    const hidden = async (name: string, words: string) =>
+      (await within(await card(name)).findByText(words)).classList.contains("ds-sr");
+
+    expect(await hidden("Bounce rate", "minus 1.5 percentage points, minus 3.85 percent")).toBe(true);
+    expect(await hidden("Avg session", "0 seconds, 0 percent")).toBe(true);
+    expect(await hidden("Sessions", "plus 30, plus 7.89 percent")).toBe(true);
   });
 
   it("names each metric card by its label alone and groups them as the key figures", async () => {
@@ -174,17 +240,20 @@ describe("Kpis", () => {
     renderKpis();
     const describedBy = async (name: string) => {
       const ids = (await screen.findByRole("button", { name })).getAttribute("aria-describedby") ?? "";
-      return ids.split(" ").map((id) => document.getElementById(id)?.textContent ?? "").join(" | ");
+      return ids.split(" ").map((id) => heard(document.getElementById(id))).join(" | ");
     };
 
     const known = await describedBy("Known visitors");
     const sessions = await describedBy("Sessions");
 
-    expect(known).toContain("+20 (+20%)");
+    expect(known).toContain("plus 20, plus 20 percent");
     expect(known).toContain("Unique people, counted once across the range");
     expect(known).toContain("41.5% of sessions from people who accepted tracking");
-    expect(sessions).toContain("+30 (+7.89%)");
-    expect(sessions.split(" | ")).toEqual(["410", "▲Up+30 (+7.89%)vs previous period", "Exact for small counts, within 1% for large ones."]);
+    expect(sessions.split(" | ")).toEqual([
+      "410",
+      "Up plus 30, plus 7.89 percent vs previous period",
+      "Exact for small counts, within 1% for large ones.",
+    ]);
   });
 
   it("lets the keyboard pick a card", async () => {
