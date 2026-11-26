@@ -20,12 +20,7 @@ describe("reportBySlug", () => {
     expect(reportBySlug("channels")).toMatchObject({
       endpoint: "channels",
       labelKey: "channel",
-      previousPeriod: false,
     });
-  });
-
-  it("compares to the previous period by default", () => {
-    expect(reportBySlug("pages")?.previousPeriod).toBeUndefined();
   });
 
   it("has unique slugs", () => {

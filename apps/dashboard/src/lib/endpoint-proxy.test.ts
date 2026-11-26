@@ -95,6 +95,34 @@ describe("proxyEndpoint", () => {
     );
   });
 
+  it("forwards the comparison days and hour to the breakdown pipes", async () => {
+    const { deps, calls } = createFakeDeps();
+    await proxyEndpoint(
+      request(
+        "top_pages",
+        "compare_from=2026-11-03&compare_to=2026-11-09&compare_from_at=2026-11-03T05:00:00Z",
+      ),
+      deps,
+    );
+    expect(calls[0].url).toBe(
+      "http://tb.test/v0/pipes/top_pages.json?compare_from=2026-11-03&compare_to=2026-11-09&compare_from_at=2026-11-03T05%3A00%3A00Z",
+    );
+  });
+
+  it("refuses a comparison hour that is not an exact instant", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("top_pages", "compare_from_at=yesterday"), deps);
+    expect(result.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(["compare_from", "compare_to"])("refuses a %s that is not a plain day", async (key) => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("channels", `${key}=2000-01-01'%20OR%201`), deps);
+    expect(result.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it("pins tenant_id server-side, overriding any client value", async () => {
     const { deps, calls } = createFakeDeps({
       tenantId: "my-tenant",

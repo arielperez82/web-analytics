@@ -13,6 +13,12 @@ const serverZone = () => "UTC";
 
 export type QueryParams = Readonly<Record<string, string | undefined>>;
 
+export type ComparisonParams = {
+  readonly compare_from: string;
+  readonly compare_to: string;
+  readonly compare_from_at?: string;
+};
+
 export const useDashboardState = () => {
   const search = useSearchParams();
   const pathname = usePathname();

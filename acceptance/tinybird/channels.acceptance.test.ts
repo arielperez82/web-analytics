@@ -159,6 +159,83 @@ describe.concurrent('channels pipe', () => {
     expect(visitsByChannel(rows)).toEqual({ [channel]: 1 });
   });
 
+  it('compares with the days it is given and marks new and gone channels', async () => {
+    const scope = createScope();
+    const email = { utm: { utm_medium: 'email' } };
+    await ingestEvents(env, [
+      arrive(scope, {}),
+      arrive(scope, {}),
+      arrive(scope, email),
+      arrive(scope, {}, { now: daysFromNow(-3) }),
+      arrive(scope, { utm: { utm_medium: 'cpc' } }, { now: daysFromNow(-3) }),
+      arrive(scope, { utm: { utm_medium: 'cpc' } }, { now: daysFromNow(-3) }),
+      arrive(scope, {}, { now: daysFromNow(-1) }),
+    ]);
+
+    const rows = await waitForPipeRows<
+      ChannelRow & {
+        previous_sessions: number | string;
+        sessions_change: number | string;
+        status: string;
+        bar_percent: number | string;
+        previous_bar_percent: number | string;
+      }
+    >(
+      env,
+      'channels',
+      {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+        date_from: dayString(0),
+        date_to: dayString(0),
+        include_previous_period: 'true',
+        compare_from: dayString(-3),
+        compare_to: dayString(-3),
+      },
+      3
+    );
+
+    expect(
+      rows.map(row => ({
+        channel: row.channel,
+        sessions: Number(row.sessions),
+        previous: Number(row.previous_sessions),
+        change: Number(row.sessions_change),
+        status: row.status,
+        bar: Number(row.bar_percent),
+        previousBar: Number(row.previous_bar_percent),
+      }))
+    ).toEqual([
+      {
+        channel: 'Direct',
+        sessions: 2,
+        previous: 1,
+        change: 1,
+        status: '',
+        bar: 100,
+        previousBar: 50,
+      },
+      {
+        channel: 'Email',
+        sessions: 1,
+        previous: 0,
+        change: 1,
+        status: 'new',
+        bar: 50,
+        previousBar: 0,
+      },
+      {
+        channel: 'Paid',
+        sessions: 0,
+        previous: 2,
+        change: -2,
+        status: 'gone',
+        bar: 0,
+        previousBar: 100,
+      },
+    ]);
+  });
+
   it('credits a visit to the channel of its first page, not a later one', async () => {
     const scope = createScope();
     const sessionId = crypto.randomUUID();

@@ -584,3 +584,52 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
     page.getByRole('heading', { name: 'Sessions per hour' })
   ).toBeVisible();
 });
+
+test('the breakdowns are compared with the period before, until the viewer switches that off', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+
+  await expect
+    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare_from'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(
+    api.requestsTo('top_locations').at(-1)?.get('include_previous_period')
+  ).toBe('true');
+  expect(
+    api.requestsTo('channels').at(-1)?.get('include_previous_period')
+  ).toBe('true');
+
+  await page
+    .getByRole('group', { name: 'Compare to' })
+    .getByRole('button', { name: 'None' })
+    .click();
+
+  await expect
+    .poll(() =>
+      api.requestsTo('top_locations').at(-1)?.has('include_previous_period')
+    )
+    .toBe(false);
+  expect(api.requestsTo('top_locations').at(-1)?.has('compare_from')).toBe(
+    false
+  );
+});
+
+test('the breakdowns compare with the same hours last week when asked', async ({
+  page,
+}) => {
+  const api = await stubApi(page, routes);
+  await signIn(page);
+  await page.getByRole('button', { name: 'Last 24 Hours' }).click();
+
+  await page
+    .getByRole('group', { name: 'Compare to' })
+    .getByRole('button', { name: 'Same hours last week' })
+    .click();
+
+  await expect(page).toHaveURL(/compare=last_week/);
+  await expect
+    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare_from_at'))
+    .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/);
+});

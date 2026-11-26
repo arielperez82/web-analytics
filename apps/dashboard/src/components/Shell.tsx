@@ -26,6 +26,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
   const onOverview = pathname === "/";
+  const comparable = onOverview || pathname.startsWith("/reports/");
   const tenants = useEndpoint<Row>("tenants", {});
   const domains = useEndpoint<Row>("domains", { tenant_id: state.tenant });
   const online = useEndpoint<Row>("current_visitors", { tenant_id: state.tenant, domain: state.domain });
@@ -101,7 +102,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             includeBots={state.includeBots === true}
             onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
           />
-          {onOverview && <CompareControl state={state} params={params} onChange={update} />}
+          {comparable && <CompareControl state={state} params={params} onChange={update} />}
           <DateRangePicker
             range={state.range}
             zone={zone}
