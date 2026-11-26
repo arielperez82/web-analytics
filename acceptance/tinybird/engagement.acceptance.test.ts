@@ -280,4 +280,81 @@ describe.concurrent('engagement', () => {
 
     expect(row).toMatchObject({ pageviews: 1 });
   });
+
+  it('compares with the days it is given, not the days just before', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0, 30], 7),
+      ...visit(scope, [0], 7),
+    ]);
+
+    const row = await engagement(scope, 4, {
+      date_from: dayOf(0),
+      date_to: dayOf(0),
+      compare_from: dayOf(7),
+      compare_to: dayOf(7),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 3,
+      pageviews_change: -2,
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 50,
+      bounce_rate_change: 50,
+    });
+  });
+
+  it('compares an exact window with the same hours starting where it is told', async () => {
+    const scope = createScope();
+    const HOUR_MS = 60 * 60 * 1000;
+    const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+    const fromAt = new Date(hourStart - HOUR_MS);
+    const compareFromAt = new Date(fromAt.getTime() - 7 * DAY_MS);
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30, 60], 1),
+      ...visit(scope, [0, 30], 7),
+    ]);
+
+    const [row] = await waitForRow(
+      () =>
+        pipeRows<Row>(env, 'engagement', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          from_at: fromAt.toISOString(),
+          compare_from_at: compareFromAt.toISOString(),
+        }),
+      rows => Number(rows[0]?.pageviews) === 1
+    );
+
+    expect(row).toMatchObject({
+      pageviews: 1,
+      previous_pageviews: 2,
+      pageviews_change: -1,
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 0,
+    });
+  });
+
+  it('counts a session in both periods when the chosen period overlaps the range', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 1),
+      ...visit(scope, [0], 2),
+    ]);
+
+    const row = await engagement(scope, 6, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+      compare_from: dayOf(2),
+      compare_to: dayOf(1),
+    });
+
+    expect(row).toMatchObject({ pageviews: 3, previous_pageviews: 3 });
+  });
 });
