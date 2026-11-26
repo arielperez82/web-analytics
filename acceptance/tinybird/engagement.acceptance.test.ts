@@ -233,12 +233,61 @@ describe.concurrent('engagement', () => {
       bounce_rate_percent: 100,
       previous_bounce_rate_percent: 0,
       bounce_rate_change: 100,
+      bounce_rate_growth_percent: 100,
+      avg_session_sec_growth_percent: -100,
     });
     expect(Number(row.avg_session_sec_change)).toBeLessThan(0);
     expect(Number(row.avg_session_sec_change)).toBeCloseTo(
       Number(row.avg_session_sec) - Number(row.previous_avg_session_sec),
       2
     );
+  });
+
+  it('gives no change or growth for the rates when the previous period has no sessions', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 0),
+    ]);
+
+    const row = await engagement(scope, 3, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+    });
+
+    expect(row).toMatchObject({
+      pageviews: 3,
+      previous_pageviews: 0,
+      bounce_rate_percent: 50,
+      bounce_rate_change: null,
+      bounce_rate_growth_percent: null,
+      avg_session_sec_change: null,
+      avg_session_sec_growth_percent: null,
+      pageviews_change: 3,
+      pageviews_growth_percent: 100,
+    });
+  });
+
+  it('compares the rates against a previous period of exactly one session', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      ...visit(scope, [0], 0),
+      ...visit(scope, [0, 30], 3),
+    ]);
+
+    const row = await engagement(scope, 3, {
+      date_from: dayOf(1),
+      date_to: dayOf(0),
+    });
+
+    expect(row).toMatchObject({
+      bounce_rate_percent: 100,
+      previous_bounce_rate_percent: 0,
+      bounce_rate_change: 100,
+      bounce_rate_growth_percent: 100,
+      avg_session_sec_change: -30,
+      avg_session_sec_growth_percent: -100,
+    });
   });
 
   it('leaves bots out unless asked to include them', async () => {

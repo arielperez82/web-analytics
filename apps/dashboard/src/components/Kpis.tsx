@@ -47,7 +47,9 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
 const field = (row: Row | undefined, key: string): number =>
   Number(row?.[key] ?? 0);
 
-type Growth = Spoken & { readonly delta: Delta };
+type Growth = (Spoken & { readonly delta: Delta }) | "no-previous-data";
+
+const NO_PREVIOUS_DATA = "No previous data";
 
 type CardContent = {
   readonly label: string;
@@ -70,6 +72,7 @@ const growthOf = ({
   readonly format: (value: number) => Spoken;
   readonly higherIsBetter?: boolean;
 }): Growth => {
+  if (row?.[`${key}_change`] == null || row[`${key}_growth_percent`] == null) return "no-previous-data";
   const change = field(row, `${key}_change`);
   const amount = format(change);
   const percent = spokenSignedPercent(field(row, `${key}_growth_percent`));
@@ -80,19 +83,27 @@ const growthOf = ({
   };
 };
 
+const deltaOfGrowth = (growth: Growth | undefined) => {
+  if (growth === undefined) return undefined;
+  if (growth === "no-previous-data")
+    return (
+      <Badge tone="neutral">{NO_PREVIOUS_DATA}</Badge>
+    );
+  return (
+    <>
+      <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
+        <span aria-hidden="true">{growth.text}</span>
+        <span className="ds-sr">{growth.spoken}</span>
+      </Badge>
+      <span className="ds-sr">vs previous period</span>
+    </>
+  );
+};
+
 const cardProps = ({ label, value, growth, approximate = false, caption, note, trend }: CardContent) => ({
   label,
   value,
-  delta:
-    growth === undefined ? undefined : (
-      <>
-        <Badge tone={growth.delta.tone} arrow={growth.delta.arrow} word={growth.delta.word}>
-          <span aria-hidden="true">{growth.text}</span>
-          <span className="ds-sr">{growth.spoken}</span>
-        </Badge>
-        <span className="ds-sr">vs previous period</span>
-      </>
-    ),
+  delta: deltaOfGrowth(growth),
   tips: [caption, note, approximate ? APPROXIMATE_COUNT_NOTE : undefined].filter(
     (tip): tip is string => tip !== undefined,
   ),

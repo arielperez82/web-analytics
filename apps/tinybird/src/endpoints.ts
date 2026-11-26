@@ -73,6 +73,8 @@ const rateChangeSql = (current: string, previous: string): string => `round(${cu
 const growthPercentSql = (current: string, previous: string): string =>
   `multiIf(${previous} = 0 AND ${current} > 0, 100.0, ${previous} = 0, 0.0, round((${current} - ${previous}) * 100.0 / ${previous}, 2))`;
 
+const whenPreviousHasSessionsSql = (figure: string): string => `if(previous_session_count = 0, NULL, ${figure})`;
+
 /**
  * Per-day visitor states inside one period of date_calculations, tagged with that period. Without a
  * cross filter they come from the hourly visitor state; with one, they are built from the hits in
@@ -329,6 +331,7 @@ ${comparedWindowSql}
             round(if(session_count = 0, 0, bounces * 100.0 / session_count), 2) AS bounce_rate_percent,
             round(if(session_count = 0, 0, duration_total * 1.0 / session_count), 2) AS avg_session_sec,
             previous_pageviews,
+            previous_session_count,
             round(if(previous_session_count = 0, 0, previous_bounces * 100.0 / previous_session_count), 2) AS previous_bounce_rate_percent,
             round(if(previous_session_count = 0, 0, previous_duration_total * 1.0 / previous_session_count), 2) AS previous_avg_session_sec
         FROM period_totals
@@ -346,11 +349,11 @@ ${comparedWindowSql}
             previous_bounce_rate_percent,
             previous_avg_session_sec,
             ${growthPercentSql("pageviews", "previous_pageviews")} AS pageviews_growth_percent,
-            ${growthPercentSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_growth_percent,
-            ${growthPercentSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_growth_percent,
+            ${whenPreviousHasSessionsSql(growthPercentSql("bounce_rate_percent", "previous_bounce_rate_percent"))} AS bounce_rate_growth_percent,
+            ${whenPreviousHasSessionsSql(growthPercentSql("avg_session_sec", "previous_avg_session_sec"))} AS avg_session_sec_growth_percent,
             ${countChangeSql("pageviews", "previous_pageviews")} AS pageviews_change,
-            ${rateChangeSql("bounce_rate_percent", "previous_bounce_rate_percent")} AS bounce_rate_change,
-            ${rateChangeSql("avg_session_sec", "previous_avg_session_sec")} AS avg_session_sec_change
+            ${whenPreviousHasSessionsSql(rateChangeSql("bounce_rate_percent", "previous_bounce_rate_percent"))} AS bounce_rate_change,
+            ${whenPreviousHasSessionsSql(rateChangeSql("avg_session_sec", "previous_avg_session_sec"))} AS avg_session_sec_change
         FROM rates
       `,
     }),
@@ -374,11 +377,11 @@ ${comparedWindowSql}
     previous_bounce_rate_percent: t.float64(),
     previous_avg_session_sec: t.float64(),
     pageviews_growth_percent: t.float64(),
-    bounce_rate_growth_percent: t.float64(),
-    avg_session_sec_growth_percent: t.float64(),
+    bounce_rate_growth_percent: t.float64().nullable(),
+    avg_session_sec_growth_percent: t.float64().nullable(),
     pageviews_change: t.int64(),
-    bounce_rate_change: t.float64(),
-    avg_session_sec_change: t.float64(),
+    bounce_rate_change: t.float64().nullable(),
+    avg_session_sec_change: t.float64().nullable(),
   },
 });
 
