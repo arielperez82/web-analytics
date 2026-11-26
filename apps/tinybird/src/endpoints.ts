@@ -126,7 +126,8 @@ const visitorStateSql = (period: "current" | "previous"): string => `
 
 /**
  * Visitor counts - known, anonymous and legacy visitors and sessions over a UTC date range, with the
- * equal-length period before it, its change and growth, and the consented share. Read from the daily visitor state,
+ * period it is compared with (the days or window given by the compare params, else the equal-length period
+ * before it), its change and growth, and the consented share. Read from the daily visitor state,
  * or from the hits when a cross filter is set. Bots are left out unless include_bots=1.
  */
 export const visitorCounts = defineEndpoint("visitor_counts", {
@@ -241,7 +242,8 @@ const withinEitherPeriodSql = (value: string): string =>
 
 /**
  * Engagement - page views, pages per session, bounce rate and average session length over a UTC date
- * range, weighted by session, with the equal-length period before it, the change from it and growth. Sessions that cross a
+ * range, weighted by session, with the period it is compared with (the days or window given by the compare
+ * params, else the equal-length period before it), the change from it and growth. Sessions that cross a
  * UTC midnight count once. Bots are left out unless include_bots=1.
  */
 export const engagement = defineEndpoint("engagement", {
