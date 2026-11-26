@@ -93,6 +93,36 @@ test('the overview shows the figures the API computed', async ({ page }) => {
   await expect(page.getByText('37.5%', { exact: true })).toBeVisible();
 });
 
+test('a screen reader hears each change with its sign and unit in words, while the screen keeps the short text', async ({
+  page,
+}) => {
+  await stubApi(page, routes);
+  await signIn(page);
+
+  await expect(page.getByRole('group', { name: 'Bounce rate' }))
+    .toMatchAriaSnapshot(`
+    - group "Bounce rate":
+      - text: Bounce rate
+      - strong: 37.5%
+      - text: Down minus 1.5 percentage points, minus 3.85 percent vs previous period
+  `);
+  await expect(page.getByRole('group', { name: 'Avg session' }))
+    .toMatchAriaSnapshot(`
+    - group "Avg session":
+      - text: Avg session
+      - strong: 95s
+      - text: No change 0 seconds, 0 percent vs previous period
+  `);
+  await expect(
+    page.getByRole('button', { name: 'Known visitors' })
+  ).toHaveAccessibleDescription(
+    /^120 Up plus 20, plus 20 percent vs previous period /
+  );
+  await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
+  await expect(page.getByText('0s (0%)')).toBeVisible();
+  await expect(page.getByText('+20 (+20%)')).toBeVisible();
+});
+
 for (const width of [1280, 375]) {
   test(`at ${String(width)}px every key figure has its change directly beneath it, left-aligned`, async ({
     page,
