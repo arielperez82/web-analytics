@@ -7,8 +7,6 @@ import {
   formatSeconds,
   formatSignedNumber,
   formatSignedPercent,
-  formatSignedPoints,
-  formatSignedSeconds,
   spokenSignedNumber,
   spokenSignedPercent,
   spokenSignedPoints,
@@ -37,12 +35,6 @@ describe("format", () => {
     expect(formatSignedNumber(1234)).toBe("+1,234");
     expect(formatSignedNumber(-4)).toBe("-4");
     expect(formatSignedNumber(0)).toBe("0");
-    expect(formatSignedPoints(-1.5)).toBe("-1.5 pp");
-    expect(formatSignedPoints(100)).toBe("+100 pp");
-    expect(formatSignedPoints(0)).toBe("0 pp");
-    expect(formatSignedSeconds(12.25)).toBe("+12.25s");
-    expect(formatSignedSeconds(-45)).toBe("-45s");
-    expect(formatSignedSeconds(0)).toBe("0s");
   });
 
   describe("a change that is also read aloud", () => {

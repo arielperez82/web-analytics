@@ -51,8 +51,6 @@ export const formatSignedPercent = (value: number): string => `${signedNumber.fo
 
 export const formatSignedNumber = (value: number): string => signedNumber.format(value);
 
-export const formatSignedPoints = (value: number): string => `${signedNumber.format(value)} pp`;
-
 export const spokenSignedNumber = (value: number): Spoken => ({
   text: formatSignedNumber(value),
   spoken: speak({ formatter: signedNumber, value }),
@@ -64,14 +62,12 @@ export const spokenSignedPercent = (value: number): Spoken => ({
 });
 
 export const spokenSignedPoints = (value: number): Spoken => ({
-  text: formatSignedPoints(value),
+  text: `${signedNumber.format(value)} pp`,
   spoken: `${speak({ formatter: signedNumber, value })} percentage ${plural.select(value) === "one" ? "point" : "points"}`,
 });
 
-export const formatSignedSeconds = (value: number): string => signedSeconds.format(value);
-
 export const spokenSignedSeconds = (value: number): Spoken => ({
-  text: formatSignedSeconds(value),
+  text: signedSeconds.format(value),
   spoken: speak({ formatter: signedSecondsInWords, value }),
 });
 
