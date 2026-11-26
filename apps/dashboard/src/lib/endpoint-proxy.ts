@@ -54,6 +54,9 @@ const FORWARDED_PARAMS: readonly string[] = [
   "from_at",
   "bucket_hours",
   "to_at",
+  "compare_from",
+  "compare_to",
+  "compare_from_at",
 ];
 
 export type ProxyDeps = {
@@ -138,7 +141,7 @@ export const proxyEndpoint = async (
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
 
-  for (const key of ["from_at", "to_at"]) {
+  for (const key of ["from_at", "to_at", "compare_from_at"]) {
     const instant = query.get(key);
     if (instant !== null && !ISO_INSTANT.test(instant))
       return { status: 400, body: { error: `Invalid ${key}` } };
