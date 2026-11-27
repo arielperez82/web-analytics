@@ -1,5 +1,7 @@
 import { describe, expect, inject, it } from 'vitest';
 
+import { EVENT_PATTERN_MAX_LENGTH } from '../../apps/dashboard/src/lib/event-pattern';
+import { GOAL_EVENT_PATTERN_MAX_LENGTH } from '../../apps/tinybird/src/endpoints';
 import {
   createCustomEvent,
   createPageHitEvent,
@@ -563,7 +565,11 @@ describe.concurrent('conversions pipe', () => {
 
     it.each([
       ['a pattern longer than the cap', 'a'.repeat(101), /at most 100/],
-      ['a pattern that is not valid RE2', '(unclosed', /./],
+      ['an empty pattern', '', /empty/],
+      ['an unclosed group', '(unclosed', /unbalanced parentheses/],
+      ['a wrapper escape', 'a)|(.*', /unbalanced parentheses/],
+      ['an inline flag', '(?i)signup', /\(\?:/],
+      ['a lookahead', 'a(?=b)', /\(\?:/],
     ])('refuses %s', async (_label, pattern, message) => {
       const scope = createScope();
 
@@ -576,21 +582,86 @@ describe.concurrent('conversions pipe', () => {
       ).rejects.toThrow(message);
     });
 
-    it('refuses a pattern given together with an exact event or a page', async () => {
+    it('accepts parentheses that are escaped or inside a class', async () => {
+      expect(
+        await converting('sign\\(up\\)', {
+          literal: 'sign(up)',
+          plain: 'signup',
+        })
+      ).toEqual({ sessions: 2, conversions: 1 });
+      expect(await converting('[(]x', { open: '(x', other: 'bx' })).toEqual({
+        sessions: 2,
+        conversions: 1,
+      });
+    });
+
+    it('refuses a wrapper-escape pattern even when the tenant has no events', async () => {
       const scope = createScope();
 
-      for (const other of [
-        { goal_event: GOAL_EVENT_NAME },
-        { goal_path: GOAL },
-      ]) {
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversion_summary', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: 'a)|(.*',
+        })
+      ).rejects.toThrow(/unbalanced parentheses/);
+    });
+
+    it('does not let a wrapper-escape pattern match every event', async () => {
+      const scope = createScope();
+      const who = session('mine');
+      await ingestEvents(env, [
+        hit(scope, '/', who, paid),
+        happened(scope, who, 'anything_at_all'),
+      ]);
+      await forPattern(scope, 'nothing_matches_this');
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversions', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: 'a)|(.*',
+        })
+      ).rejects.toThrow();
+    });
+
+    it('uses the same pattern length cap as the dashboard validator', () => {
+      expect(GOAL_EVENT_PATTERN_MAX_LENGTH).toBe(EVENT_PATTERN_MAX_LENGTH);
+    });
+
+    it.each([
+      [
+        'a pattern and an exact event',
+        { goal_event_pattern: 'signup_.*', goal_event: GOAL_EVENT_NAME },
+      ],
+      [
+        'a pattern and a page',
+        { goal_event_pattern: 'signup_.*', goal_path: GOAL },
+      ],
+      [
+        'an exact event and a page',
+        { goal_event: GOAL_EVENT_NAME, goal_path: GOAL },
+      ],
+      [
+        'all three',
+        {
+          goal_event_pattern: 'signup_.*',
+          goal_event: GOAL_EVENT_NAME,
+          goal_path: GOAL,
+        },
+      ],
+      ['none of them', {}],
+    ])('refuses %s', async (_label, goal) => {
+      const scope = createScope();
+
+      for (const endpoint of ['conversions', 'conversion_summary']) {
         await expect(
-          pipeRows<ConversionRow>(env, 'conversions', {
+          pipeRows<ConversionRow>(env, endpoint, {
             tenant_id: scope.tenantId,
             domain: scope.domain,
-            goal_event_pattern: 'signup_.*',
-            ...other,
+            ...goal,
           })
-        ).rejects.toThrow(/goal_path/);
+        ).rejects.toThrow(/goal_path, goal_event or goal_event_pattern/);
       }
     });
   });
