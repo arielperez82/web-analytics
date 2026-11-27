@@ -128,7 +128,7 @@ describe("SpeedInsights", () => {
   });
 
   describe("compared with another period", () => {
-    const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+    const comparison = { compare: "previous" } as const;
     const route = (overall_score_change: number | null): ApiRow => ({
       domain: "a.example",
       route: "/checkout",
@@ -153,8 +153,8 @@ describe("SpeedInsights", () => {
       for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
         const query = api.requestsTo(endpoint)[0];
         expect(query?.get("include_previous_period")).toBe("true");
-        expect(query?.get("compare_from")).toBe("2026-11-03");
-        expect(query?.get("compare_to")).toBe("2026-11-09");
+        expect(query?.get("compare")).toBe("previous");
+        expect(query?.has("compare_from")).toBe(false);
       }
     });
 
@@ -166,7 +166,7 @@ describe("SpeedInsights", () => {
       for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
         const query = api.requestsTo(endpoint)[0];
         expect(query?.has("include_previous_period")).toBe(false);
-        expect(query?.has("compare_from")).toBe(false);
+        expect(query?.has("compare")).toBe(false);
       }
       expect(screen.queryByText(/8\.7%/)).toBeNull();
       expect(screen.queryByRole("columnheader", { name: "Score vs previous" })).toBeNull();

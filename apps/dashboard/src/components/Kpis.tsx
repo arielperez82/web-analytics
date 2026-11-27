@@ -25,7 +25,7 @@ import {
   spokenSignedSeconds,
 } from "@/lib/format";
 import { effectiveGrain, hourAvailable, hourBucket, isExactWindow } from "@/lib/grain";
-import type { QueryParams } from "@/lib/use-dashboard-state";
+import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { type Metric, type Trend, type TrendPoint, useSeries } from "@/lib/use-series";
 
@@ -128,11 +128,7 @@ export const Kpis = ({
 }: {
   state: DashboardState;
   params: QueryParams;
-  comparison?: {
-    readonly compare_from: string;
-    readonly compare_to: string;
-    readonly compare_from_at?: string;
-  };
+  comparison?: ComparisonParams;
   onChange: (next: DashboardState) => void;
 }) => {
   const [metric, setMetric] = useState<Metric>("sessions");

@@ -1,4 +1,4 @@
-import { type CompareChoice, comparedWindow, ISO_INSTANT, PLAIN_DAY } from "./compare-window";
+import { COMPARE_PARAMS, comparedWindow, ISO_INSTANT, isCompareChoice, PLAIN_DAY } from "./compare-window";
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
 import { isValidTimeZone, localDay } from "./time-zone";
 
@@ -58,10 +58,6 @@ const FORWARDED_PARAMS: readonly string[] = [
   "compare_from_at",
   "compare_to_at",
 ];
-
-const COMPARE_PARAMS: readonly string[] = ["compare_from", "compare_to", "compare_from_at", "compare_to_at"];
-
-const isCompareChoice = (value: string): value is CompareChoice => value === "previous" || value === "last_week";
 
 const HOUR_MS = 3_600_000;
 

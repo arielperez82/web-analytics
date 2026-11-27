@@ -62,7 +62,7 @@ const hours: readonly ApiRow[] = [
 const renderKpis = (
   overrides: {
     params?: Record<string, string>;
-    comparison?: { compare_from: string; compare_to: string; compare_from_at?: string };
+    comparison?: { compare: "previous" | "last_week" };
     onChange?: (next: DashboardState) => void;
     points?: readonly ApiRow[];
     state?: DashboardState;
@@ -104,7 +104,7 @@ const heard = (element: Element | null | undefined): string =>
 
 const seriesRequests = (api: FakeApi) => api.requestsTo("series");
 
-const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+const comparison = { compare: "previous" } as const;
 const line = async (which: "current" | "previous") => {
   const chart = await screen.findByRole("group", { name: "Sessions chart" });
   await waitFor(() => expect(chart.querySelector(`path[data-line="${which}"]`)).not.toBeNull());
@@ -415,8 +415,8 @@ describe("Kpis", () => {
     await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
     const query = seriesRequests(api).at(-1);
     expect(query?.get("date_from")).toBe("2026-11-10");
-    expect(query?.get("compare_from")).toBe("2026-11-03");
-    expect(query?.get("compare_to")).toBe("2026-11-09");
+    expect(query?.get("compare")).toBe("previous");
+    expect(query?.has("compare_from")).toBe(false);
     expect(query?.get("location")).toBe("ES");
     expect(query?.get("tz")).toBe("Europe/Madrid");
     expect(query?.get("grain")).toBe("day");
@@ -427,9 +427,9 @@ describe("Kpis", () => {
 
     await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
     await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
-    expect(seriesRequests(api).at(-1)?.has("compare_from")).toBe(false);
+    expect(seriesRequests(api).at(-1)?.has("compare")).toBe(false);
     const sent = (endpoint: string) => Object.keys(Object.fromEntries(api.requestsTo(endpoint).at(-1) ?? []));
-    const compareKeys = ["compare_from", "compare_to", "compare_from_at"];
+    const compareKeys = ["compare", "compare_from", "compare_to", "compare_from_at", "compare_to_at"];
     expect(sent("visitor_counts")).toContain("date_from");
     expect(sent("visitor_counts").filter((key) => compareKeys.includes(key))).toEqual([]);
     expect(sent("engagement")).toContain("date_from");
@@ -438,12 +438,9 @@ describe("Kpis", () => {
   });
 
   it.each([
-    { name: "days", chosen: { compare_from: "2026-11-03", compare_to: "2026-11-09" } },
-    {
-      name: "exact hours",
-      chosen: { compare_from: "2026-11-03", compare_to: "2026-11-04", compare_from_at: "2026-11-03T09:00:00Z" },
-    },
-  ])("asks for the card figures against the chosen comparison in $name", async ({ chosen }) => {
+    { name: "the previous period", chosen: { compare: "previous" } as const },
+    { name: "the same period last week", chosen: { compare: "last_week" } as const },
+  ])("asks for the card figures against $name, naming only the choice", async ({ chosen }) => {
     const api = renderKpis({ comparison: chosen });
 
     await waitFor(() => expect(api.requestsTo("engagement")).toHaveLength(1));
@@ -462,7 +459,7 @@ describe("Kpis", () => {
     expect(screen.queryAllByText("vs previous period")).toHaveLength(0);
     expect(screen.queryAllByText("+30 (+7.89%)")).toHaveLength(0);
     expect(screen.queryAllByText("-1.5 pp (-3.85%)")).toHaveLength(0);
-    expect(api.requestsTo("visitor_counts").at(-1)?.has("compare_from")).toBe(false);
+    expect(api.requestsTo("visitor_counts").at(-1)?.has("compare")).toBe(false);
   });
 
   it("drills into a day when its point is clicked", async () => {
@@ -601,16 +598,17 @@ describe("Kpis", () => {
 
   describe("the last 24 hours", () => {
     const last24 = { date_from: "2026-11-09", date_to: "2026-11-10", from_at: "2026-11-09T16:00:00Z" };
-    const last24Comparison = { compare_from: "2026-11-08", compare_to: "2026-11-09", compare_from_at: "2026-11-08T16:00:00Z" };
+    const last24Comparison = comparison;
     const range = { ...state, range: { preset: "last_24_hours" } } as DashboardState;
 
-    it("sends the exact start and the start of the comparison to the series route, by the hour", async () => {
+    it("sends the exact start and the compare choice to the series route, by the hour", async () => {
       const api = renderKpis({ params: { ...params, ...last24 }, comparison: last24Comparison, state: range });
 
       await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
       const query = seriesRequests(api).at(-1);
       expect(query?.get("from_at")).toBe("2026-11-09T16:00:00Z");
-      expect(query?.get("compare_from_at")).toBe("2026-11-08T16:00:00Z");
+      expect(query?.get("compare")).toBe("previous");
+      expect(query?.has("compare_from_at")).toBe(false);
       expect(query?.get("grain")).toBe("hour");
     });
 
@@ -637,7 +635,7 @@ describe("Kpis", () => {
   describe("when the API fails", () => {
     it("says so beside the chart, keeps the cards, and Retry brings the series back", async () => {
       installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
-      failOnce("series", (query) => query.has("compare_from"));
+      failOnce("series", (query) => query.has("compare"));
       render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
 
       const alert = await screen.findByRole("alert");
@@ -653,7 +651,7 @@ describe("Kpis", () => {
 
     it("moves focus to the chart panel when Retry is pressed, so it is not lost with the alert", async () => {
       installFakeApi({ visitor_counts: [counts], engagement: [engagement], series: days });
-      failOnce("series", (query) => query.has("compare_from"));
+      failOnce("series", (query) => query.has("compare"));
       render(<Kpis state={state} params={params} comparison={comparison} onChange={() => undefined} />);
 
       await userEvent.click(within(await screen.findByRole("alert")).getByRole("button", { name: "Retry" }));

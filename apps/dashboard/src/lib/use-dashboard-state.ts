@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { comparisonRange } from "./comparison-range";
+import type { CompareChoice } from "./compare-window";
 import { type DashboardState, parseState, toSearch } from "./dashboard-state";
 import { rangeToParams } from "./time-range";
 import { browserTimeZone } from "./time-zone";
@@ -14,11 +14,7 @@ const serverZone = () => "UTC";
 
 export type QueryParams = Readonly<Record<string, string | undefined>>;
 
-export type ComparisonParams = {
-  readonly compare_from: string;
-  readonly compare_to: string;
-  readonly compare_from_at?: string;
-};
+export type ComparisonParams = { readonly compare: CompareChoice };
 
 export const useDashboardState = () => {
   const search = useSearchParams();
@@ -43,21 +39,12 @@ export const useDashboardState = () => {
     }),
     [state, zone],
   );
-  const comparison = useMemo(() => {
-    if (state.compare === "off") return undefined;
-    const range = comparisonRange({
-      range: state.range,
-      now: new Date(),
-      zone,
-      mode: state.compare ?? "previous",
-    });
-    return range === undefined
-      ? undefined
-      : {
-          compare_from: range.date_from,
-          compare_to: range.date_to,
-          ...(range.from_at === undefined ? {} : { compare_from_at: range.from_at }),
-        };
-  }, [state, zone]);
+  const comparison = useMemo<ComparisonParams | undefined>(
+    () =>
+      state.compare === "off" || ("preset" in state.range && state.range.preset === "all_time")
+        ? undefined
+        : { compare: state.compare ?? "previous" },
+    [state],
+  );
   return { state, update, params, comparison, zone };
 };

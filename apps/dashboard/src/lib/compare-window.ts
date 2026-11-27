@@ -14,6 +14,10 @@ export type ComparedWindow =
   | { readonly compare_from: string; readonly compare_to: string }
   | { readonly compare_from_at: string; readonly compare_to_at: string };
 
+export const COMPARE_PARAMS: readonly string[] = ["compare_from", "compare_to", "compare_from_at", "compare_to_at"];
+
+export const isCompareChoice = (value: string): value is CompareChoice => value === "previous" || value === "last_week";
+
 export const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
