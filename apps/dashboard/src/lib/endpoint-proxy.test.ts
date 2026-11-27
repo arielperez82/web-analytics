@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type ProxyDeps,proxyEndpoint } from "./endpoint-proxy";
+import { ALLOWED_ENDPOINTS, type ProxyDeps, proxyEndpoint } from "./endpoint-proxy";
 
 type Call = { readonly url: string; readonly authorization: string | null };
 
@@ -22,11 +22,20 @@ const createFakeDeps = (
   return { deps, calls };
 };
 
-const request = (name: string, query = "", authenticated = true) => ({
+const TENANT = "acme";
+
+const untenantedRequest = (name: string, query = "", authenticated = true) => ({
   name,
   query: new URLSearchParams(query),
   authenticated,
 });
+
+const request = (name: string, query = "", authenticated = true) =>
+  untenantedRequest(
+    name,
+    new URLSearchParams(query).has("tenant_id") ? query : [query, `tenant_id=${TENANT}`].filter(Boolean).join("&"),
+    authenticated,
+  );
 
 describe("proxyEndpoint", () => {
   it("returns 401 and never calls Tinybird when unauthenticated", async () => {
@@ -49,7 +58,7 @@ describe("proxyEndpoint", () => {
     const result = await proxyEndpoint(request("top_pages", "domain=a.com"), deps);
     expect(result).toEqual({ status: 200, body: { data: [{ ok: 1 }] } });
     expect(calls[0]).toEqual({
-      url: "http://tb.test/v0/pipes/top_pages.json?domain=a.com",
+      url: "http://tb.test/v0/pipes/top_pages.json?tenant_id=acme&domain=a.com",
       authorization: "Bearer secret-token",
     });
   });
@@ -61,21 +70,21 @@ describe("proxyEndpoint", () => {
       deps,
     );
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/visitor_counts.json?date_from=2026-01-01&date_to=2026-01-31",
+      "http://tb.test/v0/pipes/visitor_counts.json?date_from=2026-01-01&date_to=2026-01-31&tenant_id=acme",
     );
   });
 
   it("does not forward a single-metric choice to the series pipes", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(request("daily_series", "metric=known&include_bots=1"), deps);
-    expect(calls[0].url).toBe("http://tb.test/v0/pipes/daily_series.json?include_bots=1");
+    expect(calls[0].url).toBe("http://tb.test/v0/pipes/daily_series.json?tenant_id=acme&include_bots=1");
   });
 
   it("forwards the include-bots switch", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(request("daily_series", "include_bots=1"), deps);
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/daily_series.json?include_bots=1",
+      "http://tb.test/v0/pipes/daily_series.json?tenant_id=acme&include_bots=1",
     );
   });
 
@@ -94,7 +103,7 @@ describe("proxyEndpoint", () => {
       deps,
     );
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/top_pages.json?date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true&compare_from=2026-11-03&compare_to=2026-11-09",
+      "http://tb.test/v0/pipes/top_pages.json?date_from=2026-11-10&date_to=2026-11-16&tenant_id=acme&include_previous_period=true&compare_from=2026-11-03&compare_to=2026-11-09",
     );
   });
 
@@ -153,6 +162,7 @@ describe("proxyEndpoint", () => {
       expect(Object.fromEntries(sentQuery(calls))).toEqual({
         date_from: "2026-11-10",
         date_to: "2026-11-16",
+        tenant_id: TENANT,
         include_previous_period: "true",
         compare_from: "2026-11-03",
         compare_to: "2026-11-09",
@@ -299,6 +309,38 @@ describe("proxyEndpoint", () => {
     );
   });
 
+  it.each(ALLOWED_ENDPOINTS.filter((name) => name !== "tenants"))(
+    "refuses %s with 400 and never calls Tinybird when no tenant can be determined",
+    async (name) => {
+      const { deps, calls } = createFakeDeps();
+      const result = await proxyEndpoint(untenantedRequest(name, "domain=a.com"), deps);
+      expect(result).toEqual({ status: 400, body: { error: "tenant_id is required" } });
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it.each(["", "  "])("fails closed with a configuration error when the pinned tenant is blank (%j)", async (blank) => {
+    const { deps, calls } = createFakeDeps({ tenantId: blank });
+    for (const name of ["top_pages", "tenants", "domains"]) {
+      const result = await proxyEndpoint(request(name, "tenant_id=someone-else"), deps);
+      expect(result.status).toBe(500);
+      expect(result.body).toEqual({ error: "DASHBOARD_TENANT_ID is set but blank" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("still answers 401 before reporting a blank pinned tenant", async () => {
+    const { deps } = createFakeDeps({ tenantId: "" });
+    expect((await proxyEndpoint(request("top_pages", "", false), deps)).status).toBe(401);
+  });
+
+  it.each(["tenant_id=", "tenant_id=%20"])("refuses an empty tenant_id (%s) when unpinned", async (query) => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(untenantedRequest("top_pages", query), deps);
+    expect(result).toEqual({ status: 400, body: { error: "tenant_id is required" } });
+    expect(calls).toHaveLength(0);
+  });
+
   it("forwards the visitor cross-filters", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(
@@ -306,7 +348,7 @@ describe("proxyEndpoint", () => {
       deps,
     );
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/top_pages.json?location=US&device=mobile-ios&browser=safari",
+      "http://tb.test/v0/pipes/top_pages.json?tenant_id=acme&location=US&device=mobile-ios&browser=safari",
     );
   });
 
@@ -329,34 +371,29 @@ describe("proxyEndpoint", () => {
 
   it("lists tenants when the deployment is not pinned to one", async () => {
     const { deps, calls } = createFakeDeps();
-    const result = await proxyEndpoint(request("tenants"), deps);
+    const result = await proxyEndpoint(untenantedRequest("tenants"), deps);
     expect(result.status).toBe(200);
     expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/tenants.json");
   });
 
   it("hides the tenants endpoint when the deployment is pinned to a tenant", async () => {
     const { deps, calls } = createFakeDeps({ tenantId: "my-tenant" });
-    expect((await proxyEndpoint(request("tenants"), deps)).status).toBe(404);
+    expect((await proxyEndpoint(untenantedRequest("tenants"), deps)).status).toBe(404);
     expect(calls).toHaveLength(0);
   });
 
-  it("forwards an empty tenant_id so events without a tenant can be selected", async () => {
-    const { deps, calls } = createFakeDeps();
-    await proxyEndpoint(request("top_pages", "tenant_id="), deps);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/top_pages.json?tenant_id=");
-  });
   it("allows the channels endpoint", async () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("channels", "domain=a.com"), deps);
     expect(result.status).toBe(200);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/channels.json?domain=a.com");
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/channels.json?tenant_id=acme&domain=a.com");
   });
 
   it("forwards a valid goal_path to conversions", async () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("conversions", "goal_path=/thanks"), deps);
     expect(result.status).toBe(200);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?goal_path=%2Fthanks");
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?tenant_id=acme&goal_path=%2Fthanks");
   });
 
   it("rejects an invalid goal_path with 400 and never calls Tinybird", async () => {
@@ -372,7 +409,7 @@ describe("proxyEndpoint", () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("conversions", "goal_event=signup_completed"), deps);
     expect(result.status).toBe(200);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?goal_event=signup_completed");
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?tenant_id=acme&goal_event=signup_completed");
   });
 
   it("rejects an invalid goal_event with 400 and never calls Tinybird", async () => {
@@ -388,7 +425,7 @@ describe("proxyEndpoint", () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("visitor_counts", "tz=America%2FNew_York"), deps);
     expect(result.status).toBe(200);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/visitor_counts.json?tz=America%2FNew_York");
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/visitor_counts.json?tenant_id=acme&tz=America%2FNew_York");
   });
 
   it("rejects an invalid tz with 400 and never calls Tinybird", async () => {
@@ -401,6 +438,21 @@ describe("proxyEndpoint", () => {
   });
 
   describe("a daily series that starts before the first data", () => {
+    it("asks for the first day with the pinned tenant, whatever the client sent", async () => {
+      const calls: string[] = [];
+      const deps: ProxyDeps = {
+        tinybird: { host: "http://tb.test", token: "x" },
+        tenantId: "my-tenant",
+        fetch: async (url) => {
+          calls.push(String(url));
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        },
+      };
+      await proxyEndpoint(request("daily_series", "date_from=1970-01-01&date_to=2026-11-18&tenant_id=someone-else"), deps);
+      expect(calls[0]).toBe("http://tb.test/v0/pipes/domains.json?tenant_id=my-tenant");
+      expect(calls.every((url) => !url.includes("someone-else"))).toBe(true);
+    });
+
     const withDomains = (firstSeen: readonly string[]) => {
       const calls: string[] = [];
       const deps: ProxyDeps = {
@@ -466,7 +518,7 @@ describe("proxyEndpoint", () => {
     const result = await proxyEndpoint(request("hourly_series", query), deps);
     expect(result.status).toBe(200);
     expect(calls[0]?.url).toBe(
-      "http://tb.test/v0/pipes/hourly_series.json?from_at=2026-11-10T05%3A00%3A00Z&to_at=2026-11-11T05%3A00%3A00Z",
+      "http://tb.test/v0/pipes/hourly_series.json?tenant_id=acme&from_at=2026-11-10T05%3A00%3A00Z&to_at=2026-11-11T05%3A00%3A00Z",
     );
   });
 
@@ -489,7 +541,7 @@ describe("proxyEndpoint", () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("hourly_series", "bucket_hours=4"), deps);
     expect(result.status).toBe(200);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/hourly_series.json?bucket_hours=4");
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/hourly_series.json?tenant_id=acme&bucket_hours=4");
   });
 
   it("rejects a bucket size that is not a whole number of hours from 1 to 24, never calling Tinybird", async () => {

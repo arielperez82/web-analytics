@@ -11,6 +11,7 @@ import {
   type InferOutputRow,
 } from "@tinybirdco/sdk";
 import { crossFilterParams, crossFilters } from "./cross-filters";
+import { tenantParam, tenantScopeSql } from "./tenant";
 import { dashboardToken } from "./tokens";
 import { browserSql, deviceSql } from "./user-agent";
 import { tzParam, tzSql } from "./time-zone";
@@ -55,10 +56,7 @@ const vitalsCompareWindowNode = () =>
 const previousWindowRangeSql = `timestamp >= (SELECT previous_start_at FROM compare_window)
             AND timestamp < (SELECT previous_end_at FROM compare_window)`;
 
-const vitalsScopeSql = `
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+const vitalsScopeSql = `${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
             {% end %}${crossFilters}`;
@@ -168,10 +166,7 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
                 (vital_name = 'FCP' AND vital_value < 30000) OR
                 (vital_name = 'INP' AND vital_value < 10000) OR
                 (vital_name = 'CLS' AND vital_value < 1)
-            )
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            )${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -223,7 +218,7 @@ export const webVitalsEvents = defineEndpoint("web_vitals_events", {
   params: {
     from_date: p.date().optional().describe("Starting date for filtering a date range"),
     to_date: p.date().optional().describe("Finishing date for filtering a date range"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
   },
   output: {
@@ -384,7 +379,7 @@ ${vitalsScopeSql}
       .date()
       .optional()
       .describe("End date; with date_from it replaces days"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Domain to filter"),
     ...comparisonParams,
   },
@@ -460,10 +455,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
         FROM web_vitals_events
         WHERE
             timestamp >= toDateTime(toDate((SELECT current_start FROM date_calculations)), ${tzSql})
-            AND timestamp < toDateTime(toDate((SELECT current_end FROM date_calculations)) + 1, ${tzSql})
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < toDateTime(toDate((SELECT current_end FROM date_calculations)) + 1, ${tzSql})${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
             {% end %}${crossFilters}
@@ -489,10 +481,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
         FROM web_vitals_events
         WHERE
             timestamp >= toDateTime(toDate((SELECT previous_start FROM date_calculations)), ${tzSql})
-            AND timestamp < toDateTime(toDate((SELECT previous_end FROM date_calculations)) + 1, ${tzSql})
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < toDateTime(toDate((SELECT previous_end FROM date_calculations)) + 1, ${tzSql})${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
             {% end %}${crossFilters}
@@ -673,7 +662,7 @@ export const webVitalsDistribution = defineEndpoint("web_vitals_distribution", {
     ...tzParam,
     date_from: p.string().optional().describe("Start date"),
     date_to: p.string().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Domain to filter"),
     include_previous_period: p
       .string()
@@ -740,7 +729,8 @@ export const webVitalsRoutes = defineEndpoint("web_vitals_routes", {
             metric_name,
             value,
             score,
-            domain
+            domain,
+            tenant_id
         FROM web_vitals_events
         WHERE {% if defined(from_at) %}
                 ${exactRangeSql}
@@ -767,10 +757,11 @@ ${routeScopeSql}
             avg(value) as avg_value,
             avg(score) as avg_score,
             count() as measurements,
-            domain
+            domain,
+            tenant_id
         FROM filtered_vitals
         WHERE path_key != ''
-        GROUP BY path_key, metric_name, domain
+        GROUP BY path_key, metric_name, domain, tenant_id
             {% if defined(analysis_type) and analysis_type == 'pathnames' %}
             , full_pathname, route
             {% end %}
@@ -799,9 +790,10 @@ ${routeScopeSql}
             round(avgIf(avg_score, metric_name = 'INP'), 0) as inp_score,
             round(avgIf(avg_score, metric_name = 'CLS'), 0) as cls_score,
             count(DISTINCT metric_name) as metrics_count,
-            domain
+            domain,
+            tenant_id
         FROM route_metrics
-        GROUP BY path_key, domain
+        GROUP BY path_key, domain, tenant_id
             {% if defined(analysis_type) and analysis_type == 'pathnames' %}
             , full_pathname, route
             {% end %}
@@ -817,6 +809,7 @@ ${routeScopeSql}
         SELECT
             path_key as previous_path_key,
             domain as previous_domain,
+            tenant_id as previous_tenant_id,
             round(avg(avg_score), 2) as previous_score,
             toUInt8(1) as previous_listed
         FROM (
@@ -825,23 +818,25 @@ ${routeScopeSql}
                 metric_name,
                 avg(score) as avg_score,
                 count() as measurements,
-                domain
+                domain,
+                tenant_id
             FROM (
                 SELECT
                     {% if defined(analysis_type) and analysis_type == 'pathnames' %} pathname {% else %} route {% end %} as path_key,
                     metric_name,
                     score,
-                    domain
+                    domain,
+                    tenant_id
                 FROM web_vitals_events
                 WHERE ${previousWindowRangeSql}${routeScopeSql}
             )
             WHERE path_key != ''
-            GROUP BY path_key, metric_name, domain
+            GROUP BY path_key, metric_name, domain, tenant_id
             HAVING measurements >= ${MIN_MEASUREMENTS_SQL}
         )
-        GROUP BY path_key, domain
+        GROUP BY path_key, domain, tenant_id
         {% else %}
-        SELECT '' as previous_path_key, '' as previous_domain, 0 as previous_score, toUInt8(0) as previous_listed WHERE 1=0
+        SELECT '' as previous_path_key, '' as previous_domain, '' as previous_tenant_id, 0 as previous_score, toUInt8(0) as previous_listed WHERE 1=0
         {% end %}
       `,
     }),
@@ -881,6 +876,7 @@ ${routeScopeSql}
         LEFT JOIN previous_route_scores
             ON route_summary.path_key = previous_route_scores.previous_path_key
             AND route_summary.domain = previous_route_scores.previous_domain
+            AND route_summary.tenant_id = previous_route_scores.previous_tenant_id
         {% end %}
         ORDER BY
             {% if defined(sort_order) and sort_order == 'desc' %}
@@ -913,7 +909,7 @@ ${routeScopeSql}
       .date()
       .optional()
       .describe("End date; with date_from it replaces days"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Domain to filter"),
     route: p.string().optional().describe("Route to filter by"),
     analysis_type: p.string().optional().describe("'routes' or 'pathnames'"),
@@ -976,10 +972,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
             {% end %}
             {% if defined(date_to) %}
             AND timestamp < toDateTime(toDate({{ Date(date_to) }}) + 1, ${tzSql})
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Domain to filter") }}
             {% end %}${crossFilters}
@@ -996,9 +989,10 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
             quantile(0.95)(value) as p95,
             quantile(0.99)(value) as p99,
             count() as measurements,
-            domain
+            domain,
+            tenant_id
         FROM filtered_vitals
-        GROUP BY hour, metric_name, domain
+        GROUP BY hour, metric_name, domain, tenant_id
         HAVING measurements >= 5
         ORDER BY hour ASC, metric_name ASC
       `,
@@ -1009,7 +1003,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
     ...tzParam,
     date_from: p.date().optional().describe("Start date"),
     date_to: p.date().optional().describe("End date"),
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Domain to filter"),
   },
   output: {
@@ -1021,6 +1015,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
     p99: t.float64(),
     measurements: t.uint64(),
     domain: t.string(),
+    tenant_id: t.string(),
   },
 });
 

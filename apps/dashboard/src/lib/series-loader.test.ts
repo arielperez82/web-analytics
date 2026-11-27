@@ -13,6 +13,7 @@ const fakeDeps = (
   const urls: URL[] = [];
   const deps: ProxyDeps = {
     tinybird: { host: "http://tb.test", token: "t" },
+    tenantId: "acme",
     now,
     fetch: async (url) => {
       const parsed = new URL(String(url));

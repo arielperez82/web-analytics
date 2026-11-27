@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 
 import { PageHeader } from "@/ds/PageHeader";
 import { SidebarNav, type SidebarNavProps } from "@/ds/SidebarNav";
-import { DEFAULT_DAYS, hrefFor, tenantLabel } from "@/lib/dashboard-state";
+import { DEFAULT_DAYS, hrefFor } from "@/lib/dashboard-state";
 import { activeFilters, toggleFilter } from "@/lib/filters";
-import { useDashboardState } from "@/lib/use-dashboard-state";
+import { resolveTenantScope, type TenantScope } from "@/lib/tenant-scope";
+import { TenantScopeContext, useDashboardState } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 import { rangeLabel } from "@/lib/range-label";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
@@ -18,19 +19,43 @@ import { DateRangePicker } from "./DateRangePicker";
 import { FilterMenu } from "./FilterMenu";
 import { fmt, type Row } from "./ui";
 
-const ALL_TENANTS = "__all";
+type TenantsLoad = ReturnType<typeof useEndpoint<Row>>;
 
 export const Shell = ({ email, children }: { email: string; children: ReactNode }) => {
+  const { state } = useDashboardState();
+  const tenants = useEndpoint<Row>("tenants", {});
+  const scope = resolveTenantScope({ chosen: state.tenant, tenants });
+  return (
+    <TenantScopeContext.Provider value={scope.kind === "ready" ? scope.tenant : undefined}>
+      <ShellFrame email={email} scope={scope} tenants={tenants}>
+        {children}
+      </ShellFrame>
+    </TenantScopeContext.Provider>
+  );
+};
+
+const ShellFrame = ({
+  email,
+  scope,
+  tenants,
+  children,
+}: {
+  email: string;
+  scope: TenantScope;
+  tenants: TenantsLoad;
+  children: ReactNode;
+}) => {
   const { state, update, zone, params } = useDashboardState();
+  const tenant = scope.kind === "ready" ? scope.tenant : undefined;
+  const settled = scope.kind === "ready" || scope.kind === "pinned";
   const sidebar = useSidebarCollapsed();
   const pathname = usePathname();
   const onSpeed = pathname === "/speed";
   const onOverview = pathname === "/";
   const comparable = onOverview || onSpeed || pathname.startsWith("/reports/");
-  const tenants = useEndpoint<Row>("tenants", {});
-  const domains = useEndpoint<Row>("domains", { tenant_id: state.tenant });
-  const online = useEndpoint<Row>("current_visitors", { tenant_id: state.tenant, domain: state.domain });
-  const showTenants = !tenants.error && (tenants.data?.length ?? 0) > 0;
+  const domains = useEndpoint<Row>("domains", { tenant_id: tenant }, settled);
+  const online = useEndpoint<Row>("current_visitors", { tenant_id: tenant, domain: state.domain }, settled);
+  const showTenants = scope.kind === "ready" && scope.tenants.length > 0;
   const filters = activeFilters(state.filters);
   const custom = "from" in state.range ? state.range : undefined;
   const nav: SidebarNavProps["items"] = [
@@ -52,19 +77,12 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
           {showTenants && (
             <select
               aria-label="Tenant"
-              value={state.tenant ?? ALL_TENANTS}
-              onChange={(e) =>
-                update({
-                  ...state,
-                  tenant: e.target.value === ALL_TENANTS ? undefined : e.target.value,
-                  domain: undefined,
-                })
-              }
+              value={tenant}
+              onChange={(e) => update({ ...state, tenant: e.target.value, domain: undefined })}
             >
-              <option value={ALL_TENANTS}>All tenants</option>
-              {(tenants.data ?? []).map((row) => (
-                <option key={String(row.tenant_id)} value={String(row.tenant_id)}>
-                  {tenantLabel(String(row.tenant_id))} · {fmt(row.total_hits)} hits
+              {(scope.kind === "ready" && scope.tenants.includes(scope.tenant) ? scope.tenants : [tenant ?? ""]).map((id) => (
+                <option key={id} value={id}>
+                  {id}
                 </option>
               ))}
             </select>
@@ -132,7 +150,9 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          {children}
+          {scope.kind === "loading" && <p role="status">Loading tenants…</p>}
+          {scope.kind === "unavailable" && <p role="alert">{scope.message}</p>}
+          {settled && children}
         </main>
       </div>
     </div>

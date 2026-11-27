@@ -195,7 +195,7 @@ describe.concurrent('web_vitals_current pipe', () => {
     expect(rows).toEqual([]);
   });
 
-  it('filters by tenant alone and by domain alone', async () => {
+  it('filters by tenant, and within it by domain, leaving another tenant on the same site out', async () => {
     const shared = createScope();
     const sameTenantOtherSite = {
       tenantId: shared.tenantId,
@@ -218,7 +218,10 @@ describe.concurrent('web_vitals_current pipe', () => {
     );
 
     const byTenant = await current({ tenant_id: shared.tenantId });
-    const byDomain = await current({ domain: shared.domain });
+    const bySite = await current({
+      tenant_id: shared.tenantId,
+      domain: shared.domain,
+    });
 
     expect(
       byTenant.map(row => row.domain).sort((a, b) => a.localeCompare(b))
@@ -227,13 +230,9 @@ describe.concurrent('web_vitals_current pipe', () => {
         a.localeCompare(b)
       )
     );
-    expect(
-      byDomain.map(row => row.tenant_id).sort((a, b) => a.localeCompare(b))
-    ).toEqual(
-      [shared.tenantId, sameSiteOtherTenant.tenantId].sort((a, b) =>
-        a.localeCompare(b)
-      )
-    );
+    expect(bySite.map(row => row.tenant_id)).toEqual([shared.tenantId]);
+    expect(bySite.map(row => row.domain)).toEqual([shared.domain]);
+    expect(sameSiteOtherTenant.tenantId).not.toBe(shared.tenantId);
   });
 
   describe('compared with another period', () => {

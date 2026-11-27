@@ -57,21 +57,17 @@ describe.concurrent('tenants and domains across tenants', () => {
     ).toBeGreaterThanOrEqual(1);
   });
 
-  it('domains without a tenant_id lists the domains of every tenant, including no tenant', async () => {
-    const tenanted = await ingestFor(createScope().tenantId, 1);
-    const untenanted = await ingestFor(NO_TENANT, 1);
+  it('domains lists only the domains of the tenant asked for', async () => {
+    const mine = await ingestFor(createScope().tenantId, 1);
+    const theirs = await ingestFor(createScope().tenantId, 1);
 
     const rows = await waitForRow(
-      () => pipeRows<DomainRow>(env, 'domains', {}),
-      data =>
-        [tenanted.domain, untenanted.domain].every(domain =>
-          data.some(row => row.domain === domain)
-        )
+      () => pipeRows<DomainRow>(env, 'domains', { tenant_id: mine.tenantId }),
+      data => data.some(row => row.domain === mine.domain)
     );
 
-    expect(rows.map(row => row.domain)).toEqual(
-      expect.arrayContaining([tenanted.domain, untenanted.domain])
-    );
+    expect(rows.map(row => row.domain)).toEqual([mine.domain]);
+    expect(rows.map(row => row.domain)).not.toContain(theirs.domain);
   });
 
   it('domains with an empty tenant_id lists only the no-tenant domains', async () => {

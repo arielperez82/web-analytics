@@ -12,6 +12,7 @@ import {
 } from "@tinybirdco/sdk";
 import { visitorClassSql } from "./payload-columns";
 import { crossFilterParams, crossFilters } from "./cross-filters";
+import { tenantParam, tenantScopeSql } from "./tenant";
 import { dashboardToken } from "./tokens";
 import { tzParam, tzSql } from "./time-zone";
 import { compareWindowParams, comparedWindowSql, currentWindowSql, windowParams } from "./window";
@@ -36,10 +37,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
         WHERE timestamp >= (now() - interval 5 minute)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -47,7 +45,7 @@ export const currentVisitors = defineEndpoint("current_visitors", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
@@ -94,10 +92,7 @@ const visitorStateSql = (period: "current" | "previous"): string => `
             AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -115,10 +110,7 @@ const visitorStateSql = (period: "current" | "previous"): string => `
             AND bucket < (SELECT ${period}_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -206,7 +198,7 @@ ${comparedWindowSql}
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
@@ -269,13 +261,10 @@ ${comparedWindowSql}
       name: "engaged_sessions",
       description: "Sessions where the visitor did something besides view pages. Automatic web vitals do not count.",
       sql: `
-        SELECT DISTINCT session_id
+        SELECT DISTINCT tenant_id, session_id
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
-            AND ${withinEitherPeriodSql("timestamp")}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND ${withinEitherPeriodSql("timestamp")}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -292,15 +281,12 @@ ${comparedWindowSql}
             toUInt8(${withinPeriodSql("min(timestamp)", "previous")}) AS in_previous,
             count() AS session_pageviews,
             toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
-            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+            toUInt8(count() = 1 AND (tenant_id, session_id) NOT IN (SELECT tenant_id, session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE ${withinEitherPeriodSql("timestamp")}
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -359,7 +345,7 @@ ${comparedWindowSql}
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
@@ -471,7 +457,7 @@ export const dailySeries = defineEndpoint("daily_series", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
@@ -535,10 +521,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
             AND timestamp < (SELECT current_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -588,7 +571,7 @@ export const hourlySeries = defineEndpoint("hourly_series", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     from_at: p.string().optional().describe("First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z; defaults to the start of today (UTC)"),
     to_at: p.string().optional().describe("Last instant, exclusive, ISO 8601; at most 744 buckets after from_at"),
@@ -638,14 +621,11 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
       name: "engaged_sessions",
       description: "Sessions where the visitor did something besides view pages. Automatic web vitals do not count.",
       sql: `
-        SELECT DISTINCT session_id
+        SELECT DISTINCT tenant_id, session_id
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -658,16 +638,13 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
         SELECT
             toDate(toTimeZone(min(timestamp), ${tzSql})) AS date,
             toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
-            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+            toUInt8(count() = 1 AND (tenant_id, session_id) NOT IN (SELECT tenant_id, session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
             AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -710,7 +687,7 @@ export const dailyEngagementSeries = defineEndpoint("daily_engagement_series", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     date_from: p.string().optional().describe("First UTC day, inclusive"),
     date_to: p.string().optional().describe("Last UTC day, inclusive"),
@@ -759,14 +736,11 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
       name: "engaged_sessions",
       description: "Sessions where the visitor did something besides view pages. Automatic web vitals do not count.",
       sql: `
-        SELECT DISTINCT session_id
+        SELECT DISTINCT tenant_id, session_id
         FROM analytics_events
         WHERE action NOT IN ('page_hit', 'web_vital')
             AND timestamp >= (SELECT lookup_start_at FROM date_calculations)
-            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < (SELECT lookahead_end_at FROM date_calculations)${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -779,16 +753,13 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
         SELECT
             toDateTime(toUInt32((SELECT current_start_at FROM date_calculations)) + intDiv(toUInt32(min(timestamp)) - toUInt32((SELECT current_start_at FROM date_calculations)), 3600 * ${BUCKET_HOURS_SQL}) * 3600 * ${BUCKET_HOURS_SQL}, 'UTC') AS hour,
             toUInt32(max(timestamp)) - toUInt32(min(timestamp)) AS duration_sec,
-            toUInt8(count() = 1 AND session_id NOT IN (SELECT session_id FROM engaged_sessions)) AS is_bounce
+            toUInt8(count() = 1 AND (tenant_id, session_id) NOT IN (SELECT tenant_id, session_id FROM engaged_sessions)) AS is_bounce
         FROM analytics_hits
         WHERE timestamp >= (SELECT lookup_start_at FROM date_calculations)
             AND timestamp < (SELECT lookahead_end_at FROM date_calculations)
             {% if Int32(include_bots, 0) != 1 and String(device, '') != 'bot' %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -831,7 +802,7 @@ export const hourlyEngagementSeries = defineEndpoint("hourly_engagement_series",
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     from_at: p.string().optional().describe("First instant, inclusive, ISO 8601 such as 2026-11-10T05:00:00Z; defaults to the start of today (UTC)"),
     to_at: p.string().optional().describe("Last instant, exclusive, ISO 8601; at most 744 buckets after from_at"),
@@ -885,11 +856,11 @@ export const tenants = defineEndpoint("tenants", {
 export type TenantsOutput = InferOutputRow<typeof tenants>;
 
 /**
- * Domains - list domains, optionally for one tenant
+ * Domains - list the domains of one tenant
  */
 export const domains = defineEndpoint("domains", {
   description:
-    "Returns domains with first/last seen and total hits. Without tenant_id, domains of every tenant; with an empty tenant_id, only events that carry no tenant",
+    "Returns the domains of one tenant with first/last seen and total hits. tenant_id is required; an empty tenant_id means events that carry no tenant",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
@@ -902,20 +873,14 @@ export const domains = defineEndpoint("domains", {
             maxSimpleState(last_seen) AS last_seen,
             countMerge(total_hits) AS total_hits
         FROM tenant_domains_mv
-        WHERE 1
-        {% if defined(tenant_id) %}
-        AND tenant_id = {{ String(tenant_id, description="Tenant ID to filter") }}
-        {% end %}
+        WHERE 1${tenantScopeSql}
         GROUP BY domain
         ORDER BY total_hits DESC, domain ASC
       `,
     }),
   ],
   params: {
-    tenant_id: p
-      .string()
-      .optional()
-      .describe("Tenant ID to filter; empty string means no tenant"),
+    tenant_id: tenantParam,
   },
   output: {
     domain: t.string(),
@@ -947,7 +912,7 @@ export const actions = defineEndpoint("actions", {
             maxSimpleState(last_seen) AS last_seen,
             countMerge(total_occurrences) AS total_occurrences
         FROM tenant_actions_mv
-        WHERE tenant_id = {{ String(tenant_id, description="Tenant ID to filter", default="") }}
+        WHERE 1${tenantScopeSql}
         {% if defined(action_filter) %}
             AND positionCaseInsensitive(action, {{String(action_filter, description="Text the action name must contain", example="click")}}) > 0
         {% end %}
@@ -957,7 +922,7 @@ export const actions = defineEndpoint("actions", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional("").describe("Tenant ID to filter"),
+    tenant_id: tenantParam,
     action_filter: p.string().optional().describe("Text the action name must contain"),
   },
   output: {
@@ -989,14 +954,14 @@ export const rejectedEvents = defineEndpoint("rejected_events", {
             count() AS events,
             toUInt64(max(abs(dateDiff('second', timestamp, toDateTime(reception_timestamp))))) AS max_skew_seconds
         FROM analytics_events_rejected
-        WHERE tenant_id = {{ String(tenant_id, description="Tenant ID to filter", default="") }}
+        WHERE 1${tenantScopeSql}
         GROUP BY date, domain, reason
         ORDER BY date DESC, domain ASC, reason ASC
       `,
     }),
   ],
   params: {
-    tenant_id: p.string().optional("").describe("Tenant ID to filter"),
+    tenant_id: tenantParam,
   },
   output: {
     date: t.date(),
@@ -1039,10 +1004,7 @@ export const trend = defineEndpoint("trend", {
         where timestamp >= (now() - interval 30 minute)
             {% if Int32(include_bots, 0) != 1 %}
             AND is_bot = 0
-            {% end %}
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            {% end %}${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -1059,7 +1021,7 @@ export const trend = defineEndpoint("trend", {
     }),
   ],
   params: {
-    tenant_id: p.string().optional().describe("Filter by tenant ID"),
+    tenant_id: tenantParam,
     domain: p.string().optional().describe("Filter by domain"),
     include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   },
@@ -1187,10 +1149,7 @@ const periodDataSql = (
             countMerge(hits) as ${period}_hits
         FROM ${source}
         WHERE bucket >= (SELECT ${period}_start_at FROM date_calculations)
-            AND bucket < (SELECT ${period}_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND bucket < (SELECT ${period}_end_at FROM date_calculations)${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}${crossFilters}
@@ -1254,7 +1213,7 @@ ${comparedWindowSql}
     params: {
       date_from: p.string().optional().describe("Start date"),
       date_to: p.string().optional().describe("End date"),
-      tenant_id: p.string().optional().describe("Filter by tenant ID"),
+      tenant_id: tenantParam,
       domain: p.string().optional().describe("Filter by domain"),
       ...crossFilterParams,
       include_previous_period: p.string().optional().describe("Include previous period"),
@@ -1380,10 +1339,7 @@ const channelVisitsNode = (extraColumns = "", period: "current" | "previous" = "
             count() as hits${extraColumns}
         FROM analytics_hits
         WHERE timestamp >= (SELECT ${period}_start_at FROM date_calculations)
-            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -1409,10 +1365,7 @@ const channelVisitorCampaignsNode = (period: "current" | "previous" = "current")
         WHERE visitor_id != ''
             AND id_mode IN ('daily_direct', 'daily_proxy')
             AND timestamp >= (SELECT ${period}_start_at FROM date_calculations)
-            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)
-            {% if defined(tenant_id) %}
-            AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-            {% end %}
+            AND timestamp < (SELECT ${period}_end_at FROM date_calculations)${tenantScopeSql}
             {% if defined(domain) %}
             AND domain = {{ String(domain, description="Filter by domain") }}
             {% end %}
@@ -1465,7 +1418,7 @@ const channelPeriodDataSql = (source: string, period: "current" | "previous"): s
 const channelParams = {
   date_from: p.string().optional().describe("Start date"),
   date_to: p.string().optional().describe("End date"),
-  tenant_id: p.string().optional().describe("Filter by tenant ID"),
+  tenant_id: tenantParam,
   domain: p.string().optional().describe("Filter by domain"),
   include_bots: p.int32().optional(0).describe("1 to count bot traffic as well"),
   ...tzParam,
@@ -1527,15 +1480,12 @@ const goalConvertedColumn = `,
             {{ custom_error({'error': 'Give exactly one of goal_path or goal_event'}) }}
             {% end %}
             {% if defined(goal_event) %}
-            max(session_id IN (
-                SELECT session_id
+            max((tenant_id, session_id) IN (
+                SELECT tenant_id, session_id
                 FROM analytics_events
                 WHERE action = {{ String(goal_event, description="Name of the goal event, e.g. signup_completed") }}
                     AND timestamp >= (SELECT current_start_at FROM date_calculations)
-                    AND timestamp < (SELECT current_end_at FROM date_calculations)
-                    {% if defined(tenant_id) %}
-                    AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-                    {% end %}
+                    AND timestamp < (SELECT current_end_at FROM date_calculations)${tenantScopeSql}
                     {% if defined(domain) %}
                     AND domain = {{ String(domain, description="Filter by domain") }}
                     {% end %}
@@ -1660,18 +1610,17 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
                   toDate(today()) as current_end,
               {% end %}${currentWindowSql}
           SELECT
+              tenant_id,
+              domain,
               session_id,
               ${pick}(${normalizedPath}, timestamp) as pathname
           FROM analytics_hits
           WHERE timestamp >= current_start_at
-              AND timestamp < current_end_at
-              {% if defined(tenant_id) %}
-              AND tenant_id = {{ String(tenant_id, description="Filter by tenant ID") }}
-              {% end %}
+              AND timestamp < current_end_at${tenantScopeSql}
               {% if defined(domain) %}
               AND domain = {{ String(domain, description="Filter by domain") }}
               {% end %}${crossFilters}
-          GROUP BY session_id
+          GROUP BY tenant_id, domain, session_id
         `,
       }),
       node({
@@ -1688,7 +1637,7 @@ const edgePages = (name: "entry_pages" | "exit_pages", pick: "argMin" | "argMax"
     params: {
       date_from: p.string().optional().describe("Start date"),
       date_to: p.string().optional().describe("End date"),
-      tenant_id: p.string().optional().describe("Filter by tenant ID"),
+      tenant_id: tenantParam,
       domain: p.string().optional().describe("Filter by domain"),
       ...crossFilterParams,
       skip: p.int32().optional(0).describe("Skip for pagination"),

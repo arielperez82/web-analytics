@@ -23,7 +23,7 @@ import {
 } from "./datasources";
 
 // Internal Pipes
-import { analyticsHits } from "./pipes";
+import { analyticsHits, pageHits } from "./pipes";
 
 // Materializations
 import {
@@ -103,6 +103,7 @@ export const pipes = {
   tenantDomains,
   visitorStateHourly,
   // Endpoints
+  pageHits,
   channels,
   conversions,
   conversionSummary,
