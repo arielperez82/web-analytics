@@ -1321,9 +1321,9 @@ const pathKey = (expression: string): string => {
   return `if(trimRight(${decoded}, '/') = '', '/', trimRight(${decoded}, '/'))`;
 };
 
-const channelVisitsNode = (extraColumns = "", period: "current" | "previous" = "current") =>
+const channelVisitsNode = (extraColumns = "", period: "current" | "previous" = "current", name?: string) =>
   node({
-    name: period === "current" ? "sessions" : "prior_sessions",
+    name: name ?? (period === "current" ? "sessions" : "prior_sessions"),
     description: "First page view of each session, with its UTMs and referrer",
     sql: `
         SELECT
@@ -1498,7 +1498,7 @@ const goalPatternBalanceSql = `(SELECT throwIf(
 
 const goalPatternStandaloneGuardSql = `{% if defined(goal_event_pattern) %}WHERE ${goalPatternBalanceSql} = 0{% end %}`;
 
-const goalConvertedColumn = `,
+const goalValidationSql = `
             {% if defined(goal_path) + defined(goal_event) + defined(goal_event_pattern) != 1 %}
             {{ custom_error({'error': 'Give exactly one of goal_path, goal_event or goal_event_pattern'}) }}
             {% end %}
@@ -1511,8 +1511,11 @@ const goalConvertedColumn = `,
             {% if defined(goal_event_pattern) and '(?' in goal_event_pattern.replace('(?:', '') %}
             {{ custom_error({'error': 'goal_event_pattern allows only (?: groups; lookaround, named groups and flags are not supported'}) }}
             {% end %}
-            {% if defined(goal_event) or defined(goal_event_pattern) %}
-            max((tenant_id, session_id) IN (
+            {% if String(goal_denominator, 'session') not in ['session', 'visitor', 'page_view', 'none'] %}
+            {{ custom_error({'error': 'goal_denominator must be one of session, visitor, page_view or none'}) }}
+            {% end %}`;
+
+const goalSessionReachedEventSql = (sessionKey: string) => `(tenant_id, ${sessionKey}) IN (
                 SELECT tenant_id, session_id
                 FROM analytics_events
                 WHERE ${goalEventMatchSql}
@@ -1521,10 +1524,90 @@ const goalConvertedColumn = `,
                     {% if defined(domain) %}
                     AND domain = {{ String(domain, description="Filter by domain") }}
                     {% end %}
-            )) as converted
+            )`;
+
+const goalConvertedColumn = `,${goalValidationSql}
+            {% if defined(goal_event) or defined(goal_event_pattern) %}
+            max(${goalSessionReachedEventSql("session_id")}) as converted
             {% else %}
             max(${pathKey("pathname")} = ${pathKey('{{ String(goal_path, description="Path of the goal page, e.g. /book/confirmed") }}')}) as converted
             {% end %}`;
+
+const goalEventOnlySessionsNode = () =>
+  node({
+    name: "event_only_sessions",
+    description:
+      "Sessions that sent events but no page view in range. They count in the session and visitor denominators and convert on an event goal; they never reach a goal page.",
+    sql: `
+        SELECT
+            tenant_id,
+            domain,
+            coalesce(session_id, '0') as session_id,
+            any(visitor_id) as visitor_id,
+            any(id_mode) as id_mode,
+            min(timestamp) as started_at,
+            argMin(lower(utm_medium), timestamp) as utm_medium,
+            argMin(domainWithoutWWW(referrer), timestamp) as referrer_domain,
+            argMin(domainWithoutWWW(domain), timestamp) as site_domain,
+            toUInt64(0) as hits,
+            {% if defined(goal_event) or defined(goal_event_pattern) %}
+            toUInt8(max(${goalSessionReachedEventSql("coalesce(session_id, '0')")})) as converted
+            {% else %}
+            toUInt8(0) as converted
+            {% end %}
+        FROM analytics_events
+        WHERE action NOT IN ('page_hit', 'web_vital')
+            AND timestamp >= (SELECT current_start_at FROM date_calculations)
+            AND timestamp < (SELECT current_end_at FROM date_calculations)${tenantScopeSql}
+            {% if defined(domain) %}
+            AND domain = {{ String(domain, description="Filter by domain") }}
+            {% end %}
+            {% if Int32(include_bots, 0) != 1 %}
+            AND is_bot = 0
+            {% end %}
+            AND (tenant_id, coalesce(session_id, '0')) NOT IN (SELECT tenant_id, session_id FROM page_view_sessions)
+        GROUP BY tenant_id, domain, session_id
+      `,
+  });
+
+const goalSessionsNodes = () => [
+  channelVisitsNode(goalConvertedColumn, "current", "page_view_sessions"),
+  goalEventOnlySessionsNode(),
+  node({
+    name: "sessions",
+    description: "Every session in range: those with a page view, then those with events only",
+    sql: `
+        SELECT * FROM page_view_sessions
+        UNION ALL
+        SELECT * FROM event_only_sessions
+      `,
+  }),
+];
+
+const goalFirstTouchColumns = `,
+            v.converted as converted,
+            v.visitor_id as visitor_id`;
+
+const byDenominator = (cases: { readonly session: string; readonly visitor: string; readonly page_view: string; readonly none: string }) =>
+  `{% if String(goal_denominator, 'session') == 'visitor' %}${cases.visitor}{% elif String(goal_denominator, 'session') == 'page_view' %}${cases.page_view}{% elif String(goal_denominator, 'session') == 'none' %}${cases.none}{% else %}${cases.session}{% end %}`;
+
+const visitorKeySql = "if(visitor_id != '', visitor_id, concat('legacy:', session_id))";
+
+const goalMeasureColumns = `
+            count() as sessions,
+            ${byDenominator({
+              session: "toNullable(count())",
+              visitor: `toNullable(uniqExact(${visitorKeySql}))`,
+              page_view: "toNullable(sum(hits))",
+              none: "CAST(NULL AS Nullable(UInt64))",
+            })} as denominator,
+            ${byDenominator({
+              session: "sum(converted)",
+              visitor: `uniqExactIf(${visitorKeySql}, converted = 1)`,
+              page_view: "sum(converted)",
+              none: "sum(converted)",
+            })} as conversions,
+            if(isNull(denominator), CAST(NULL AS Nullable(Float64)), toNullable(if(denominator = 0, 0, round(conversions * 100.0 / denominator, 2)))) as conversion_rate_percent`;
 
 const goalParams = {
   goal_path: p
@@ -1541,29 +1624,38 @@ const goalParams = {
     .describe(
       `RE2 pattern for the whole event name, case sensitive, at most ${GOAL_EVENT_PATTERN_MAX_LENGTH} characters, e.g. signup_.*. Give this, goal_path or goal_event.`,
     ),
+  goal_denominator: p
+    .string()
+    .optional()
+    .describe(
+      "What the conversion rate divides by: session (default, every session in range including event-only ones), visitor, page_view, or none for the count alone with no rate.",
+    ),
+};
+
+const goalOutput = {
+  sessions: t.uint64(),
+  denominator: t.uint64().nullable(),
+  conversions: t.uint64(),
+  conversion_rate_percent: t.float64().nullable(),
 };
 
 /**
- * Conversions - the sessions that reached a goal page, grouped like channels
+ * Conversions - the sessions that reached a goal, grouped like channels, rated by the goal's denominator
  */
 export const conversions = defineEndpoint("conversions", {
   description:
-    "For one goal page: sessions, sessions that reached it, and the conversion rate, grouped by the acquisition channel of each session. The goal page is a query parameter, so each site chooses its own.",
+    "For one goal (a page, an event or an event pattern): per acquisition channel, the sessions, the denominator chosen by goal_denominator (session by default, visitor, page_view, or none for no rate), the conversions and the conversion rate. The goal is a query parameter, so each site chooses its own.",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
-    channelVisitsNode(goalConvertedColumn),
+    ...goalSessionsNodes(),
     channelVisitorCampaignsNode(),
-    channelFirstTouchNode(`,
-            v.converted as converted`),
+    channelFirstTouchNode(goalFirstTouchColumns),
     node({
       name: "endpoint",
       sql: `
         SELECT
-            ${channelSql} as channel,
-            count() as sessions,
-            sum(converted) as conversions,
-            round(sum(converted) * 100.0 / count(), 2) as conversion_rate_percent
+            ${channelSql} as channel,${goalMeasureColumns}
         FROM first_touch
         ${goalPatternStandaloneGuardSql}
         GROUP BY channel
@@ -1577,9 +1669,7 @@ export const conversions = defineEndpoint("conversions", {
   },
   output: {
     channel: t.string(),
-    sessions: t.uint64(),
-    conversions: t.uint64(),
-    conversion_rate_percent: t.float64(),
+    ...goalOutput,
   },
 });
 
@@ -1587,26 +1677,22 @@ export type ConversionsParams = InferParams<typeof conversions>;
 export type ConversionsOutput = InferOutputRow<typeof conversions>;
 
 /**
- * Conversion summary - sessions and conversions across every channel for one goal page, with the
- * overall rate, so the UI shows the headline without adding rows up.
+ * Conversion summary - the same measures across every channel for one goal, so the UI shows the
+ * headline without adding rows up.
  */
 export const conversionSummary = defineEndpoint("conversion_summary", {
   description:
-    "For one goal page: total sessions, sessions that reached it and the overall conversion rate (percent) across every channel",
+    "For one goal: sessions, the denominator chosen by goal_denominator, conversions and the overall conversion rate (percent) across every channel",
   tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     channelDateNode(),
-    channelVisitsNode(goalConvertedColumn),
+    ...goalSessionsNodes(),
     channelVisitorCampaignsNode(),
-    channelFirstTouchNode(`,
-            v.converted as converted`),
+    channelFirstTouchNode(goalFirstTouchColumns),
     node({
       name: "endpoint",
       sql: `
-        SELECT
-            count() as sessions,
-            sum(converted) as conversions,
-            round(if(count() = 0, 0, sum(converted) * 100.0 / count()), 2) as conversion_rate_percent
+        SELECT${goalMeasureColumns}
         FROM first_touch
         ${goalPatternStandaloneGuardSql}
       `,
@@ -1616,11 +1702,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
     ...channelParams,
     ...goalParams,
   },
-  output: {
-    sessions: t.uint64(),
-    conversions: t.uint64(),
-    conversion_rate_percent: t.float64(),
-  },
+  output: goalOutput,
 });
 
 export type ConversionSummaryParams = InferParams<typeof conversionSummary>;
