@@ -122,7 +122,7 @@ describe('identity proxy into Tinybird', () => {
     const rows = await waitForPipeRows<ChannelRow>(
       env,
       'channels',
-      { domain: scope.domain },
+      { tenant_id: scope.tenantId, domain: scope.domain },
       1
     );
 
@@ -141,7 +141,7 @@ describe('identity proxy into Tinybird', () => {
     const rows = await waitForPipeRows<ChannelRow>(
       env,
       'channels',
-      { domain: scope.domain },
+      { tenant_id: scope.tenantId, domain: scope.domain },
       2
     );
 
