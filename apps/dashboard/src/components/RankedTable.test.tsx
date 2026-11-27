@@ -179,6 +179,20 @@ describe("RankedTable", () => {
     expect(cell?.textContent).toBe("ESPrevious period: 8 sessions");
   });
 
+  it("keeps the start and the end of a long label visible, and the whole of it for assistive tech and on hover", async () => {
+    const path = "/docs/guides/getting-started/installation/troubleshooting";
+    renderTable({}, [{ location: path, sessions: 4, hits: 5, bar_percent: 100 }]);
+
+    const full = await screen.findByText(path);
+    const text = full.closest<HTMLElement>("span.text");
+    expect(text?.getAttribute("title")).toBe(path);
+    expect(full.className).toContain("ds-sr");
+    const visible = Array.from(text?.querySelectorAll("[aria-hidden=true]") ?? []);
+    expect(visible.map((part) => part.textContent).join("")).toBe(path);
+    expect(visible.length).toBe(2);
+    expect(screen.getAllByText(path)).toHaveLength(1);
+  });
+
   it("draws no ghost bar without a comparison", async () => {
     renderTable();
 
