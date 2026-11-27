@@ -29,7 +29,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
 
 export type Grain = "day" | "hour";
 
-export type Compare = "last_week" | "off";
+export type Compare = "previous_week" | "previous_month" | "previous_year" | "off";
 
 export type DashboardState = {
   readonly range: Range;
@@ -49,7 +49,9 @@ export const isRealDay = (value: string | null): value is string =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 
-const isCompare = (value: string | null): value is Compare => value === "last_week" || value === "off";
+const COMPARE_CHOICES: readonly (string | null)[] = ["previous_week", "previous_month", "previous_year", "off"];
+
+const isCompare = (value: string | null): value is Compare => COMPARE_CHOICES.includes(value);
 
 const isGrain = (value: string | null): boolean => value === "day" || value === "hour";
 

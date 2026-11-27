@@ -62,7 +62,7 @@ const hours: readonly ApiRow[] = [
 const renderKpis = (
   overrides: {
     params?: Record<string, string>;
-    comparison?: { compare: "previous" | "last_week" };
+    comparison?: { compare: "previous_period" | "previous_week" };
     onChange?: (next: DashboardState) => void;
     points?: readonly ApiRow[];
     state?: DashboardState;
@@ -104,7 +104,7 @@ const heard = (element: Element | null | undefined): string =>
 
 const seriesRequests = (api: FakeApi) => api.requestsTo("series");
 
-const comparison = { compare: "previous" } as const;
+const comparison = { compare: "previous_period" } as const;
 const line = async (which: "current" | "previous") => {
   const chart = await screen.findByRole("group", { name: "Sessions chart" });
   await waitFor(() => expect(chart.querySelector(`path[data-line="${which}"]`)).not.toBeNull());
@@ -415,7 +415,7 @@ describe("Kpis", () => {
     await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
     const query = seriesRequests(api).at(-1);
     expect(query?.get("date_from")).toBe("2026-11-10");
-    expect(query?.get("compare")).toBe("previous");
+    expect(query?.get("compare")).toBe("previous_period");
     expect(query?.has("compare_from")).toBe(false);
     expect(query?.get("location")).toBe("ES");
     expect(query?.get("tz")).toBe("Europe/Madrid");
@@ -438,8 +438,8 @@ describe("Kpis", () => {
   });
 
   it.each([
-    { name: "the previous period", chosen: { compare: "previous" } as const },
-    { name: "the same period last week", chosen: { compare: "last_week" } as const },
+    { name: "the previous period", chosen: { compare: "previous_period" } as const },
+    { name: "the previous week", chosen: { compare: "previous_week" } as const },
   ])("asks for the card figures against $name, naming only the choice", async ({ chosen }) => {
     const api = renderKpis({ comparison: chosen });
 
@@ -566,11 +566,11 @@ describe("Kpis", () => {
     expect(await legendItems()).toEqual(["This period", "Previous period"]);
   });
 
-  it("calls the same day last week the previous period too", async () => {
+  it("calls any chosen comparison the previous period in the legend", async () => {
     renderKpis({
       params: { ...params, date_to: "2026-11-10" },
       comparison,
-      state: { ...state, compare: "last_week" },
+      state: { ...state, compare: "previous_week" },
     });
 
     expect(await legendItems()).toEqual(["This period", "Previous period"]);
@@ -607,7 +607,7 @@ describe("Kpis", () => {
       await waitFor(() => expect(seriesRequests(api)).toHaveLength(1));
       const query = seriesRequests(api).at(-1);
       expect(query?.get("from_at")).toBe("2026-11-09T16:00:00Z");
-      expect(query?.get("compare")).toBe("previous");
+      expect(query?.get("compare")).toBe("previous_period");
       expect(query?.has("compare_from_at")).toBe(false);
       expect(query?.get("grain")).toBe("hour");
     });

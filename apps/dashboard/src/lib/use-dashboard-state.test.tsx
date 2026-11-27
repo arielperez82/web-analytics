@@ -55,21 +55,25 @@ describe("useDashboardState", () => {
     const comparisonOf = (query: string) => visit(`${query}&tz=UTC`, () => useDashboardState()).result.current.comparison;
 
     it("is the previous period by default", () => {
-      expect(comparisonOf("days=7")).toEqual({ compare: "previous" });
+      expect(comparisonOf("days=7")).toEqual({ compare: "previous_period" });
     });
 
-    it("is the same period last week when asked", () => {
-      expect(comparisonOf("days=1&compare=last_week")).toEqual({ compare: "last_week" });
+    it.each(["previous_week", "previous_month", "previous_year"] as const)("is %s when asked", (compare) => {
+      expect(comparisonOf(`days=1&compare=${compare}`)).toEqual({ compare });
+    });
+
+    it.each(["previous", "last_week"])("is the previous period for the old link value %s", (value) => {
+      expect(comparisonOf(`days=7&compare=${value}`)).toEqual({ compare: "previous_period" });
     });
 
     it("is the previous period for the last 24 hours, whose dates the proxy works out", () => {
-      expect(comparisonOf("range=last_24_hours")).toEqual({ compare: "previous" });
+      expect(comparisonOf("range=last_24_hours")).toEqual({ compare: "previous_period" });
     });
 
     it.each(["this_week", "this_month", "this_year"])(
       "is the previous period for %s, which the proxy turns into the equal-length window just before",
       (preset) => {
-        expect(comparisonOf(`range=${preset}`)).toEqual({ compare: "previous" });
+        expect(comparisonOf(`range=${preset}`)).toEqual({ compare: "previous_period" });
       },
     );
 
@@ -82,7 +86,7 @@ describe("useDashboardState", () => {
     });
 
     it("never carries a date", () => {
-      expect(Object.keys(comparisonOf("days=7&compare=last_week") ?? {})).toEqual(["compare"]);
+      expect(Object.keys(comparisonOf("days=7&compare=previous_week") ?? {})).toEqual(["compare"]);
     });
   });
 

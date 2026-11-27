@@ -5,9 +5,7 @@ export type CompareChoice =
   | "previous_period"
   | "previous_week"
   | "previous_month"
-  | "previous_year"
-  | "previous"
-  | "last_week";
+  | "previous_year";
 
 export type CurrentWindow = {
   readonly date_from?: string;
@@ -27,8 +25,6 @@ const COMPARE_CHOICES: readonly string[] = [
   "previous_week",
   "previous_month",
   "previous_year",
-  "previous",
-  "last_week",
 ];
 
 export const isCompareChoice = (value: string): value is CompareChoice => COMPARE_CHOICES.includes(value);
@@ -111,7 +107,7 @@ const startBefore = (choice: CompareChoice, start: string): string => {
 };
 
 const isCalendarShift = (compare: CompareChoice): boolean =>
-  compare === "previous_week" || compare === "last_week" || compare === "previous_month" || compare === "previous_year";
+  compare === "previous_week" || compare === "previous_month" || compare === "previous_year";
 
 const sameLocalTimeOn = (instant: Date, day: (local: string) => string, zone: string): Date => {
   const parts = partsIn(instant, zone);

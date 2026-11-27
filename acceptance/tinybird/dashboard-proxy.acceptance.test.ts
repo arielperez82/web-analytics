@@ -56,13 +56,19 @@ describe.concurrent('dashboard proxy in front of Tinybird', () => {
   });
 
   it.each([
-    ['previous', 'date_from=2026-11-10&date_to=2026-11-12'],
-    ['last_week', 'date_from=2026-11-10&date_to=2026-11-12'],
+    ['previous_period', 'date_from=2026-11-10&date_to=2026-11-12'],
+    ['previous_week', 'date_from=2026-11-10&date_to=2026-11-12'],
     [
-      'previous',
+      'previous_period',
       'from_at=2026-11-10T05:00:00Z&to_at=2026-11-11T05:00:00Z&tz=America/New_York',
     ],
-    ['last_week', 'from_at=2026-11-10T05:00:00Z&tz=America/New_York'],
+    ['previous_week', 'from_at=2026-11-10T05:00:00Z&tz=America/New_York'],
+    ['previous_month', 'date_from=2026-03-29&date_to=2026-03-31'],
+    ['previous_year', 'date_from=2028-02-29&date_to=2028-03-02'],
+    [
+      'previous_month',
+      'from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&tz=America/New_York',
+    ],
   ])(
     'answers a compared request that names only %s and %s',
     async (compare, window) => {

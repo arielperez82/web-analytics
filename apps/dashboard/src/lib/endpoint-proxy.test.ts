@@ -90,7 +90,7 @@ describe("proxyEndpoint", () => {
   it("forwards the previous-period comparison flag with the window it compares", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(
-      request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true&compare=previous"),
+      request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true&compare=previous_period"),
       deps,
     );
     expect(calls[0].url).toBe(
@@ -146,7 +146,7 @@ describe("proxyEndpoint", () => {
     it("turns previous into the explicit days before, and never forwards the choice", async () => {
       const { deps, calls } = createFakeDeps();
       const result = await proxyEndpoint(
-        request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&compare=previous&include_previous_period=true"),
+        request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&compare=previous_period&include_previous_period=true"),
         deps,
       );
       expect(result.status).toBe(200);
@@ -159,11 +159,21 @@ describe("proxyEndpoint", () => {
       });
     });
 
-    it("turns last_week into the same days a week earlier", async () => {
+    it("turns previous_week into the same days a week earlier", async () => {
       const { deps, calls } = createFakeDeps();
-      await proxyEndpoint(request("visitor_counts", "date_from=2026-11-10&date_to=2026-11-16&compare=last_week"), deps);
+      await proxyEndpoint(request("visitor_counts", "date_from=2026-11-10&date_to=2026-11-16&compare=previous_week"), deps);
       expect(sentQuery(calls).get("compare_from")).toBe("2026-11-03");
       expect(sentQuery(calls).get("compare_to")).toBe("2026-11-09");
+    });
+
+    it.each([
+      ["previous_month", "2026-10-10", "2026-10-16"],
+      ["previous_year", "2025-11-10", "2025-11-16"],
+    ])("turns %s into the same span a calendar unit earlier", async (choice, from, to) => {
+      const { deps, calls } = createFakeDeps();
+      await proxyEndpoint(request("visitor_counts", `date_from=2026-11-10&date_to=2026-11-16&compare=${choice}`), deps);
+      expect(sentQuery(calls).get("compare_from")).toBe(from);
+      expect(sentQuery(calls).get("compare_to")).toBe(to);
     });
 
     it("turns an exact window into an exact compared window in the request zone", async () => {
@@ -171,7 +181,7 @@ describe("proxyEndpoint", () => {
       await proxyEndpoint(
         request(
           "engagement",
-          "from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&tz=America/New_York&compare=last_week",
+          "from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&tz=America/New_York&compare=previous_week",
         ),
         deps,
       );
@@ -182,13 +192,13 @@ describe("proxyEndpoint", () => {
 
     it("ends an open exact window at the end of the current hour, so both windows are explicit and as long", async () => {
       const { deps, calls } = createFakeDeps({ now: () => new Date("2026-11-18T16:20:00Z") });
-      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&compare=previous"), deps);
+      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&compare=previous_period"), deps);
       expect(sentQuery(calls).get("to_at")).toBe("2026-11-18T17:00:00Z");
       expect(sentQuery(calls).get("compare_from_at")).toBe("2026-11-16T17:00:00Z");
       expect(sentQuery(calls).get("compare_to_at")).toBe("2026-11-17T17:00:00Z");
     });
 
-    it.each(["", "yesterday", "PREVIOUS", "off", "last_week,previous"])(
+    it.each(["", "yesterday", "PREVIOUS", "off", "previous", "last_week", "previous_week,previous_month"])(
       "refuses the unknown compare value %j with a named error",
       async (value) => {
         const { deps, calls } = createFakeDeps();
@@ -211,7 +221,7 @@ describe("proxyEndpoint", () => {
       ["an exact end before the exact start", "from_at=2026-11-11T00:00:00Z&to_at=2026-11-10T00:00:00Z"],
     ])("refuses a window with %s, naming the problem", async (_name, window) => {
       const { deps, calls } = createFakeDeps();
-      const result = await proxyEndpoint(request("top_pages", `${window}&compare=previous`), deps);
+      const result = await proxyEndpoint(request("top_pages", `${window}&compare=previous_period`), deps);
       expect(result).toEqual({ status: 400, body: { error: "compare needs a complete, ordered window" } });
       expect(calls).toHaveLength(0);
     });
@@ -221,35 +231,35 @@ describe("proxyEndpoint", () => {
       ["to_at", "from_at=2026-11-10T00:00:00Z&to_at=nope"],
     ])("refuses a %s that is not an exact instant", async (key, window) => {
       const { deps, calls } = createFakeDeps();
-      const result = await proxyEndpoint(request("top_pages", `${window}&compare=previous`), deps);
+      const result = await proxyEndpoint(request("top_pages", `${window}&compare=previous_period`), deps);
       expect(result).toEqual({ status: 400, body: { error: `Invalid ${key}` } });
       expect(calls).toHaveLength(0);
     });
 
     it.each(["2023-02-31T00:00:00Z", "2026-11-10T24:00:00Z"])("refuses the impossible instant %s", async (instant) => {
       const { deps, calls } = createFakeDeps();
-      const result = await proxyEndpoint(request("top_pages", `from_at=${instant}&compare=previous`), deps);
+      const result = await proxyEndpoint(request("top_pages", `from_at=${instant}&compare=previous_period`), deps);
       expect(result).toEqual({ status: 400, body: { error: "Invalid from_at" } });
       expect(calls).toHaveLength(0);
     });
 
     it("ends an open window an hour later when now is exactly on the hour", async () => {
       const { deps, calls } = createFakeDeps({ now: () => new Date("2026-11-18T16:00:00Z") });
-      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&compare=previous"), deps);
+      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&compare=previous_period"), deps);
       expect(sentQuery(calls).get("to_at")).toBe("2026-11-18T17:00:00Z");
       expect(sentQuery(calls).get("compare_from_at")).toBe("2026-11-16T17:00:00Z");
     });
 
     it("refuses an open window that starts after the end of the current hour", async () => {
       const { deps, calls } = createFakeDeps({ now: () => new Date("2026-11-18T16:20:00Z") });
-      const result = await proxyEndpoint(request("top_pages", "from_at=2026-11-18T18:00:00Z&compare=previous"), deps);
+      const result = await proxyEndpoint(request("top_pages", "from_at=2026-11-18T18:00:00Z&compare=previous_period"), deps);
       expect(result).toEqual({ status: 400, body: { error: "compare needs a complete, ordered window" } });
       expect(calls).toHaveLength(0);
     });
 
     it("compares an open window with the same local time last week, as long as the window", async () => {
       const { deps, calls } = createFakeDeps({ now: () => new Date("2026-11-18T16:20:00Z") });
-      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&tz=UTC&compare=last_week"), deps);
+      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&tz=UTC&compare=previous_week"), deps);
       expect(Object.fromEntries(sentQuery(calls))).toMatchObject({
         from_at: "2026-11-17T17:00:00Z",
         to_at: "2026-11-18T17:00:00Z",
@@ -263,7 +273,7 @@ describe("proxyEndpoint", () => {
       async (extra) => {
         const { deps, calls } = createFakeDeps();
         const result = await proxyEndpoint(
-          request("top_pages", `date_from=2026-11-10&date_to=2026-11-16&compare=previous&${extra}`),
+          request("top_pages", `date_from=2026-11-10&date_to=2026-11-16&compare=previous_period&${extra}`),
           deps,
         );
         expect(result).toEqual({

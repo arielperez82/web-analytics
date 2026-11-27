@@ -10,49 +10,49 @@ const lengthOf = (from: string, to: string) => (Date.parse(`${to}T00:00:00Z`) - 
 
 describe("comparedWindow in whole days", () => {
   it("puts the previous period right before, as long as the current one", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-11-10", "2026-11-16"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-11-10", "2026-11-16"), zone: "UTC" })).toEqual({
       compare_from: "2026-11-03",
       compare_to: "2026-11-09",
     });
   });
 
   it("compares a single day with the day before", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-11-18", "2026-11-18"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-11-18", "2026-11-18"), zone: "UTC" })).toEqual({
       compare_from: "2026-11-17",
       compare_to: "2026-11-17",
     });
   });
 
   it("shifts the same days back one week for last week", () => {
-    expect(comparedWindow({ compare: "last_week", window: days("2026-11-10", "2026-11-16"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_week", window: days("2026-11-10", "2026-11-16"), zone: "UTC" })).toEqual({
       compare_from: "2026-11-03",
       compare_to: "2026-11-09",
     });
   });
 
   it("compares a long range with the days before it, across a month end", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-03-01", "2026-03-30"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-03-01", "2026-03-30"), zone: "UTC" })).toEqual({
       compare_from: "2026-01-30",
       compare_to: "2026-02-28",
     });
   });
 
   it("keeps a whole month as long as the month", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-03-01", "2026-03-31"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-03-01", "2026-03-31"), zone: "UTC" })).toEqual({
       compare_from: "2026-01-29",
       compare_to: "2026-02-28",
     });
   });
 
   it("crosses a year end", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-01-01", "2026-01-07"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-01-01", "2026-01-07"), zone: "UTC" })).toEqual({
       compare_from: "2025-12-25",
       compare_to: "2025-12-31",
     });
   });
 
   it("counts a leap day when shifting back a week", () => {
-    expect(comparedWindow({ compare: "last_week", window: days("2028-03-01", "2028-03-07"), zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_week", window: days("2028-03-01", "2028-03-07"), zone: "UTC" })).toEqual({
       compare_from: "2028-02-23",
       compare_to: "2028-02-29",
     });
@@ -60,11 +60,11 @@ describe("comparedWindow in whole days", () => {
 
   it("counts whole days across a clock change, in any zone", () => {
     const window = days("2026-11-02", "2026-11-08");
-    expect(comparedWindow({ compare: "last_week", window, zone: "America/New_York" })).toEqual({
+    expect(comparedWindow({ compare: "previous_week", window, zone: "America/New_York" })).toEqual({
       compare_from: "2026-10-26",
       compare_to: "2026-11-01",
     });
-    expect(comparedWindow({ compare: "previous", window, zone: "Asia/Kolkata" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window, zone: "Asia/Kolkata" })).toEqual({
       compare_from: "2026-10-26",
       compare_to: "2026-11-01",
     });
@@ -72,11 +72,11 @@ describe("comparedWindow in whole days", () => {
 
   it("shifts a three-day window by seven days, not by its length, for last week", () => {
     const window = days("2026-11-10", "2026-11-12");
-    expect(comparedWindow({ compare: "last_week", window, zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_week", window, zone: "UTC" })).toEqual({
       compare_from: "2026-11-03",
       compare_to: "2026-11-05",
     });
-    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window, zone: "UTC" })).toEqual({
       compare_from: "2026-11-07",
       compare_to: "2026-11-09",
     });
@@ -84,11 +84,11 @@ describe("comparedWindow in whole days", () => {
 
   it("shifts a whole month by seven days for last week and by its length for previous", () => {
     const window = days("2026-11-01", "2026-11-30");
-    expect(comparedWindow({ compare: "last_week", window, zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_week", window, zone: "UTC" })).toEqual({
       compare_from: "2026-10-25",
       compare_to: "2026-11-23",
     });
-    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toEqual({
+    expect(comparedWindow({ compare: "previous_period", window, zone: "UTC" })).toEqual({
       compare_from: "2026-10-02",
       compare_to: "2026-10-31",
     });
@@ -97,7 +97,7 @@ describe("comparedWindow in whole days", () => {
   describe("the calendar presets compare with the equal-length window just before", () => {
     const now = new Date("2026-11-18T12:00:00Z");
     const previousOf = (preset: "this_week" | "this_month" | "this_year") =>
-      comparedWindow({ compare: "previous", window: rangeToParams({ preset }, now, "UTC"), zone: "UTC" });
+      comparedWindow({ compare: "previous_period", window: rangeToParams({ preset }, now, "UTC"), zone: "UTC" });
 
     it("compares this week so far with the days right before Monday", () => {
       expect(previousOf("this_week")).toEqual({ compare_from: "2026-11-13", compare_to: "2026-11-15" });
@@ -113,16 +113,16 @@ describe("comparedWindow in whole days", () => {
   });
 
   it("has no comparison that would reach before year 1", () => {
-    expect(comparedWindow({ compare: "previous", window: days("0001-01-01", "0001-01-03"), zone: "UTC" })).toBeUndefined();
-    expect(comparedWindow({ compare: "last_week", window: days("0001-01-03", "0001-01-05"), zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_period", window: days("0001-01-01", "0001-01-03"), zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_week", window: days("0001-01-03", "0001-01-05"), zone: "UTC" })).toBeUndefined();
   });
 
   it("refuses a day the calendar does not have", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-02-29", "2026-03-02"), zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-02-29", "2026-03-02"), zone: "UTC" })).toBeUndefined();
   });
 
   it("ignores instants that are not part of the request", () => {
-    expect(comparedWindow({ compare: "previous", window: days("2026-11-10", "2026-11-10"), zone: "UTC" })).not.toHaveProperty(
+    expect(comparedWindow({ compare: "previous_period", window: days("2026-11-10", "2026-11-10"), zone: "UTC" })).not.toHaveProperty(
       "compare_from_at",
     );
   });
@@ -135,27 +135,27 @@ describe("comparedWindow in whole days", () => {
     ["a start that is not a day", days("yesterday", "2026-11-09")],
     ["an end that is not a day", days("2026-11-01", "2026-13-40")],
   ])("has no comparison for %s", (_name, window) => {
-    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_period", window, zone: "UTC" })).toBeUndefined();
   });
 });
 
 describe("comparedWindow in exact hours", () => {
   it("puts the previous window right before, as long as the current one", () => {
     expect(
-      comparedWindow({ compare: "previous", window: hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"), zone: "UTC" }),
+      comparedWindow({ compare: "previous_period", window: hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"), zone: "UTC" }),
     ).toEqual({ compare_from_at: "2026-11-16T16:00:00Z", compare_to_at: "2026-11-17T16:00:00Z" });
   });
 
   it("starts at the same local time a week earlier for last week", () => {
     expect(
-      comparedWindow({ compare: "last_week", window: hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"), zone: "UTC" }),
+      comparedWindow({ compare: "previous_week", window: hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"), zone: "UTC" }),
     ).toEqual({ compare_from_at: "2026-11-10T16:00:00Z", compare_to_at: "2026-11-11T16:00:00Z" });
   });
 
   it("keeps the same local start across the fall clock change and the same length", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-11-08T05:00:00Z", "2026-11-09T05:00:00Z"),
         zone: "America/New_York",
       }),
@@ -165,7 +165,7 @@ describe("comparedWindow in exact hours", () => {
   it("keeps the same local start across the spring clock change and the same length", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-03-15T04:00:00Z", "2026-03-16T04:00:00Z"),
         zone: "America/New_York",
       }),
@@ -175,7 +175,7 @@ describe("comparedWindow in exact hours", () => {
   it("measures the previous window in elapsed hours across a clock change", () => {
     expect(
       comparedWindow({
-        compare: "previous",
+        compare: "previous_period",
         window: hours("2026-11-02T05:00:00Z", "2026-11-03T05:00:00Z"),
         zone: "America/New_York",
       }),
@@ -185,7 +185,7 @@ describe("comparedWindow in exact hours", () => {
   it("reads the local time in a zone with a half hour offset", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-11-10T18:30:00Z", "2026-11-11T18:30:00Z"),
         zone: "Asia/Kolkata",
       }),
@@ -195,7 +195,7 @@ describe("comparedWindow in exact hours", () => {
   it("keeps a local start that is not on midnight across the spring clock change", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-03-15T07:30:00Z", "2026-03-16T07:30:00Z"),
         zone: "America/New_York",
       }),
@@ -205,7 +205,7 @@ describe("comparedWindow in exact hours", () => {
   it("settles a local start that does not exist a week earlier on the instant before the gap", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-03-15T06:30:00Z", "2026-03-16T06:30:00Z"),
         zone: "America/New_York",
       }),
@@ -215,7 +215,7 @@ describe("comparedWindow in exact hours", () => {
   it("settles a local start that happens twice a week earlier on its first occurrence", () => {
     expect(
       comparedWindow({
-        compare: "last_week",
+        compare: "previous_week",
         window: hours("2026-11-08T06:30:00Z", "2026-11-09T06:30:00Z"),
         zone: "America/New_York",
       }),
@@ -224,14 +224,14 @@ describe("comparedWindow in exact hours", () => {
 
   it("goes back across a month end", () => {
     expect(
-      comparedWindow({ compare: "last_week", window: hours("2026-12-03T00:00:00Z", "2026-12-04T00:00:00Z"), zone: "UTC" }),
+      comparedWindow({ compare: "previous_week", window: hours("2026-12-03T00:00:00Z", "2026-12-04T00:00:00Z"), zone: "UTC" }),
     ).toEqual({ compare_from_at: "2026-11-26T00:00:00Z", compare_to_at: "2026-11-27T00:00:00Z" });
   });
 
   it("accepts offsets in the instants", () => {
     expect(
       comparedWindow({
-        compare: "previous",
+        compare: "previous_period",
         window: hours("2026-11-17T17:00:00+01:00", "2026-11-18T17:00:00+01:00"),
         zone: "Europe/Madrid",
       }),
@@ -241,7 +241,7 @@ describe("comparedWindow in exact hours", () => {
   it("takes the instants over the days when both are given", () => {
     expect(
       comparedWindow({
-        compare: "previous",
+        compare: "previous_period",
         window: { ...days("2026-11-17", "2026-11-18"), ...hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z") },
         zone: "UTC",
       }),
@@ -255,12 +255,12 @@ describe("comparedWindow in exact hours", () => {
     ["an offset beyond a day", hours("2026-11-10T00:00:00+24:00", "2026-11-12T00:00:00Z")],
     ["year 0", hours("0000-01-01T00:00:00Z", "0000-01-02T00:00:00Z")],
   ])("has no comparison for %s", (_name, window) => {
-    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_period", window, zone: "UTC" })).toBeUndefined();
   });
 
   it("has no comparison that would reach before year 1", () => {
     expect(
-      comparedWindow({ compare: "previous", window: hours("0001-01-01T05:00:00Z", "0001-01-01T15:00:00Z"), zone: "UTC" }),
+      comparedWindow({ compare: "previous_period", window: hours("0001-01-01T05:00:00Z", "0001-01-01T15:00:00Z"), zone: "UTC" }),
     ).toBeUndefined();
   });
 
@@ -271,7 +271,7 @@ describe("comparedWindow in exact hours", () => {
     ["an empty window", hours("2026-11-18T16:00:00Z", "2026-11-18T16:00:00Z")],
     ["a start that is not an instant", hours("yesterday", "2026-11-17T16:00:00Z")],
   ])("has no comparison for %s", (_name, window) => {
-    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "previous_period", window, zone: "UTC" })).toBeUndefined();
   });
 });
 
@@ -404,6 +404,14 @@ describe("named comparisons in whole days", () => {
 });
 
 describe("named comparisons in exact hours", () => {
+  it.each(NAMED)("%s keeps the elapsed span of the current window", (compare) => {
+    const window = hours("2026-03-29T10:00:00Z", "2026-04-02T07:30:00Z");
+    const result = comparedWindow({ compare, window, zone: "America/New_York" });
+    expect(
+      result && "compare_from_at" in result && Date.parse(result.compare_to_at) - Date.parse(result.compare_from_at),
+    ).toBe(Date.parse(window.to_at) - Date.parse(window.from_at));
+  });
+
   const compared = (compare: CompareChoice, window: { from_at: string; to_at: string }, zone = "UTC") =>
     comparedWindow({ compare, window, zone });
 

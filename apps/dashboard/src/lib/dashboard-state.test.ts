@@ -211,20 +211,26 @@ describe("what the chart is compared with, in the link", () => {
     expect(parse("").compare).toBeUndefined();
   });
 
-  it("reads the same day last week and the choice to compare nothing", () => {
-    expect(parse("compare=last_week").compare).toBe("last_week");
-    expect(parse("compare=off").compare).toBe("off");
+  it.each(["previous_week", "previous_month", "previous_year", "off"] as const)("reads the choice %s", (choice) => {
+    expect(parse(`compare=${choice}`).compare).toBe(choice);
   });
 
-  it("ignores anything else, including an explicit previous", () => {
+  it("reads nothing else from the link", () => {
     expect(parse("compare=yesterday").compare).toBeUndefined();
-    expect(parse("compare=previous").compare).toBeUndefined();
   });
 
-  it("writes nothing for the default and the choice otherwise, and round-trips it", () => {
+  it.each(["previous", "last_week", "previous_period"])("falls back to the default for %s, so an old link still opens", (value) => {
+    expect(parse(`compare=${value}`).compare).toBeUndefined();
+  });
+
+  it.each(["previous_week", "previous_month", "previous_year", "off"] as const)("writes the choice %s and round-trips it", (compare) => {
+    expect(toSearch({ range: { days: 7 }, filters: {}, compare })).toBe(`compare=${compare}`);
+    expect(parse(toSearch({ range: { days: 1 }, filters: {}, compare })).compare).toBe(compare);
+  });
+
+  it("writes nothing for the default", () => {
     expect(toSearch({ range: { days: 7 }, filters: {} })).toBe("");
     expect(toSearch({ range: { days: 7 }, filters: {}, compare: "off" })).toBe("compare=off");
-    expect(parse(toSearch({ range: { days: 1 }, filters: {}, compare: "last_week" })).compare).toBe("last_week");
   });
 
   it("keeps the choice when drilling into a day", () => {

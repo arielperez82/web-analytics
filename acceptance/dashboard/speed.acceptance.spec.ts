@@ -103,7 +103,7 @@ test('speed insights are compared with the period before, until the viewer switc
           .some(
             query =>
               query.get('include_previous_period') === 'true' &&
-              query.get('compare') === 'previous' &&
+              query.get('compare') === 'previous_period' &&
               !query.has('compare_from') &&
               !query.has('compare_to')
           )

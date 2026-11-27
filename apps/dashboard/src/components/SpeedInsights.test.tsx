@@ -128,7 +128,7 @@ describe("SpeedInsights", () => {
   });
 
   describe("compared with another period", () => {
-    const comparison = { compare: "previous" } as const;
+    const comparison = { compare: "previous_period" } as const;
     const route = (overall_score_change: number | null): ApiRow => ({
       domain: "a.example",
       route: "/checkout",
@@ -153,7 +153,7 @@ describe("SpeedInsights", () => {
       for (const endpoint of ["web_vitals_current", "web_vitals_routes"]) {
         const query = api.requestsTo(endpoint)[0];
         expect(query?.get("include_previous_period")).toBe("true");
-        expect(query?.get("compare")).toBe("previous");
+        expect(query?.get("compare")).toBe("previous_period");
         expect(query?.has("compare_from")).toBe(false);
       }
     });

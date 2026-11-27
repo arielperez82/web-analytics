@@ -23,7 +23,7 @@ const report = (slug: string): Report => {
   return found;
 };
 
-const comparison = { compare: "previous" } as const;
+const comparison = { compare: "previous_period" } as const;
 
 const rows: readonly ApiRow[] = [
   { location: "ES", sessions: 10, hits: 30, bar_percent: 100, previous_sessions: 8, previous_bar_percent: 80, sessions_change: 2, sessions_growth_percentage: 25, status: "" },
@@ -104,17 +104,17 @@ describe("RankedTable", () => {
     await rowOf("ES");
     const query = api.requestsTo("top_locations")[0];
     expect(query?.get("include_previous_period")).toBe("true");
-    expect(query?.get("compare")).toBe("previous");
+    expect(query?.get("compare")).toBe("previous_period");
     expect(query?.has("compare_from")).toBe(false);
     expect(query?.has("compare_from_at")).toBe(false);
   });
 
   it("names the same period last week by its choice, never by dates", async () => {
-    const api = renderTable({ comparison: { compare: "last_week" } });
+    const api = renderTable({ comparison: { compare: "previous_week" } });
 
     await rowOf("ES");
     const query = api.requestsTo("top_locations")[0];
-    expect(query?.get("compare")).toBe("last_week");
+    expect(query?.get("compare")).toBe("previous_week");
     expect(query?.has("compare_to")).toBe(false);
   });
 
