@@ -175,6 +175,8 @@ export const proxyEndpoint = async (
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
   if (!ALLOWED_ENDPOINTS.includes(name) || (tenantId && UNPINNED_ONLY.includes(name)))
     return { status: 404, body: { error: "Not found" } };
+  if (!UNPINNED_ONLY.includes(name) && !tenantId && !query.has("tenant_id"))
+    return { status: 400, body: { error: "tenant_id is required" } };
 
   const goalPath = query.get("goal_path");
   if (goalPath !== null && !isValidGoalPath(goalPath))
