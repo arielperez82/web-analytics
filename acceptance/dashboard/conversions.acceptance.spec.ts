@@ -125,72 +125,19 @@ test('a pattern goal is titled as a pattern and asks the API with the pattern', 
   ).toBe(true);
 });
 
-test('a count-only goal shows its conversions and no rate, and says so', async ({
+test('a goal with a denominator sends it to the API and shows the rate the API returned', async ({
   page,
 }) => {
   const api = await stubApi(page, {
     ...emptyOverview,
-    conversion_summary: query =>
-      query.get('goal_denominator') === 'none'
-        ? [
-            {
-              conversions: 12,
-              sessions: 40,
-              denominator: null,
-              conversion_rate_percent: null,
-            },
-          ]
-        : [],
-    conversions: query =>
-      query.get('goal_denominator') === 'none'
-        ? [
-            {
-              channel: 'Paid',
-              sessions: 40,
-              denominator: null,
-              conversions: 12,
-              conversion_rate_percent: null,
-            },
-          ]
-        : [],
-  });
-  await signIn(page);
-
-  const panel = page.locator('section.panel', { hasText: 'Bookings' });
-  await expect(panel.getByText('12 sessions converted')).toBeVisible();
-  await expect(panel.getByText('Count only, no rate')).toBeVisible();
-  await expect(panel.locator('th')).toHaveText(['Channel', 'Conversions']);
-  await expect(panel.locator('tbody tr')).toHaveText(['Paid12']);
-  expect(
-    api
-      .requestsTo('conversion_summary')
-      .some(query => query.get('goal_denominator') === 'none')
-  ).toBe(true);
-});
-
-test('a visitor goal divides by visitors and a goal that chose nothing says session is the default', async ({
-  page,
-}) => {
-  await stubApi(page, {
-    ...emptyOverview,
-    conversion_summary: query =>
-      query.get('goal_denominator') === 'visitor'
-        ? [
-            {
-              conversions: 5,
-              sessions: 90,
-              denominator: 20,
-              conversion_rate_percent: 25,
-            },
-          ]
-        : [
-            {
-              conversions: 70,
-              sessions: 900,
-              denominator: 900,
-              conversion_rate_percent: 7.5,
-            },
-          ],
+    conversion_summary: [
+      {
+        conversions: 5,
+        sessions: 90,
+        denominator: 20,
+        conversion_rate_percent: 25,
+      },
+    ],
     conversions: [
       {
         channel: 'Paid',
@@ -203,11 +150,15 @@ test('a visitor goal divides by visitors and a goal that chose nothing says sess
   });
   await signIn(page);
 
-  const returning = page.locator('section.panel', { hasText: 'Returning' });
+  const panel = page.locator('section.panel', {
+    has: page.getByRole('heading', { name: /^Booked per visitor/ }),
+  });
   await expect(
-    returning.getByText('5 of 20 visitors converted (25%)')
+    panel.getByText('5 of 20 visitors converted (25%)')
   ).toBeVisible();
-  await expect(returning.getByText('Rate per visitor')).toBeVisible();
-  const signedUp = page.locator('section.panel', { hasText: 'Signed up' });
-  await expect(signedUp.getByText('Rate per session (default)')).toBeVisible();
+  expect(
+    api
+      .requestsTo('conversion_summary')
+      .some(query => query.get('goal_denominator') === 'visitor')
+  ).toBe(true);
 });

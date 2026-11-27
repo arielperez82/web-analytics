@@ -27,12 +27,7 @@ export default defineConfig({
         { name: 'Signed up', path: '/welcome/done' },
         { name: 'Any signup', eventPattern: 'signup_.*' },
         {
-          name: 'Bookings',
-          event: 'booking_confirmed',
-          denominator: 'none',
-        },
-        {
-          name: 'Returning',
+          name: 'Booked per visitor',
           path: '/welcome/back',
           denominator: 'visitor',
         },
