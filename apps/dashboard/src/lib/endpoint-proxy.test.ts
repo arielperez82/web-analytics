@@ -132,6 +132,94 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(1);
   });
 
+  describe("the compare choice", () => {
+    const sentQuery = (calls: readonly Call[]) => new URL(calls[0].url).searchParams;
+
+    it("turns previous into the explicit days before, and never forwards the choice", async () => {
+      const { deps, calls } = createFakeDeps();
+      const result = await proxyEndpoint(
+        request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&compare=previous&include_previous_period=true"),
+        deps,
+      );
+      expect(result.status).toBe(200);
+      expect(Object.fromEntries(sentQuery(calls))).toEqual({
+        date_from: "2026-11-10",
+        date_to: "2026-11-16",
+        include_previous_period: "true",
+        compare_from: "2026-11-03",
+        compare_to: "2026-11-09",
+      });
+    });
+
+    it("turns last_week into the same days a week earlier", async () => {
+      const { deps, calls } = createFakeDeps();
+      await proxyEndpoint(request("visitor_counts", "date_from=2026-11-10&date_to=2026-11-16&compare=last_week"), deps);
+      expect(sentQuery(calls).get("compare_from")).toBe("2026-11-03");
+      expect(sentQuery(calls).get("compare_to")).toBe("2026-11-09");
+    });
+
+    it("turns an exact window into an exact compared window in the request zone", async () => {
+      const { deps, calls } = createFakeDeps();
+      await proxyEndpoint(
+        request(
+          "engagement",
+          "from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&tz=America/New_York&compare=last_week",
+        ),
+        deps,
+      );
+      expect(sentQuery(calls).get("compare_from_at")).toBe("2026-11-01T04:00:00Z");
+      expect(sentQuery(calls).get("compare_to_at")).toBe("2026-11-02T04:00:00Z");
+      expect(sentQuery(calls).has("compare_from")).toBe(false);
+    });
+
+    it("ends an open exact window at the end of the current hour, so both windows are explicit and as long", async () => {
+      const { deps, calls } = createFakeDeps({ now: () => new Date("2026-11-18T16:20:00Z") });
+      await proxyEndpoint(request("top_pages", "from_at=2026-11-17T17:00:00Z&compare=previous"), deps);
+      expect(sentQuery(calls).get("to_at")).toBe("2026-11-18T17:00:00Z");
+      expect(sentQuery(calls).get("compare_from_at")).toBe("2026-11-16T17:00:00Z");
+      expect(sentQuery(calls).get("compare_to_at")).toBe("2026-11-17T17:00:00Z");
+    });
+
+    it("refuses an unknown compare value", async () => {
+      const { deps, calls } = createFakeDeps();
+      for (const value of ["", "yesterday", "PREVIOUS", "off", "last_week,previous"]) {
+        const result = await proxyEndpoint(
+          request("top_pages", `date_from=2026-11-10&date_to=2026-11-16&compare=${value}`),
+          deps,
+        );
+        expect(result.status).toBe(400);
+      }
+      expect(calls).toHaveLength(0);
+    });
+
+    it.each([
+      ["only a start day", "date_from=2026-11-10"],
+      ["only an end day", "date_to=2026-11-10"],
+      ["no window", ""],
+      ["only a start instant", "from_at=2026-11-10T00:00:00Z&to_at=nope"],
+      ["only an end instant", "to_at=2026-11-10T00:00:00Z"],
+      ["an end before the start", "date_from=2026-11-10&date_to=2026-11-09"],
+    ])("refuses a window with %s", async (_name, window) => {
+      const { deps, calls } = createFakeDeps();
+      const result = await proxyEndpoint(request("top_pages", `${window}&compare=previous`), deps);
+      expect(result.status).toBe(400);
+      expect(calls).toHaveLength(0);
+    });
+
+    it.each(["compare_from=2026-11-03", "compare_to=2026-11-09", "compare_from_at=2026-11-03T00:00:00Z", "compare_to_at=2026-11-04T00:00:00Z"])(
+      "refuses %s given next to the choice",
+      async (extra) => {
+        const { deps, calls } = createFakeDeps();
+        const result = await proxyEndpoint(
+          request("top_pages", `date_from=2026-11-10&date_to=2026-11-16&compare=previous&${extra}`),
+          deps,
+        );
+        expect(result.status).toBe(400);
+        expect(calls).toHaveLength(0);
+      },
+    );
+  });
+
   it("pins tenant_id server-side, overriding any client value", async () => {
     const { deps, calls } = createFakeDeps({
       tenantId: "my-tenant",
