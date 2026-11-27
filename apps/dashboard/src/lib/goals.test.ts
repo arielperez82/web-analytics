@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
+import { goalKey, goalLabel, goalQuery, isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
 
 describe("isValidGoalPath", () => {
   it.each(["/", "/book/confirmed", "/it's/done", "/café/done", "/a b"])(
@@ -110,5 +110,63 @@ describe("parseGoals with event goals", () => {
     expect(result.goals).toEqual([]);
     expect(result.errors).toHaveLength(3);
     expect(result.errors[0]).toContain("Both");
+  });
+});
+
+describe("parseGoals with event pattern goals", () => {
+  it("reads a goal that matches event names with a safe pattern", () => {
+    const raw = JSON.stringify([{ name: "Any signup", eventPattern: "signup_.*" }]);
+    expect(parseGoals(raw)).toEqual({
+      goals: [{ name: "Any signup", eventPattern: "signup_.*" }],
+      errors: [],
+    });
+  });
+
+  it("fails closed on an unsafe pattern and says why", () => {
+    const raw = JSON.stringify([
+      { name: "Good", event: "ok" },
+      { name: "Nested", eventPattern: "(a+)+" },
+      { name: "Lookahead", eventPattern: "a(?=b)" },
+      { name: "Not text", eventPattern: 5 },
+    ]);
+    const result = parseGoals(raw);
+    expect(result.goals).toEqual([{ name: "Good", event: "ok" }]);
+    expect(result.errors).toHaveLength(3);
+    expect(result.errors[0]).toMatch(/Nested.*nested quantifier/);
+    expect(result.errors[1]).toMatch(/Lookahead.*\(\?:/);
+    expect(result.errors[2]).toContain("Not text");
+  });
+
+  it("allows only one of path, event and eventPattern", () => {
+    const raw = JSON.stringify([
+      { name: "A", event: "a", eventPattern: "a.*" },
+      { name: "B", path: "/b", eventPattern: "b.*" },
+    ]);
+    const result = parseGoals(raw);
+    expect(result.goals).toEqual([]);
+    expect(result.errors).toHaveLength(2);
+  });
+});
+
+describe("goal presentation", () => {
+  const path = { name: "Booked", path: "/book" };
+  const event = { name: "Signed up", event: "signup_completed" };
+  const pattern = { name: "Any signup", eventPattern: "signup_.*" };
+
+  it("asks the API with the parameter that matches the goal kind", () => {
+    expect(goalQuery(path)).toEqual({ goal_path: "/book" });
+    expect(goalQuery(event)).toEqual({ goal_event: "signup_completed" });
+    expect(goalQuery(pattern)).toEqual({ goal_event_pattern: "signup_.*" });
+  });
+
+  it("labels a goal with what it matches, saying so for a pattern", () => {
+    expect(goalLabel(path)).toBe("/book");
+    expect(goalLabel(event)).toBe("signup_completed");
+    expect(goalLabel(pattern)).toBe("pattern signup_.*");
+  });
+
+  it("keys the three kinds apart even when the text is the same", () => {
+    const keys = [goalKey(path), goalKey({ name: "x", event: "/book" }), goalKey({ name: "x", eventPattern: "/book" })];
+    expect(new Set(keys).size).toBe(3);
   });
 });

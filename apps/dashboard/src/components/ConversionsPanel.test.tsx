@@ -104,4 +104,16 @@ describe("ConversionsPanel", () => {
     expect(queries.map((query) => query.get("goal_event"))).toEqual(["signup_completed", "signup_completed"]);
     expect(queries.some((query) => query.has("goal_path"))).toBe(false);
   });
+
+  it("asks for the event pattern, and says it is a pattern, when the goal matches by pattern", async () => {
+    const api = installFakeApi({ conversions: channelRows, conversion_summary: [summary] });
+    render(<ConversionsPanel goal={{ name: "Any signup", eventPattern: "signup_.*" }} params={params} />);
+
+    await screen.findByText(/sessions\s+converted/);
+
+    expect(screen.getByText("Any signup · pattern signup_.*")).toBeTruthy();
+    const queries = [...api.requestsTo("conversions"), ...api.requestsTo("conversion_summary")];
+    expect(queries.map((query) => query.get("goal_event_pattern"))).toEqual(["signup_.*", "signup_.*"]);
+    expect(queries.some((query) => query.has("goal_path") || query.has("goal_event"))).toBe(false);
+  });
 });
