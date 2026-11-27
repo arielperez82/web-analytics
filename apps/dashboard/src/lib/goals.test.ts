@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { goalKey, goalLabel, goalQuery, isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
+import { describeGoal, isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
 
 describe("isValidGoalPath", () => {
   it.each(["/", "/book/confirmed", "/it's/done", "/café/done", "/a b"])(
@@ -169,19 +169,19 @@ describe("goal presentation", () => {
   const pattern = { name: "Any signup", eventPattern: "signup_.*" };
 
   it("asks the API with the parameter that matches the goal kind", () => {
-    expect(goalQuery(path)).toEqual({ goal_path: "/book" });
-    expect(goalQuery(event)).toEqual({ goal_event: "signup_completed" });
-    expect(goalQuery(pattern)).toEqual({ goal_event_pattern: "signup_.*" });
+    expect(describeGoal(path).query).toEqual({ goal_path: "/book" });
+    expect(describeGoal(event).query).toEqual({ goal_event: "signup_completed" });
+    expect(describeGoal(pattern).query).toEqual({ goal_event_pattern: "signup_.*" });
   });
 
   it("labels a goal with what it matches, saying so for a pattern", () => {
-    expect(goalLabel(path)).toBe("/book");
-    expect(goalLabel(event)).toBe("signup_completed");
-    expect(goalLabel(pattern)).toBe("pattern signup_.*");
+    expect(describeGoal(path).label).toBe("/book");
+    expect(describeGoal(event).label).toBe("signup_completed");
+    expect(describeGoal(pattern).label).toBe("pattern signup_.*");
   });
 
   it("keys the three kinds apart even when the text is the same", () => {
-    const keys = [goalKey(path), goalKey({ name: "x", event: "/book" }), goalKey({ name: "x", eventPattern: "/book" })];
+    const keys = [describeGoal(path).key, describeGoal({ name: "x", event: "/book" }).key, describeGoal({ name: "x", eventPattern: "/book" }).key];
     expect(new Set(keys).size).toBe(3);
   });
 });

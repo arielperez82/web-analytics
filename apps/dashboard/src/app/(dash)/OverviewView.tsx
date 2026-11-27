@@ -4,7 +4,7 @@ import { ConversionsPanel } from "@/components/ConversionsPanel";
 import { Kpis } from "@/components/Kpis";
 import { OverviewSpeed } from "@/components/OverviewSpeed";
 import { RankedTable } from "@/components/RankedTable";
-import { type Goal, goalKey } from "@/lib/goals";
+import { describeGoal, type Goal } from "@/lib/goals";
 import { REPORTS, type Report } from "@/lib/reports";
 import { useDashboardState } from "@/lib/use-dashboard-state";
 
@@ -26,7 +26,7 @@ export const OverviewView = ({ goals, goalErrors }: { goals: readonly Goal[]; go
           ))}
           <div className="grid">
             {goals.map((goal) => (
-              <ConversionsPanel key={goalKey(goal)} goal={goal} params={params} />
+              <ConversionsPanel key={describeGoal(goal).key} goal={goal} params={params} />
             ))}
           </div>
         </>

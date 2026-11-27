@@ -1,21 +1,22 @@
 "use client";
 
 import { formatPercent } from "@/lib/format";
-import { type Goal, goalLabel, goalQuery } from "@/lib/goals";
+import { describeGoal, type Goal } from "@/lib/goals";
 import type { QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
 
 import { fmt, Panel, type Row,Status } from "./ui";
 
 export const ConversionsPanel = ({ goal, params }: { goal: Goal; params: QueryParams }) => {
-  const goalParams = { ...params, ...goalQuery(goal) };
+  const { query, label } = describeGoal(goal);
+  const goalParams = { ...params, ...query };
   const feed = useEndpoint<Row>("conversions", goalParams);
   const summaryFeed = useEndpoint<Row>("conversion_summary", goalParams);
   const { data } = feed;
   const summary = summaryFeed.data?.[0];
   const failed = feed.error === undefined ? summaryFeed : feed;
   return (
-    <Panel title={`${goal.name} · ${goalLabel(goal)}`}>
+    <Panel title={`${goal.name} · ${label}`}>
       <Status
         loading={feed.loading}
         refreshing={feed.refreshing}

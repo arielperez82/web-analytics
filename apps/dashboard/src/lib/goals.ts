@@ -8,22 +8,17 @@ export type Goal = PathGoal | EventGoal | EventPatternGoal;
 export const isEventGoal = (goal: Goal): goal is EventGoal => "event" in goal;
 export const isEventPatternGoal = (goal: Goal): goal is EventPatternGoal => "eventPattern" in goal;
 
-export const goalQuery = (goal: Goal): Readonly<Record<string, string>> => {
-  if (isEventGoal(goal)) return { goal_event: goal.event };
-  if (isEventPatternGoal(goal)) return { goal_event_pattern: goal.eventPattern };
-  return { goal_path: goal.path };
+export type GoalDescription = {
+  readonly query: Readonly<Record<string, string>>;
+  readonly label: string;
+  readonly key: string;
 };
 
-export const goalLabel = (goal: Goal): string => {
-  if (isEventGoal(goal)) return goal.event;
-  if (isEventPatternGoal(goal)) return `pattern ${goal.eventPattern}`;
-  return goal.path;
-};
-
-export const goalKey = (goal: Goal): string => {
-  if (isEventGoal(goal)) return `event:${goal.event}`;
-  if (isEventPatternGoal(goal)) return `pattern:${goal.eventPattern}`;
-  return `path:${goal.path}`;
+export const describeGoal = (goal: Goal): GoalDescription => {
+  if (isEventGoal(goal)) return { query: { goal_event: goal.event }, label: goal.event, key: `event:${goal.event}` };
+  if (isEventPatternGoal(goal))
+    return { query: { goal_event_pattern: goal.eventPattern }, label: `pattern ${goal.eventPattern}`, key: `pattern:${goal.eventPattern}` };
+  return { query: { goal_path: goal.path }, label: goal.path, key: `path:${goal.path}` };
 };
 
 export type ParsedGoals = {
