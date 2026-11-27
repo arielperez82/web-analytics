@@ -68,8 +68,8 @@ payload (`src/bot-classifier.ts`). Senders cannot set them: the landing has no s
 `CLASSIFIER_VERSION` together so stored history keeps the classification it was written with. The migration
 `forwardQuery` and the column defaults use the same expression, so existing rows and direct seeds are classified too.
 
-`analytics_hits` exposes `is_bot` and `visitor_key`: the `visitor_id` when present, otherwise `legacy:` plus the
-session id, so legacy keys can never collide with real visitor ids.
+The `page_hits` endpoint (over the internal `analytics_hits` pipe) exposes `is_bot` and `visitor_key`: the
+`visitor_id` when present, otherwise `legacy:` plus the session id, so legacy keys can never collide with real visitor ids.
 
 ## Ingest and time
 
@@ -96,6 +96,11 @@ with 400, and an empty `tenant_id` selects the events that carry no tenant. Only
 list, takes no tenant. Joins and groups carry `tenant_id`, so two tenants sharing a domain and path
 never mix. `analytics_hits` is an internal pipe; `page_hits` is its tenant-required endpoint.
 
+The dashboard READ token spans every tenant, so Tinybird cannot tell which tenant a caller may see. The
+dashboard proxy (`apps/dashboard/src/lib/endpoint-proxy.ts`) is the only place that decides: it pins the
+tenant from `DASHBOARD_TENANT_ID` or requires a non-empty `tenant_id`, and fails closed on a blank pin.
+Anything else holding that token can read every tenant.
+
 Senders append to `analytics_events_landing`. History older than the window
 cannot come through it; seed such data directly into `analytics_events` with
 `reception_timestamp` equal to `timestamp` (the acceptance helpers do this).
@@ -110,7 +115,7 @@ columns (`pathname`, `href`, `referrer`, `location`, `locale`, `visitor_id`,
 `id_mode`, `utm_source`, `utm_medium`, `user_agent`, `domain_from_payload`,
 and the web vital fields `vital_name`, `vital_value`, `vital_delta`,
 `vital_value_present`),
-parsed once at ingest. `analytics_hits`, `tenant_actions` and the web vitals pipes read the
+parsed once at ingest. The internal `analytics_hits` pipe, `tenant_actions` and the web vitals pipes read the
 columns, not the JSON. The expressions live in `src/payload-columns.ts` and feed the
 accepted view, the column defaults and the `forwardQuery`, so new rows, direct
 writes and backfilled history agree.

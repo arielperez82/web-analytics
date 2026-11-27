@@ -989,7 +989,8 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
             quantile(0.95)(value) as p95,
             quantile(0.99)(value) as p99,
             count() as measurements,
-            domain
+            domain,
+            tenant_id
         FROM filtered_vitals
         GROUP BY hour, metric_name, domain, tenant_id
         HAVING measurements >= 5
@@ -1014,6 +1015,7 @@ export const webVitalsTimeseries = defineEndpoint("web_vitals_timeseries", {
     p99: t.float64(),
     measurements: t.uint64(),
     domain: t.string(),
+    tenant_id: t.string(),
   },
 });
 
