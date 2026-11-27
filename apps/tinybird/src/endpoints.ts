@@ -1487,8 +1487,8 @@ const goalPatternBalanceSql = `(SELECT throwIf(
                     c -> if(c = '(', 1, if(c = ')', -1, 0)),
                     extractAll(
                         replaceRegexpAll(
-                            replaceRegexpAll({{ String(goal_event_pattern, description="RE2 pattern matched against the whole event name, e.g. signup_.*") }}, '\\\\.', ''),
-                            '\\[[^\\]]*\\]',
+                            replaceRegexpAll({{ String(goal_event_pattern, description="RE2 pattern matched against the whole event name, e.g. signup_.*") }}, concat(char(92), char(92), '.'), ''),
+                            '[[][^]]*[]]',
                             ''
                         ),
                         '.'

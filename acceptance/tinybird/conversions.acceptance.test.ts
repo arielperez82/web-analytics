@@ -595,6 +595,41 @@ describe.concurrent('conversions pipe', () => {
       });
     });
 
+    it.each([
+      ['escaped parens that hide a wrapper escape', '\\(a)|(.*\\)'],
+      ['an escaped backslash before an open paren', '\\\\('],
+      ['an escaped backslash before a close paren', 'a\\\\)|(.*'],
+      ['a class that does not hide an unbalanced paren', '[a]b)|(.*'],
+      [
+        'a class opening with a close bracket, which the dashboard also refuses',
+        '[]a)]x',
+      ],
+    ])('refuses %s', async (_label, pattern) => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversion_summary', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: pattern,
+        })
+      ).rejects.toThrow(/unbalanced parentheses/);
+    });
+
+    it.each([
+      ['an escaped open paren', 'a\\(', { hit: 'a(', miss: 'a' }],
+      ['escaped parens', 'sign\\(up\\)', { hit: 'sign(up)', miss: 'signup' }],
+      ['an open paren in a class', '[(]x', { hit: '(x', miss: 'bx' }],
+      ['a close paren in a negated class', '[^)]x', { hit: 'bx', miss: ')x' }],
+    ])(
+      'accepts %s and matches the whole name',
+      async (_label, pattern, names) => {
+        expect(
+          await converting(pattern, { hit: names.hit, miss: names.miss })
+        ).toEqual({ sessions: 2, conversions: 1 });
+      }
+    );
+
     it('refuses a wrapper-escape pattern even when the tenant has no events', async () => {
       const scope = createScope();
 
