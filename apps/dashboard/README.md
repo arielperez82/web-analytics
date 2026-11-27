@@ -47,18 +47,21 @@ dashboard only shows it. The panel states which denominator it uses.
 | ------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
 | `session` (default) | Sessions that converted, per session in range           | Sessions that reached the goal, once each              |
 | `visitor`           | Visitors that converted, per visitor in range           | Distinct visitors with at least one converting session |
-| `page_view`         | Sessions that converted, per page view in range         | Sessions that reached the goal, once each              |
+| `page_view`         | Sessions that converted, per page view in range         | Sessions with a page view that reached the goal, once  |
 | `none`              | None: the panel shows the count only and no rate column | Sessions that reached the goal, once each              |
 
 - **The default is `session`.** A goal that names no denominator uses it, and its panel says "Rate per session
   (default)".
 - A session is any session in the range that sent a page view or an event, so a session that only sent events is a
   session. It converts on an event goal. It can never reach a path goal, but it still counts in the denominator.
-  Sessions that only sent web vitals are not sessions here.
+  Sessions that only sent web vitals are not sessions here. An event with no session id belongs to no session and is
+  ignored.
 - A visitor without a stored id counts as one visitor per session. In a per-channel table the same visitor is counted
   in each channel they arrived through, so channel rows can add up to more than the headline.
-- Under `page_view` a session with events and no page view adds conversions but no page views; a channel made only of
-  such sessions shows a rate of 0%.
+- Under `page_view` only converting sessions that had a page view count as conversions, so the rate never goes over
+  100%. A session with events and no page view adds nothing to either side; a channel made only of such sessions shows
+  0 conversions and a rate of 0%.
+- Visitor identity is kept per tenant and per domain: the same id on two domains counts as two visitors.
 - **This changes historical rates.** The denominator used to be only the sessions that had a page view. The default
   now also counts sessions with events only, so the same range can show a lower rate than before, most visibly for
   event goals. Nothing is recomputed in storage: the new definition applies to every range you open.
