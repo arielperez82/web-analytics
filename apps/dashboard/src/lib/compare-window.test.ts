@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { closedWindow, comparedWindow, isValidInstant } from "./compare-window";
+import { type CompareChoice, closedWindow, comparedWindow, isValidInstant } from "./compare-window";
 import { rangeToParams } from "./time-range";
 
 const days = (date_from: string, date_to: string) => ({ date_from, date_to });
 const hours = (from_at: string, to_at: string) => ({ from_at, to_at });
+const NAMED: readonly CompareChoice[] = ["previous_period", "previous_week", "previous_month", "previous_year"];
+const lengthOf = (from: string, to: string) => (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
 
 describe("comparedWindow in whole days", () => {
   it("puts the previous period right before, as long as the current one", () => {
@@ -310,5 +312,158 @@ describe("closedWindow", () => {
   it("leaves a day window alone", () => {
     const window = { date_from: "2026-11-10", date_to: "2026-11-12" };
     expect(closedWindow({ window, now })).toEqual(window);
+  });
+});
+
+describe("named comparisons in whole days", () => {
+  const compared = (compare: CompareChoice, window: { date_from: string; date_to: string }) =>
+    comparedWindow({ compare, window, zone: "UTC" });
+
+  it("previous_period is the equal-length window right before", () => {
+    expect(compared("previous_period", days("2026-11-01", "2026-11-27"))).toEqual({
+      compare_from: "2026-10-05",
+      compare_to: "2026-10-31",
+    });
+  });
+
+  it("previous_week shifts the start back seven days and keeps the span", () => {
+    expect(compared("previous_week", days("2026-11-01", "2026-11-27"))).toEqual({
+      compare_from: "2026-10-25",
+      compare_to: "2026-11-20",
+    });
+  });
+
+  it("previous_month shifts the start back a month and keeps the span", () => {
+    expect(compared("previous_month", days("2026-11-01", "2026-11-27"))).toEqual({
+      compare_from: "2026-10-01",
+      compare_to: "2026-10-27",
+    });
+  });
+
+  it("previous_year shifts the start back a year and keeps the span", () => {
+    expect(compared("previous_year", days("2026-11-01", "2026-11-27"))).toEqual({
+      compare_from: "2025-11-01",
+      compare_to: "2025-11-27",
+    });
+  });
+
+  it("clamps a start to the last day of a shorter month, then keeps the span", () => {
+    expect(compared("previous_month", days("2026-03-29", "2026-03-31"))).toEqual({
+      compare_from: "2026-02-28",
+      compare_to: "2026-03-02",
+    });
+  });
+
+  it("clamps May 31 to the last day of April", () => {
+    expect(compared("previous_month", days("2026-05-31", "2026-05-31"))).toEqual({
+      compare_from: "2026-04-30",
+      compare_to: "2026-04-30",
+    });
+  });
+
+  it("crosses a year end when shifting a month", () => {
+    expect(compared("previous_month", days("2026-01-15", "2026-01-20"))).toEqual({
+      compare_from: "2025-12-15",
+      compare_to: "2025-12-20",
+    });
+  });
+
+  it("clamps a leap day to February 28 when shifting a year", () => {
+    expect(compared("previous_year", days("2028-02-29", "2028-03-02"))).toEqual({
+      compare_from: "2027-02-28",
+      compare_to: "2027-03-02",
+    });
+  });
+
+  it("keeps a leap day when the earlier year has one", () => {
+    expect(compared("previous_year", days("2029-02-28", "2029-03-01"))).toEqual({
+      compare_from: "2028-02-28",
+      compare_to: "2028-02-29",
+    });
+  });
+
+  it("reaches back across a year boundary when shifting a year", () => {
+    expect(compared("previous_year", days("2026-01-01", "2026-01-07"))).toEqual({
+      compare_from: "2025-01-01",
+      compare_to: "2025-01-07",
+    });
+  });
+
+  it("has no comparison that would reach before year 1", () => {
+    expect(compared("previous_year", days("0001-06-01", "0001-06-03"))).toBeUndefined();
+    expect(compared("previous_month", days("0001-01-05", "0001-01-06"))).toBeUndefined();
+  });
+
+  it.each(NAMED)("%s keeps the day count of the current window", (compare) => {
+    const window = days("2026-03-29", "2026-05-02");
+    const result = compared(compare, window);
+    expect(result && "compare_from" in result && lengthOf(result.compare_from, result.compare_to)).toBe(
+      lengthOf(window.date_from, window.date_to),
+    );
+  });
+});
+
+describe("named comparisons in exact hours", () => {
+  const compared = (compare: CompareChoice, window: { from_at: string; to_at: string }, zone = "UTC") =>
+    comparedWindow({ compare, window, zone });
+
+  it("previous_month keeps the same local start time and the elapsed span", () => {
+    expect(compared("previous_month", hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"))).toEqual({
+      compare_from_at: "2026-10-17T16:00:00Z",
+      compare_to_at: "2026-10-18T16:00:00Z",
+    });
+  });
+
+  it("previous_year keeps the same local start time and the elapsed span", () => {
+    expect(compared("previous_year", hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"))).toEqual({
+      compare_from_at: "2025-11-17T16:00:00Z",
+      compare_to_at: "2025-11-18T16:00:00Z",
+    });
+  });
+
+  it("clamps the start to the last day of a shorter month", () => {
+    expect(compared("previous_month", hours("2026-03-30T10:00:00Z", "2026-03-31T10:00:00Z"))).toEqual({
+      compare_from_at: "2026-02-28T10:00:00Z",
+      compare_to_at: "2026-03-01T10:00:00Z",
+    });
+  });
+
+  it("clamps a leap day when shifting a year", () => {
+    expect(compared("previous_year", hours("2028-02-29T10:00:00Z", "2028-03-01T10:00:00Z"))).toEqual({
+      compare_from_at: "2027-02-28T10:00:00Z",
+      compare_to_at: "2027-03-01T10:00:00Z",
+    });
+  });
+
+  it("keeps the local start time across a clock change a month earlier and the elapsed span", () => {
+    expect(
+      compared("previous_month", hours("2026-11-08T05:00:00Z", "2026-11-09T05:00:00Z"), "America/New_York"),
+    ).toEqual({ compare_from_at: "2026-10-08T04:00:00Z", compare_to_at: "2026-10-09T04:00:00Z" });
+  });
+
+  it("keeps the local start time when the earlier month is on the other side of the spring change", () => {
+    expect(
+      compared("previous_month", hours("2026-04-08T04:00:00Z", "2026-04-09T04:00:00Z"), "America/New_York"),
+    ).toEqual({ compare_from_at: "2026-03-08T05:00:00Z", compare_to_at: "2026-03-09T05:00:00Z" });
+  });
+
+  it("keeps the elapsed span when the compared window contains a clock change", () => {
+    expect(
+      compared("previous_year", hours("2026-11-02T05:00:00Z", "2026-11-03T05:00:00Z"), "America/New_York"),
+    ).toEqual({ compare_from_at: "2025-11-02T04:00:00Z", compare_to_at: "2025-11-03T04:00:00Z" });
+  });
+
+  it("previous_week matches the old last-week behaviour", () => {
+    expect(compared("previous_week", hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"))).toEqual({
+      compare_from_at: "2026-11-10T16:00:00Z",
+      compare_to_at: "2026-11-11T16:00:00Z",
+    });
+  });
+
+  it("previous_period matches the old previous behaviour", () => {
+    expect(compared("previous_period", hours("2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"))).toEqual({
+      compare_from_at: "2026-11-16T16:00:00Z",
+      compare_to_at: "2026-11-17T16:00:00Z",
+    });
   });
 });
