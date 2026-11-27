@@ -12,6 +12,8 @@ import {
   drillDay,
   type Grain,
 } from "@/lib/dashboard-state";
+import type { CompareChoice } from "@/lib/compare-window";
+import { comparisonTitle, comparisonWords } from "@/lib/comparison-words";
 import { type Delta, deltaOf } from "@/lib/delta";
 import {
   APPROXIMATE_COUNT_NOTE,
@@ -47,7 +49,7 @@ const GRAINS: readonly { readonly key: Grain; readonly label: string }[] = [
 const field = (row: Row | undefined, key: string): number =>
   Number(row?.[key] ?? 0);
 
-type Growth = (Spoken & { readonly delta: Delta }) | "no-previous-data";
+type Growth = (Spoken & { readonly delta: Delta; readonly against: CompareChoice }) | "no-previous-data";
 
 const NO_PREVIOUS_DATA = "No previous data";
 
@@ -66,11 +68,13 @@ const growthOf = ({
   key,
   format,
   higherIsBetter = true,
+  against,
 }: {
   readonly row: Row | undefined;
   readonly key: string;
   readonly format: (value: number) => Spoken;
   readonly higherIsBetter?: boolean;
+  readonly against: CompareChoice;
 }): Growth => {
   if (row?.[`${key}_change`] == null || row[`${key}_growth_percent`] == null) return "no-previous-data";
   const change = field(row, `${key}_change`);
@@ -80,6 +84,7 @@ const growthOf = ({
     text: `${amount.text} (${percent.text})`,
     spoken: `${amount.spoken}, ${percent.spoken}`,
     delta: deltaOf({ change, higherIsBetter }),
+    against,
   };
 };
 
@@ -95,7 +100,7 @@ const deltaOfGrowth = (growth: Growth | undefined) => {
         <span aria-hidden="true">{growth.text}</span>
         <span className="ds-sr">{growth.spoken}</span>
       </Badge>
-      <span className="ds-sr">vs previous period</span>
+      <span className="ds-sr">vs {comparisonWords(growth.against)}</span>
     </>
   );
 };
@@ -136,8 +141,8 @@ export const Kpis = ({
   const compared = { ...params, ...comparison };
   const countsFeed = useEndpoint<Row>("visitor_counts", compared);
   const engagementFeed = useEndpoint<Row>("engagement", compared);
-  const growthFor = (figure: Parameters<typeof growthOf>[0]) =>
-    comparison === undefined ? undefined : growthOf(figure);
+  const growthFor = (figure: Omit<Parameters<typeof growthOf>[0], "against">) =>
+    comparison === undefined ? undefined : growthOf({ ...figure, against: comparison.compare });
   const counts = countsFeed.data?.[0];
   const engagement = engagementFeed.data?.[0];
   const figuresError = countsFeed.error ?? engagementFeed.error;
@@ -236,7 +241,7 @@ export const Kpis = ({
         aside={
           <ul className="legend" aria-label="Chart legend">
             <li className="current">This period</li>
-            {comparison === undefined ? null : <li className="previous">Previous period</li>}
+            {comparison === undefined ? null : <li className="previous">{comparisonTitle(comparison.compare)}</li>}
           </ul>
         }
         title={`${label} per ${hourly ? perHour : "day"}`}

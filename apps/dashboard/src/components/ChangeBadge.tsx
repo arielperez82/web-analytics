@@ -1,4 +1,6 @@
 import { Badge } from "@/ds/Badge";
+import type { CompareChoice } from "@/lib/compare-window";
+import { comparisonWords } from "@/lib/comparison-words";
 import { deltaOf } from "@/lib/delta";
 import { type Spoken, spokenSignedPercent } from "@/lib/format";
 
@@ -7,11 +9,13 @@ export const ChangeBadge = ({
   percent,
   higherIsBetter,
   amount,
+  against,
 }: {
   readonly change: number;
   readonly percent?: number | null;
   readonly higherIsBetter: boolean;
   readonly amount: (value: number) => Spoken;
+  readonly against: CompareChoice;
 }) => {
   const delta = deltaOf({ change, higherIsBetter });
   const figure = amount(change);
@@ -19,9 +23,12 @@ export const ChangeBadge = ({
   const text = share === undefined ? figure.text : `${figure.text} (${share.text})`;
   const spoken = share === undefined ? figure.spoken : `${figure.spoken}, ${share.spoken}`;
   return (
-    <Badge tone={delta.tone} arrow={delta.arrow} word={delta.word}>
-      <span aria-hidden="true">{text}</span>
-      <span className="ds-sr">{spoken}</span>
-    </Badge>
+    <>
+      <Badge tone={delta.tone} arrow={delta.arrow} word={delta.word}>
+        <span aria-hidden="true">{text}</span>
+        <span className="ds-sr">{spoken}</span>
+      </Badge>
+      <span className="ds-sr">vs {comparisonWords(against)}</span>
+    </>
   );
 };

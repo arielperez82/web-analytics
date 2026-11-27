@@ -83,7 +83,7 @@ test('a report compares each row with the chosen period using the API figures', 
   await expect(rows.nth(2)).toContainText('Gone (was 3)');
   const query = api.requestsTo('top_locations').at(-1);
   expect(query?.get('include_previous_period')).toBe('true');
-  expect(query?.get('compare')).toBe('previous');
+  expect(query?.get('compare')).toBe('previous_period');
   expect(query?.has('compare_from')).toBe(false);
   expect(query?.has('compare_to')).toBe(false);
 });

@@ -53,7 +53,7 @@ describe.concurrent('series loader in front of Tinybird', () => {
             domain: scope.domain,
             date_from: '2026-11-16',
             date_to: '2026-11-17',
-            compare: 'last_week',
+            compare: 'previous_week',
           }),
         },
         deps

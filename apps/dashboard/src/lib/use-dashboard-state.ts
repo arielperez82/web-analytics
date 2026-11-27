@@ -43,7 +43,7 @@ export const useDashboardState = () => {
     () =>
       state.compare === "off" || ("preset" in state.range && state.range.preset === "all_time")
         ? undefined
-        : { compare: state.compare ?? "previous" },
+        : { compare: state.compare ?? "previous_period" },
     [state],
   );
   return { state, update, params, comparison, zone };

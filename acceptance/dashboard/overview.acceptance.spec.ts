@@ -646,7 +646,7 @@ test('the chart is compared with the period before it until the viewer switches 
 
   await expect
     .poll(() => api.requestsTo('series').at(-1)?.get('compare'))
-    .toBe('previous');
+    .toBe('previous_period');
   expect(api.requestsTo('series').at(-1)?.has('compare_from')).toBe(false);
   await expect(page.getByLabel('Chart legend')).toContainText(
     'Previous period'
@@ -682,7 +682,7 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
     .toMatch(exactHour);
   await expect
     .poll(() => api.requestsTo('series').at(-1)?.get('compare'))
-    .toBe('previous');
+    .toBe('previous_period');
   expect(api.requestsTo('series').at(-1)?.has('compare_from_at')).toBe(false);
   expect(api.requestsTo('series').at(-1)?.get('grain')).toBe('hour');
   await expect(
@@ -703,7 +703,7 @@ test('the breakdowns are compared with the period before, until the viewer switc
 
   await expect
     .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare'))
-    .toBe('previous');
+    .toBe('previous_period');
   expect(api.requestsTo('top_locations').at(-1)?.has('compare_from')).toBe(
     false
   );
@@ -727,26 +727,34 @@ test('the breakdowns are compared with the period before, until the viewer switc
   expect(api.requestsTo('top_locations').at(-1)?.has('compare')).toBe(false);
 });
 
-test('the breakdowns compare with the same hours last week when asked', async ({
-  page,
-}) => {
-  const api = await stubApi(page, routes);
-  await signIn(page);
-  await page.getByRole('button', { name: 'Last 24 Hours' }).click();
+for (const [label, choice] of [
+  ['Previous week', 'previous_week'],
+  ['Previous month', 'previous_month'],
+  ['Previous year', 'previous_year'],
+] as const) {
+  test(`the breakdowns compare with the ${choice} when asked`, async ({
+    page,
+  }) => {
+    const api = await stubApi(page, routes);
+    await signIn(page);
+    await page.getByRole('button', { name: 'Last 24 Hours' }).click();
 
-  await page
-    .getByRole('group', { name: 'Compare to' })
-    .getByRole('button', { name: 'Same hours last week' })
-    .click();
+    await page
+      .getByRole('group', { name: 'Compare to' })
+      .getByRole('button', { name: label })
+      .click();
 
-  await expect(page).toHaveURL(/compare=last_week/);
-  await expect
-    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare'))
-    .toBe('last_week');
-  expect(api.requestsTo('top_locations').at(-1)?.has('compare_from_at')).toBe(
-    false
-  );
-});
+    await expect(page).toHaveURL(
+      url => url.searchParams.get('compare') === choice
+    );
+    await expect
+      .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare'))
+      .toBe(choice);
+    expect(api.requestsTo('top_locations').at(-1)?.has('compare_from_at')).toBe(
+      false
+    );
+  });
+}
 
 test('the key figures are compared with the period before, and show no change once the viewer switches that off', async ({
   page,
@@ -757,10 +765,10 @@ test('the key figures are compared with the period before, and show no change on
 
   await expect
     .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('compare'))
-    .toBe('previous');
+    .toBe('previous_period');
   await expect
     .poll(() => api.requestsTo('engagement').at(-1)?.get('compare'))
-    .toBe('previous');
+    .toBe('previous_period');
   await expect(sessions).toContainText('+30 (+7.89%)');
   await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
 
@@ -780,23 +788,33 @@ test('the key figures are compared with the period before, and show no change on
   await expect(page.getByText('-1.5 pp (-3.85%)')).toHaveCount(0);
 });
 
-test('the key figures compare with the same hours last week when asked', async ({
-  page,
-}) => {
-  const api = await stubApi(page, routes);
-  await signIn(page);
-  await page.getByRole('button', { name: 'Last 24 Hours' }).click();
+for (const [label, choice] of [
+  ['Previous week', 'previous_week'],
+  ['Previous month', 'previous_month'],
+  ['Previous year', 'previous_year'],
+] as const) {
+  test(`the key figures compare with the ${choice} when asked`, async ({
+    page,
+  }) => {
+    const api = await stubApi(page, routes);
+    await signIn(page);
+    await page.getByRole('button', { name: 'Last 24 Hours' }).click();
 
-  await page
-    .getByRole('group', { name: 'Compare to' })
-    .getByRole('button', { name: 'Same hours last week' })
-    .click();
+    await page
+      .getByRole('group', { name: 'Compare to' })
+      .getByRole('button', { name: label })
+      .click();
 
-  await expect(page).toHaveURL(/compare=last_week/);
-  for (const endpoint of ['visitor_counts', 'engagement']) {
-    await expect
-      .poll(() => api.requestsTo(endpoint).at(-1)?.get('compare'))
-      .toBe('last_week');
-    expect(api.requestsTo(endpoint).at(-1)?.has('compare_from_at')).toBe(false);
-  }
-});
+    await expect(page).toHaveURL(
+      url => url.searchParams.get('compare') === choice
+    );
+    for (const endpoint of ['visitor_counts', 'engagement']) {
+      await expect
+        .poll(() => api.requestsTo(endpoint).at(-1)?.get('compare'))
+        .toBe(choice);
+      expect(api.requestsTo(endpoint).at(-1)?.has('compare_from_at')).toBe(
+        false
+      );
+    }
+  });
+}

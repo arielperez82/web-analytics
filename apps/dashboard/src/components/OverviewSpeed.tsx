@@ -21,7 +21,6 @@ export const OverviewSpeed = ({
   params: QueryParams;
   comparison?: ComparisonParams;
 }) => {
-  const comparing = comparison !== undefined;
   const vitals = useEndpoint<Row>("web_vitals_current", vitalsScope(params, comparison));
   const shown = orderVitals((vitals.data ?? []).filter((row) => OVERVIEW_VITALS.includes(String(row.metric_name))));
   const multiDomain = hasSeveralDomains(shown);
@@ -39,7 +38,7 @@ export const OverviewSpeed = ({
         {shown.map((row) => (
           <li key={`${row.domain}-${row.metric_name}`} className="vital">
             <VitalReading row={row} showDomain={multiDomain} labelClass="vital-name" figureClass="vital-figure" />
-            {comparing && <VitalChange row={row} />}
+            {comparison !== undefined && <VitalChange row={row} against={comparison.compare} />}
           </li>
         ))}
       </ul>

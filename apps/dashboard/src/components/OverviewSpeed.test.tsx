@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type DashboardState, hrefFor } from "@/lib/dashboard-state";
+import type { ComparisonParams } from "@/lib/use-dashboard-state";
 import { EMPTY_MESSAGE } from "./ui";
 import { type ApiRow, failOnce, installFakeApi, removeFakeApi } from "@/test/fake-api";
 
@@ -32,7 +33,7 @@ const vital = (metric_name: string, p75: number, extra: ApiRow = {}): ApiRow => 
   ...extra,
 });
 
-const renderPanel = (vitals: readonly ApiRow[], comparison?: { compare: "previous" | "last_week" }) => {
+const renderPanel = (vitals: readonly ApiRow[], comparison?: ComparisonParams) => {
   const api = installFakeApi({ web_vitals_current: vitals });
   render(<OverviewSpeed state={state} params={params} comparison={comparison} />);
   return api;
@@ -90,12 +91,12 @@ describe("OverviewSpeed", () => {
   });
 
   it("asks for the chosen comparison period", async () => {
-    const api = renderPanel([vital("LCP", 2100)], { compare: "last_week" });
+    const api = renderPanel([vital("LCP", 2100)], { compare: "previous_week" });
 
     await screen.findByText("LCP p75");
     const query = api.requestsTo("web_vitals_current")[0];
     expect(query?.get("include_previous_period")).toBe("true");
-    expect(query?.get("compare")).toBe("last_week");
+    expect(query?.get("compare")).toBe("previous_week");
     expect(query?.has("compare_from")).toBe(false);
   });
 
@@ -117,7 +118,7 @@ describe("OverviewSpeed", () => {
   });
 
   it("shows a faster vital as a good change and speaks it in words with the unit", async () => {
-    renderPanel([vital("LCP", 2100, { previous_p75: 2300, p75_change: -200, p75_change_percent: -8.69 })], { compare: "previous" });
+    renderPanel([vital("LCP", 2100, { previous_p75: 2300, p75_change: -200, p75_change_percent: -8.69 })], { compare: "previous_period" });
 
     const text = await screen.findByText("-200 (-8.69%)");
     const badge = text.closest<HTMLElement>(".ds-badge");
@@ -126,8 +127,20 @@ describe("OverviewSpeed", () => {
     expect(badge && spokenOf(badge)).toBe("minus 200 milliseconds, minus 8.69 percent");
   });
 
+  it.each([
+  ["previous_period", "previous period", "Previous period"],
+  ["previous_week", "previous week", "Previous week"],
+  ["previous_month", "previous month", "Previous month"],
+  ["previous_year", "previous year", "Previous year"],
+] as const)("names the chosen comparison %s in the spoken change", async (compare, words, _title) => {
+    renderPanel([vital("LCP", 2100, { previous_p75: 2300, p75_change: -200, p75_change_percent: -8.69 })], { compare });
+
+    const spoken = await screen.findByText(`vs ${words}`);
+    expect(spoken.className).toContain("ds-sr");
+  });
+
   it("shows a slower vital as a bad change", async () => {
-    renderPanel([vital("INP", 300, { previous_p75: 200, p75_change: 100, p75_change_percent: 50 })], { compare: "previous" });
+    renderPanel([vital("INP", 300, { previous_p75: 200, p75_change: 100, p75_change_percent: 50 })], { compare: "previous_period" });
 
     const badge = (await screen.findByText("+100 (+50%)")).closest<HTMLElement>(".ds-badge");
     expect(badge?.getAttribute("data-tone")).toBe("bad");
@@ -135,7 +148,7 @@ describe("OverviewSpeed", () => {
   });
 
   it("speaks a unitless CLS change without a unit", async () => {
-    renderPanel([vital("CLS", 0.2, { previous_p75: 0.1, p75_change: 0.1, p75_change_percent: 100 })], { compare: "previous" });
+    renderPanel([vital("CLS", 0.2, { previous_p75: 0.1, p75_change: 0.1, p75_change_percent: 100 })], { compare: "previous_period" });
 
     const badge = (await screen.findByText("+0.1 (+100%)")).closest<HTMLElement>(".ds-badge");
     expect(badge?.getAttribute("data-tone")).toBe("bad");
@@ -143,7 +156,7 @@ describe("OverviewSpeed", () => {
   });
 
   it("says so when a vital has no earlier figure", async () => {
-    renderPanel([vital("LCP", 2100, { previous_p75: null, p75_change: null, p75_change_percent: null })], { compare: "previous" });
+    renderPanel([vital("LCP", 2100, { previous_p75: null, p75_change: null, p75_change_percent: null })], { compare: "previous_period" });
 
     expect(await screen.findByText("No earlier data")).toBeTruthy();
   });

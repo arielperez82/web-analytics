@@ -48,7 +48,7 @@ describe("loadSeries", () => {
   it("loads the range and its comparison together and pairs them", async () => {
     const { deps, urls } = fakeDeps(byStart);
     const result = await load(
-      "date_from=2026-11-16&date_to=2026-11-17&compare=last_week&metric=sessions",
+      "date_from=2026-11-16&date_to=2026-11-17&compare=previous_week&metric=sessions",
       deps,
     );
     expect(seriesCalls(urls).map((u) => [u.pathname, u.searchParams.get("date_from"), u.searchParams.get("date_to")])).toEqual([
@@ -72,7 +72,7 @@ describe("loadSeries", () => {
   it("keeps the filters and the zone on both calls, never forwards the choice or any comparison date, and asks for no single metric", async () => {
     const { deps, urls } = fakeDeps(byStart);
     await load(
-      "date_from=2026-11-16&date_to=2026-11-17&compare=last_week&metric=known&location=ES&tz=Europe%2FMadrid",
+      "date_from=2026-11-16&date_to=2026-11-17&compare=previous_week&metric=known&location=ES&tz=Europe%2FMadrid",
       deps,
     );
     for (const url of urls) {
@@ -96,7 +96,7 @@ describe("loadSeries", () => {
       { hour: url.searchParams.get("from_at")?.startsWith("2026-11-17") ? "2026-11-17 05:00:00" : "2026-11-16 05:00:00", ...counts, value: 2 },
     ]);
     const result = await load(
-      "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare=previous",
+      "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare=previous_period",
       deps,
     );
     expect(seriesCalls(urls).map((u) => [u.pathname, u.searchParams.get("from_at"), u.searchParams.has("date_from")])).toEqual([
@@ -112,7 +112,7 @@ describe("loadSeries", () => {
   it("loads 24 hours from an exact start and the 24 hours it is compared with", async () => {
     const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }]);
     await load(
-      "grain=hour&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare=previous",
+      "grain=hour&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare=previous_period",
       deps,
     );
     expect(
@@ -126,7 +126,7 @@ describe("loadSeries", () => {
 
   it("compares with the equal-length days before for previous", async () => {
     const { deps, urls } = fakeDeps(byStart);
-    await load("date_from=2026-11-16&date_to=2026-11-17&compare=previous", deps);
+    await load("date_from=2026-11-16&date_to=2026-11-17&compare=previous_period", deps);
     expect(seriesCalls(urls).map((u) => [u.searchParams.get("date_from"), u.searchParams.get("date_to")])).toEqual([
       ["2026-11-16", "2026-11-17"],
       ["2026-11-14", "2026-11-15"],
@@ -135,7 +135,7 @@ describe("loadSeries", () => {
 
   it("compares an exact 24 hours with the same local hour a week earlier for last week", async () => {
     const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }]);
-    await load("grain=hour&tz=UTC&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare=last_week", deps);
+    await load("grain=hour&tz=UTC&date_from=2026-11-17&date_to=2026-11-18&from_at=2026-11-17T16:00:00Z&compare=previous_week", deps);
     expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
       ["2026-11-17T16:00:00Z", "2026-11-18T16:00:00Z"],
       ["2026-11-10T16:00:00Z", "2026-11-11T16:00:00Z"],
@@ -144,10 +144,12 @@ describe("loadSeries", () => {
 
   it.each([
     ["an unknown choice", "date_from=2026-11-16&date_to=2026-11-17&compare=yesterday"],
-    ["a half-given window", "date_from=2026-11-16&compare=previous"],
+    ["the old choice previous", "date_from=2026-11-16&date_to=2026-11-17&compare=previous"],
+    ["the old choice last_week", "date_from=2026-11-16&date_to=2026-11-17&compare=last_week"],
+    ["a half-given window", "date_from=2026-11-16&compare=previous_period"],
     ["a client-made compare_from", "date_from=2026-11-16&date_to=2026-11-17&compare_from=2026-11-09&compare_to=2026-11-10"],
     ["a client-made compare_from_at", "grain=hour&from_at=2026-11-17T16:00:00Z&compare_from_at=2026-11-16T16:00:00Z"],
-    ["a choice next to client-made dates", "date_from=2026-11-16&date_to=2026-11-17&compare=previous&compare_to=2026-11-10"],
+    ["a choice next to client-made dates", "date_from=2026-11-16&date_to=2026-11-17&compare=previous_period&compare_to=2026-11-10"],
   ])("refuses %s with a 400 and calls nothing", async (_name, query) => {
     const { deps, urls } = fakeDeps(byStart);
     const result = await load(query, deps);
@@ -158,7 +160,7 @@ describe("loadSeries", () => {
   it("compares hours across the fall clock change with the same local start and the same length", async () => {
     const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-08 05:00:00", ...counts, value: 2 }]);
     await load(
-      "grain=hour&tz=America%2FNew_York&from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&compare=last_week",
+      "grain=hour&tz=America%2FNew_York&from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&compare=previous_week",
       deps,
     );
     expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
@@ -169,7 +171,7 @@ describe("loadSeries", () => {
 
   it("closes an open exact window at the end of the current hour for both periods", async () => {
     const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }], () => undefined, () => new Date("2026-11-18T17:20:00Z"));
-    await load("grain=hour&tz=UTC&from_at=2026-11-17T16:00:00Z&compare=previous", deps);
+    await load("grain=hour&tz=UTC&from_at=2026-11-17T16:00:00Z&compare=previous_period", deps);
     expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
       ["2026-11-17T16:00:00Z", "2026-11-18T18:00:00Z"],
       ["2026-11-16T14:00:00Z", "2026-11-17T16:00:00Z"],
@@ -187,7 +189,7 @@ describe("loadSeries", () => {
   it("fails as a whole when either call fails", async () => {
     const { deps } = fakeDeps((url) => (url.searchParams.get("date_from") === "2026-11-09" ? undefined : byStart(url)));
     const result = await load(
-      "date_from=2026-11-16&date_to=2026-11-17&compare=last_week",
+      "date_from=2026-11-16&date_to=2026-11-17&compare=previous_week",
       deps,
     );
     expect(result).toEqual({ status: 502, body: { error: "Upstream error" } });
@@ -216,7 +218,7 @@ describe("loadSeries", () => {
     );
 
     const result = await load(
-      "date_from=2026-11-16&date_to=2026-11-17&compare=last_week",
+      "date_from=2026-11-16&date_to=2026-11-17&compare=previous_week",
       deps,
     );
 
@@ -255,7 +257,7 @@ describe("loadSeries", () => {
         : [{ date: "2026-11-09", value: 1, sessions: 1, known: 2, anonymous: 3 }],
     );
 
-    const result = await load("date_from=2026-11-16&date_to=2026-11-16&compare=last_week", deps);
+    const result = await load("date_from=2026-11-16&date_to=2026-11-16&compare=previous_week", deps);
 
     expect(Object.keys((result.body as { series: object }).series).sort()).toEqual(["anonymous", "known", "sessions"]);
   });
@@ -280,7 +282,7 @@ describe("loadSeries", () => {
         ? [engagementDay("2026-11-16", 40, 90), engagementDay("2026-11-17", 50, 100)]
         : [engagementDay("2026-11-09", 30, 60), engagementDay("2026-11-10", 20, 70)];
     const both =
-      "date_from=2026-11-16&date_to=2026-11-17&compare=last_week";
+      "date_from=2026-11-16&date_to=2026-11-17&compare=previous_week";
 
     it("pairs both with the comparison, from the engagement pipe, in the same call", async () => {
       const { deps, urls } = fakeDeps(byStart, engagementByStart);
@@ -412,7 +414,7 @@ describe("loadSeries", () => {
       );
 
       const result = await load(
-        "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare=previous",
+        "grain=hour&tz=America%2FNew_York&date_from=2026-11-17&date_to=2026-11-17&compare=previous_period",
         deps,
       );
 

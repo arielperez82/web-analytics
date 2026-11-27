@@ -4,23 +4,18 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DashboardState } from "@/lib/dashboard-state";
-import type { QueryParams } from "@/lib/use-dashboard-state";
 
 import { CompareControl } from "./CompareControl";
 
 afterEach(cleanup);
 
 const state: DashboardState = { range: { days: 7 }, filters: {} };
-const week: QueryParams = { date_from: "2026-11-10", date_to: "2026-11-16" };
-const day: QueryParams = { date_from: "2026-11-10", date_to: "2026-11-10" };
-const last24: QueryParams = { date_from: "2026-11-09", date_to: "2026-11-10", from_at: "2026-11-09T16:00:00Z" };
 
 const renderControl = ({
   current = state,
-  params = week,
   picked = [] as DashboardState[],
-}: { current?: DashboardState; params?: QueryParams; picked?: DashboardState[] } = {}) => {
-  render(<CompareControl state={current} params={params} onChange={(next) => picked.push(next)} />);
+}: { current?: DashboardState; picked?: DashboardState[] } = {}) => {
+  render(<CompareControl state={current} onChange={(next) => picked.push(next)} />);
   return picked;
 };
 
@@ -30,23 +25,11 @@ const labels = () =>
     .map((button) => button.textContent);
 
 describe("CompareControl", () => {
-  it("offers the previous period or nothing for a week, with the previous period picked", () => {
+  it("offers the four named comparisons or nothing, with the previous period picked", () => {
     renderControl();
 
-    expect(labels()).toEqual(["Previous period", "None"]);
+    expect(labels()).toEqual(["Previous period", "Previous week", "Previous month", "Previous year", "None"]);
     expect(screen.getByRole("button", { name: "Previous period" }).getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("also offers the same day last week on a single day", () => {
-    renderControl({ params: day });
-
-    expect(labels()).toEqual(["Previous period", "Same day last week", "None"]);
-  });
-
-  it("offers the same hours last week for the last 24 hours", () => {
-    renderControl({ params: last24 });
-
-    expect(labels()).toEqual(["Previous period", "Same hours last week", "None"]);
   });
 
   it("writes the default back out of the state when the previous period is picked", async () => {
@@ -58,17 +41,27 @@ describe("CompareControl", () => {
     expect(picked).toStrictEqual([{ ...state, compare: undefined }]);
   });
 
-  it("asks to switch the comparison off, or to last week, when those are picked", async () => {
-    const picked = renderControl({ params: day });
+  it("asks for each named comparison, or for none, when picked", async () => {
+    const picked = renderControl();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole("button", { name: "Previous week" }));
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    await user.click(screen.getByRole("button", { name: "Previous year" }));
     await user.click(screen.getByRole("button", { name: "None" }));
-    await user.click(screen.getByRole("button", { name: "Same day last week" }));
 
     expect(picked).toEqual([
+      { ...state, compare: "previous_week" },
+      { ...state, compare: "previous_month" },
+      { ...state, compare: "previous_year" },
       { ...state, compare: "off" },
-      { ...state, compare: "last_week" },
     ]);
+  });
+
+  it("shows the chosen comparison as pressed", () => {
+    renderControl({ current: { ...state, compare: "previous_year" } });
+
+    expect(screen.getByRole("button", { name: "Previous year" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("says Compare beside its choices, so they are not mistaken for ranges", () => {

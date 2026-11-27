@@ -102,7 +102,7 @@ export const Shell = ({ email, children }: { email: string; children: ReactNode 
             includeBots={state.includeBots === true}
             onIncludeBotsChange={(include) => update({ ...state, includeBots: include || undefined })}
           />
-          {comparable && <CompareControl state={state} params={params} onChange={update} />}
+          {comparable && <CompareControl state={state} onChange={update} />}
           <DateRangePicker
             range={state.range}
             zone={zone}

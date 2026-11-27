@@ -1,7 +1,9 @@
 import { offsetMs, partsIn } from "./hour-window";
 import { shifted } from "./time-range";
 
-export type CompareChoice = "previous" | "last_week";
+export const COMPARE_CHOICES = ["previous_period", "previous_week", "previous_month", "previous_year"] as const;
+
+export type CompareChoice = (typeof COMPARE_CHOICES)[number];
 
 export type CurrentWindow = {
   readonly date_from?: string;
@@ -16,7 +18,8 @@ export type ComparedWindow =
 
 export const COMPARE_PARAMS: readonly string[] = ["compare_from", "compare_to", "compare_from_at", "compare_to_at"];
 
-export const isCompareChoice = (value: string): value is CompareChoice => value === "previous" || value === "last_week";
+export const isCompareChoice = (value: string): value is CompareChoice =>
+  COMPARE_CHOICES.some((choice) => choice === value);
 
 const PLAIN_DAY = /^(\d{4})-\d{2}-\d{2}$/;
 
@@ -69,30 +72,57 @@ export const closedWindow = ({ window, now }: { readonly window: CurrentWindow; 
 const lengthInDays = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS) + 1;
 
-const sameLocalTimeDaysBefore = (instant: Date, days: number, zone: string): Date => {
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
+const MONTHS_PER_YEAR = 12;
+const MONTH_LENGTHS: readonly number[] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const FEBRUARY = 1;
+const LEAP_FEBRUARY = 29;
+
+const isLeap = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+const daysInMonth = (year: number, month: number): number =>
+  month === FEBRUARY && isLeap(year) ? LEAP_FEBRUARY : (MONTH_LENGTHS[month] ?? 0);
+
+const pad = (value: number, width: number): string => String(value).padStart(width, "0");
+
+const monthsBefore = (day: string, months: number): string => {
+  const [year = 0, month = 1, date = 1] = day.split("-").map(Number);
+  const total = year * MONTHS_PER_YEAR + (month - 1) - months;
+  const [targetYear, targetMonth] = [Math.floor(total / MONTHS_PER_YEAR), ((total % MONTHS_PER_YEAR) + MONTHS_PER_YEAR) % MONTHS_PER_YEAR];
+  return `${pad(targetYear, 4)}-${pad(targetMonth + 1, 2)}-${pad(Math.min(date, daysInMonth(targetYear, targetMonth)), 2)}`;
+};
+
+const startBefore = (choice: CompareChoice, start: string): string => {
+  if (choice === "previous_month") return monthsBefore(start, 1);
+  if (choice === "previous_year") return monthsBefore(start, MONTHS_PER_YEAR);
+  return shifted(start, -DAYS_PER_WEEK);
+};
+
+const isCalendarShift = (compare: CompareChoice): boolean =>
+  compare === "previous_week" || compare === "previous_month" || compare === "previous_year";
+
+const sameLocalTimeOn = (instant: Date, day: (local: string) => string, zone: string): Date => {
   const parts = partsIn(instant, zone);
-  const local = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day) - days,
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
+  const localDay = `${parts.year}-${parts.month}-${parts.day}`;
+  const seconds = Number(parts.hour) * SECONDS_PER_HOUR + Number(parts.minute) * SECONDS_PER_MINUTE + Number(parts.second);
+  const local = Date.parse(`${day(localDay)}T00:00:00Z`) + seconds * 1000;
   const first = local - offsetMs(new Date(local), zone);
   return new Date(local - offsetMs(new Date(first), zone));
 };
 
 const wholeDays = (compare: CompareChoice, from: string, to: string): ComparedWindow | undefined => {
-  const back = compare === "last_week" ? DAYS_PER_WEEK : lengthInDays(from, to);
-  const [compare_from, compare_to] = [shifted(from, -back), shifted(to, -back)];
+  const length = lengthInDays(from, to);
+  const compare_from = isCalendarShift(compare) ? startBefore(compare, from) : shifted(from, -length);
+  const compare_to = isDay(compare_from) ? shifted(compare_from, length - 1) : undefined;
   return isDay(compare_from) && isDay(compare_to) ? { compare_from, compare_to } : undefined;
 };
 
 const exactHours = (compare: CompareChoice, from: Date, to: Date, zone: string): ComparedWindow | undefined => {
   const span = to.getTime() - from.getTime();
-  const start =
-    compare === "last_week" ? sameLocalTimeDaysBefore(from, DAYS_PER_WEEK, zone) : new Date(from.getTime() - span);
+  const start = isCalendarShift(compare)
+    ? sameLocalTimeOn(from, (local) => startBefore(compare, local), zone)
+    : new Date(from.getTime() - span);
   const [compare_from_at, compare_to_at] = [start, new Date(start.getTime() + span)].map((instant) =>
     Number.isNaN(instant.getTime()) || instant.getUTCFullYear() < 1 ? undefined : asIso(instant),
   );
