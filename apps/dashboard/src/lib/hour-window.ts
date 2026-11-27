@@ -10,7 +10,7 @@ const asInstant = (utc: string): Date => new Date(`${utc.replace(" ", "T")}Z`);
 
 const asIso = (instant: Date): string => `${instant.toISOString().slice(0, 19)}Z`;
 
-const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> =>
+export const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> =>
   Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: zone,
@@ -26,7 +26,7 @@ const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> 
       .map((part) => [part.type, part.value]),
   );
 
-const offsetMs = (instant: Date, zone: string): number => {
+export const offsetMs = (instant: Date, zone: string): number => {
   const p = partsIn(instant, zone);
   const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
   return local - Math.floor(instant.getTime() / 1000) * 1000;
