@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Sparkline } from "@/ds/Sparkline";
 import type { DashboardState } from "@/lib/dashboard-state";
+import type { ComparisonParams } from "@/lib/use-dashboard-state";
 import { type ApiRow, type FakeApi, failOnce, installFakeApi, type MetricRows, removeFakeApi } from "@/test/fake-api";
 
 import { Kpis } from "./Kpis";
@@ -62,7 +63,7 @@ const hours: readonly ApiRow[] = [
 const renderKpis = (
   overrides: {
     params?: Record<string, string>;
-    comparison?: { compare: "previous_period" | "previous_week" };
+    comparison?: ComparisonParams;
     onChange?: (next: DashboardState) => void;
     points?: readonly ApiRow[];
     state?: DashboardState;
@@ -566,14 +567,18 @@ describe("Kpis", () => {
     expect(await legendItems()).toEqual(["This period", "Previous period"]);
   });
 
-  it("calls any chosen comparison the previous period in the legend", async () => {
-    renderKpis({
-      params: { ...params, date_to: "2026-11-10" },
-      comparison,
-      state: { ...state, compare: "previous_week" },
-    });
+  it.each([
+  ["previous_period", "previous period", "Previous period"],
+  ["previous_week", "previous week", "Previous week"],
+  ["previous_month", "previous month", "Previous month"],
+  ["previous_year", "previous year", "Previous year"],
+] as const)("names the chosen comparison %s in the legend and in the spoken change", async (compare, words, title) => {
+    renderKpis({ comparison: { compare } });
 
-    expect(await legendItems()).toEqual(["This period", "Previous period"]);
+    expect(await legendItems()).toEqual(["This period", title]);
+    const known = within(await card("Known visitors"));
+    await waitFor(() => expect(known.getByText(`vs ${words}`).className).toContain("ds-sr"));
+    expect(heard((await card("Sessions")).querySelector(".delta"))).toBe(`Up plus 30, plus 7.89 percent vs ${words}`);
   });
 
   it("is titled by metric and time group alone", async () => {

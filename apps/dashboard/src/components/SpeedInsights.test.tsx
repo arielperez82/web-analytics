@@ -200,6 +200,23 @@ describe("SpeedInsights", () => {
       expect(badge.getAttribute("data-tone")).toBe("bad");
     });
 
+    it.each([
+  ["previous_period", "previous period", "Previous period"],
+  ["previous_week", "previous week", "Previous week"],
+  ["previous_month", "previous month", "Previous month"],
+  ["previous_year", "previous year", "Previous year"],
+] as const)("names the chosen comparison %s beside each change", async (compare, words, _title) => {
+      const api = installFakeApi({
+        web_vitals_current: [{ ...vital("LCP", 2100), previous_p75: 2300, p75_change: -200, p75_change_percent: -8.7 }],
+        web_vitals_routes: [route(10)],
+      });
+      render(<SpeedInsights params={params} comparison={{ compare }} />);
+
+      expect(await screen.findByRole("columnheader", { name: `Score vs ${words}` })).toBeTruthy();
+      expect((await screen.findAllByText(`vs ${words}`)).map((node) => node.className)).toEqual(["ds-sr", "ds-sr"]);
+      expect(api.requestsTo("web_vitals_current")[0]?.get("compare")).toBe(compare);
+    });
+
     it("says so when a vital was not measured in the chosen period", async () => {
       renderCompared([{ ...vital("LCP", 2100), previous_p75: null, p75_change: null, p75_change_percent: null }]);
 
@@ -209,7 +226,7 @@ describe("SpeedInsights", () => {
     it("shows each route's score change, a rise being good", async () => {
       renderCompared([vital("LCP", 2100)], [route(10)]);
 
-      expect(await screen.findByRole("columnheader", { name: "Score vs previous" })).toBeTruthy();
+      expect(await screen.findByRole("columnheader", { name: "Score vs previous period" })).toBeTruthy();
       const badge = badgeOf(await screen.findByText("+10"));
       expect(badge.getAttribute("data-tone")).toBe("good");
       expect(within(badge).getByText("Up")).toBeTruthy();

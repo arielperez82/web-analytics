@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import { type DashboardState,hrefFor } from "@/lib/dashboard-state";
 import { Badge } from "@/ds/Badge";
+import type { CompareChoice } from "@/lib/compare-window";
+import { comparisonTitle, comparisonWords } from "@/lib/comparison-words";
 import { spokenSignedNumber } from "@/lib/format";
 import type { Report } from "@/lib/reports";
 import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
@@ -12,7 +14,7 @@ import { useEndpoint } from "@/lib/use-endpoint";
 import { ChangeBadge } from "./ChangeBadge";
 import { fmt, Panel, type Row,Status } from "./ui";
 
-const changeOf = (row: Row) => {
+const changeOf = (row: Row, against: CompareChoice) => {
   if (row.status === "new") return <Badge tone="good" arrow="up" word="Up">New</Badge>;
   if (row.status === "gone") return <Badge tone="bad" arrow="down" word="Down">Gone (was {fmt(row.previous_sessions)})</Badge>;
   return (
@@ -21,6 +23,7 @@ const changeOf = (row: Row) => {
       percent={Number(row.sessions_growth_percentage ?? 0)}
       higherIsBetter
       amount={spokenSignedNumber}
+      against={against}
     />
   );
 };
@@ -63,7 +66,7 @@ export const RankedTable = ({
       <table>
         {detail && (
           <thead>
-            <tr><th>{report.heading}</th><th className="num">Sessions</th><th className="num">Hits</th>{comparing && <th className="num">vs previous</th>}</tr>
+            <tr><th>{report.heading}</th><th className="num">Sessions</th><th className="num">Hits</th>{comparison !== undefined && <th className="num">vs {comparisonWords(comparison.compare)}</th>}</tr>
           </thead>
         )}
         <tbody>
@@ -75,11 +78,11 @@ export const RankedTable = ({
                   <span className="bar" style={{ width: `${Number(row.bar_percent ?? 0)}%` }} />
                   {comparing && <span className="bar ghost" aria-hidden="true" style={{ width: `${Number(row.previous_bar_percent ?? 0)}%` }} />}
                   <span className="text">{label || "(direct)"}</span>
-                  {comparing && <span className="ds-sr">Previous period: {fmt(row.previous_sessions)} sessions</span>}
+                  {comparison !== undefined && <span className="ds-sr">{comparisonTitle(comparison.compare)}: {fmt(row.previous_sessions)} sessions</span>}
                 </td>
                 <td className="num">{fmt(row.sessions)}</td>
                 <td className="num muted">{fmt(row.hits)}</td>
-                {comparing && <td className="num">{changeOf(row)}</td>}
+                {comparison !== undefined && <td className="num">{changeOf(row, comparison.compare)}</td>}
               </tr>
             );
           })}

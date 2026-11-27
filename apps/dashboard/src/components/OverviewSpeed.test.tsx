@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type DashboardState, hrefFor } from "@/lib/dashboard-state";
+import type { ComparisonParams } from "@/lib/use-dashboard-state";
 import { EMPTY_MESSAGE } from "./ui";
 import { type ApiRow, failOnce, installFakeApi, removeFakeApi } from "@/test/fake-api";
 
@@ -32,7 +33,7 @@ const vital = (metric_name: string, p75: number, extra: ApiRow = {}): ApiRow => 
   ...extra,
 });
 
-const renderPanel = (vitals: readonly ApiRow[], comparison?: { compare: "previous_period" | "previous_week" }) => {
+const renderPanel = (vitals: readonly ApiRow[], comparison?: ComparisonParams) => {
   const api = installFakeApi({ web_vitals_current: vitals });
   render(<OverviewSpeed state={state} params={params} comparison={comparison} />);
   return api;
@@ -124,6 +125,18 @@ describe("OverviewSpeed", () => {
     expect(badge?.getAttribute("data-tone")).toBe("good");
     expect(text.getAttribute("aria-hidden")).toBe("true");
     expect(badge && spokenOf(badge)).toBe("minus 200 milliseconds, minus 8.69 percent");
+  });
+
+  it.each([
+  ["previous_period", "previous period", "Previous period"],
+  ["previous_week", "previous week", "Previous week"],
+  ["previous_month", "previous month", "Previous month"],
+  ["previous_year", "previous year", "Previous year"],
+] as const)("names the chosen comparison %s in the spoken change", async (compare, words, _title) => {
+    renderPanel([vital("LCP", 2100, { previous_p75: 2300, p75_change: -200, p75_change_percent: -8.69 })], { compare });
+
+    const spoken = await screen.findByText(`vs ${words}`);
+    expect(spoken.className).toContain("ds-sr");
   });
 
   it("shows a slower vital as a bad change", async () => {

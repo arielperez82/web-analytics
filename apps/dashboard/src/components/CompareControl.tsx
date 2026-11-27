@@ -1,15 +1,14 @@
 "use client";
 
 import { SegmentedControl } from "@/ds/SegmentedControl";
+import { COMPARE_CHOICES } from "@/lib/compare-window";
+import { comparisonTitle } from "@/lib/comparison-words";
 import type { Compare, DashboardState } from "@/lib/dashboard-state";
 
 type Choice = Compare | "previous_period";
 
 const CHOICES: readonly { readonly value: Choice; readonly label: string }[] = [
-  { value: "previous_period", label: "Previous period" },
-  { value: "previous_week", label: "Previous week" },
-  { value: "previous_month", label: "Previous month" },
-  { value: "previous_year", label: "Previous year" },
+  ...COMPARE_CHOICES.map((value) => ({ value, label: comparisonTitle(value) })),
   { value: "off", label: "None" },
 ];
 

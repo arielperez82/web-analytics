@@ -158,6 +158,20 @@ describe("RankedTable", () => {
     expect(within(es).getByText("Previous period: 8 sessions")).toBeTruthy();
   });
 
+  it.each([
+  ["previous_period", "previous period", "Previous period"],
+  ["previous_week", "previous week", "Previous week"],
+  ["previous_month", "previous month", "Previous month"],
+  ["previous_year", "previous year", "Previous year"],
+] as const)("names the chosen comparison %s in the header and the spoken figures", async (compare, words, title) => {
+    renderTable({ comparison: { compare }, detail: true });
+
+    const es = await rowOf("ES");
+    expect(screen.getByRole("columnheader", { name: `vs ${words}` })).toBeTruthy();
+    expect(within(es).getByText(`${title}: 8 sessions`)).toBeTruthy();
+    expect(within(es).getByText(`vs ${words}`).className).toContain("ds-sr");
+  });
+
   it("names the row before it says what the previous period had", async () => {
     renderTable({ comparison });
 

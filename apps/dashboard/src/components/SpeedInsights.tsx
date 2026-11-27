@@ -1,5 +1,6 @@
 "use client";
 
+import { comparisonWords } from "@/lib/comparison-words";
 import { spokenSignedScorePoints } from "@/lib/format";
 import { statusClass } from "@/lib/status-class";
 import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
@@ -18,7 +19,6 @@ const NoEarlierData = () => (
 );
 
 export const SpeedInsights = ({ params, comparison }: { params: QueryParams; comparison?: ComparisonParams }) => {
-  const comparing = comparison !== undefined;
   const scope = vitalsScope(params, comparison);
   const vitals = useEndpoint<Row>("web_vitals_current", scope);
   const routes = useEndpoint<Row>("web_vitals_routes", { ...scope, sort_order: "asc", limit: "10" });
@@ -32,7 +32,7 @@ export const SpeedInsights = ({ params, comparison }: { params: QueryParams; com
           {ordered.map((row) => (
             <div key={`${row.domain}-${row.metric_name}`} className={`card ${statusClass(row.status)}`}>
               <VitalReading row={row} showDomain={multiDomain} />
-              {comparing && <VitalChange row={row} />}
+              {comparison !== undefined && <VitalChange row={row} against={comparison.compare} />}
             </div>
           ))}
         </div>
@@ -40,13 +40,13 @@ export const SpeedInsights = ({ params, comparison }: { params: QueryParams; com
       <Panel title="Slowest routes (worst first)">
         <Status loading={routes.loading} refreshing={routes.refreshing} error={routes.error} stale={routes.data !== undefined} empty={routes.data?.length === 0} onRetry={routes.retry} />
         <table>
-          <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th>{comparing && <th className="num">Score vs previous</th>}</tr></thead>
+          <thead><tr><th>Route</th><th>Domain</th><th className="num">Score</th><th className="num">LCP ms</th><th className="num">INP ms</th><th className="num">CLS</th>{comparison !== undefined && <th className="num">Score vs {comparisonWords(comparison.compare)}</th>}</tr></thead>
           <tbody>
             {(routes.data ?? []).map((row) => (
               <tr key={`${row.domain}-${row.route}`}>
                 <td>{fmt(row.route)}</td><td className="muted">{fmt(row.domain)}</td><td className="num">{fmt(row.overall_score)}</td>
                 <td className="num">{fmt(row.lcp_avg)}</td><td className="num">{fmt(row.inp_avg)}</td><td className="num">{fmt(row.cls_avg)}</td>
-                {comparing && <td className="num">{typeof row.overall_score_change === "number" ? <ChangeBadge change={row.overall_score_change} higherIsBetter amount={spokenSignedScorePoints} /> : <NoEarlierData />}</td>}
+                {comparison !== undefined && <td className="num">{typeof row.overall_score_change === "number" ? <ChangeBadge change={row.overall_score_change} higherIsBetter amount={spokenSignedScorePoints} against={comparison.compare} /> : <NoEarlierData />}</td>}
               </tr>
             ))}
           </tbody>
