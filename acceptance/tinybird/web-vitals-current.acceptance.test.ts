@@ -45,11 +45,19 @@ const twoHourWindow = () => {
   const before = new Date(start.getTime() - 2 * ONE_HOUR_MS);
   const inside = (from: Date) => new Date(from.getTime() + 31 * ONE_MINUTE_MS);
   return {
-    params: { from_at: instantOf(start), to_at: instantOf(end) },
+    params: {
+      from_at: instantOf(start),
+      to_at: instantOf(end),
+      compare_from_at: instantOf(before),
+      compare_to_at: instantOf(start),
+    },
     duringIt: inside(start),
     justBeforeIt: inside(before),
     aWeekBeforeIt: inside(new Date(start.getTime() - ONE_WEEK_MS)),
     aWeekEarlier: instantOf(new Date(start.getTime() - ONE_WEEK_MS)),
+    aWeekEarlierEnd: instantOf(
+      new Date(start.getTime() - ONE_WEEK_MS + 2 * ONE_HOUR_MS)
+    ),
   };
 };
 
@@ -313,6 +321,7 @@ describe.concurrent('web_vitals_current pipe', () => {
         domain: scope.domain,
         ...window.params,
         compare_from_at: window.aWeekEarlier,
+        compare_to_at: window.aWeekEarlierEnd,
       });
 
       expect(rows).toEqual([
@@ -353,27 +362,17 @@ describe.concurrent('web_vitals_current pipe', () => {
       ]);
     });
 
-    it('compares a number of days with the same number of days before them', async () => {
+    it('refuses to compare a number of days without saying which days', async () => {
       const scope = createScope();
-      const thirtySixHoursAgo = new Date(Date.now() - 36 * ONE_HOUR_MS);
-      await ingestEvents(env, [
-        lcpAt(scope, 1000, new Date()),
-        lcpAt(scope, 2000, thirtySixHoursAgo),
-      ]);
 
-      const rows = await compared({
-        tenant_id: scope.tenantId,
-        domain: scope.domain,
-        days: 1,
-      });
-
-      expect(rows).toEqual([
-        expect.objectContaining({
-          previous_p75: 2000,
-          p75_change: -1000,
-          p75_change_percent: -50,
-        }),
-      ]);
+      await expect(
+        pipeRows(env, 'web_vitals_current', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          days: 1,
+          include_previous_period: 'true',
+        })
+      ).rejects.toThrow(/Comparing needs date_from and date_to/);
     });
 
     it('has no previous figure or change for a vital not measured before', async () => {

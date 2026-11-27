@@ -23,7 +23,7 @@ const report = (slug: string): Report => {
   return found;
 };
 
-const comparison = { compare_from: "2026-11-03", compare_to: "2026-11-09" };
+const comparison = { compare: "previous" } as const;
 
 const rows: readonly ApiRow[] = [
   { location: "ES", sessions: 10, hits: 30, bar_percent: 100, previous_sessions: 8, previous_bar_percent: 80, sessions_change: 2, sessions_growth_percentage: 25, status: "" },
@@ -104,16 +104,18 @@ describe("RankedTable", () => {
     await rowOf("ES");
     const query = api.requestsTo("top_locations")[0];
     expect(query?.get("include_previous_period")).toBe("true");
-    expect(query?.get("compare_from")).toBe("2026-11-03");
-    expect(query?.get("compare_to")).toBe("2026-11-09");
-    expect(query?.get("compare_from_at")).toBeNull();
+    expect(query?.get("compare")).toBe("previous");
+    expect(query?.has("compare_from")).toBe(false);
+    expect(query?.has("compare_from_at")).toBe(false);
   });
 
-  it("passes the comparison hour along for an exact window", async () => {
-    const api = renderTable({ comparison: { ...comparison, compare_from_at: "2026-11-03T05:00:00Z" } });
+  it("names the same period last week by its choice, never by dates", async () => {
+    const api = renderTable({ comparison: { compare: "last_week" } });
 
     await rowOf("ES");
-    expect(api.requestsTo("top_locations")[0]?.get("compare_from_at")).toBe("2026-11-03T05:00:00Z");
+    const query = api.requestsTo("top_locations")[0];
+    expect(query?.get("compare")).toBe("last_week");
+    expect(query?.has("compare_to")).toBe(false);
   });
 
   it("compares channels like every other breakdown", async () => {

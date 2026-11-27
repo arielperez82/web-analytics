@@ -54,4 +54,31 @@ describe.concurrent('dashboard proxy in front of Tinybird', () => {
     expect(rows).toHaveLength(6);
     expect(rows.map(row => Number(row.value))).toEqual([1, 2, 0, 0, 0, 0]);
   });
+
+  it.each([
+    ['previous', 'date_from=2026-11-10&date_to=2026-11-12'],
+    ['last_week', 'date_from=2026-11-10&date_to=2026-11-12'],
+    [
+      'previous',
+      'from_at=2026-11-10T05:00:00Z&to_at=2026-11-11T05:00:00Z&tz=America/New_York',
+    ],
+    ['last_week', 'from_at=2026-11-10T05:00:00Z&tz=America/New_York'],
+  ])(
+    'answers a compared request that names only %s and %s',
+    async (compare, window) => {
+      const scope = createScope();
+      const result = await proxyEndpoint(
+        {
+          name: 'top_pages',
+          authenticated: true,
+          query: new URLSearchParams(
+            `tenant_id=${scope.tenantId}&domain=${scope.domain}&${window}&include_previous_period=true&compare=${compare}`
+          ),
+        },
+        { tinybird: env, fetch: (url, init) => fetch(url, init) }
+      );
+
+      expect(result.status).toBe(200);
+    }
+  );
 });

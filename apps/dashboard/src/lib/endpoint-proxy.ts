@@ -1,3 +1,4 @@
+import { type CompareChoice, closedWindow, COMPARE_PARAMS, comparedWindow, isCompareChoice, isValidInstant } from "./compare-window";
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
 import { isValidTimeZone, localDay } from "./time-zone";
 
@@ -25,10 +26,6 @@ export const ALLOWED_ENDPOINTS: readonly string[] = [
   "web_vitals_routes",
   "web_vitals_timeseries",
 ];
-
-const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
 
 const UNPINNED_ONLY: readonly string[] = ["tenants"];
 
@@ -59,12 +56,14 @@ const FORWARDED_PARAMS: readonly string[] = [
   "compare_from",
   "compare_to",
   "compare_from_at",
+  "compare_to_at",
 ];
 
 export type ProxyDeps = {
   readonly tinybird: { readonly host: string; readonly token: string };
   readonly tenantId?: string;
   readonly fetch: (url: string, init?: RequestInit) => Promise<Response>;
+  readonly now?: () => Date;
 };
 
 type ProxyRequest = {
@@ -85,6 +84,47 @@ const forwardedQuery = (
       (key) => query.has(key) && !(tenantId && key === "tenant_id"),
     ).map((key) => [key, query.get(key) ?? ""] as [string, string]),
   ]).toString();
+
+type Compared = { readonly query: URLSearchParams } | { readonly error: string };
+
+const refused = (error: string): Compared => ({ error });
+
+const optional = (query: URLSearchParams, key: string): string | undefined => query.get(key) ?? undefined;
+
+const windowOf = (query: URLSearchParams) => ({
+  date_from: optional(query, "date_from"),
+  date_to: optional(query, "date_to"),
+  from_at: optional(query, "from_at"),
+  to_at: optional(query, "to_at"),
+});
+
+const legacyCompareGuard = (query: URLSearchParams): Compared | undefined =>
+  COMPARE_PARAMS.some((key) => query.has(key)) ? refused("Comparison dates are worked out by the server; send compare") : undefined;
+
+const missingChoiceGuard = (query: URLSearchParams): Compared | undefined =>
+  query.get("include_previous_period") === "true" ? refused("include_previous_period needs compare") : undefined;
+
+const resolved = (query: URLSearchParams, choice: CompareChoice, now: Date): Compared => {
+  const window = windowOf(query);
+  const closed = closedWindow({ window, now });
+  const compared = comparedWindow({ compare: choice, window: closed, zone: query.get("tz") ?? "UTC" });
+  if (compared === undefined) return refused("compare needs a complete, ordered window");
+  const filled = closed.to_at === window.to_at ? {} : { to_at: closed.to_at ?? "" };
+  return {
+    query: new URLSearchParams([
+      ...[...query.entries()].filter(([key]) => key !== "compare" && !(key in filled)),
+      ...Object.entries({ ...filled, ...compared }),
+    ]),
+  };
+};
+
+const comparedQuery = (query: URLSearchParams, now: Date): Compared => {
+  const legacy = legacyCompareGuard(query);
+  if (legacy !== undefined) return legacy;
+  const choice = query.get("compare");
+  if (choice === null) return missingChoiceGuard(query) ?? { query };
+  return isCompareChoice(choice) ? resolved(query, choice, now) : refused("Invalid compare");
+};
 
 const BEFORE_ANY_DATA = "2010-01-01";
 
@@ -130,7 +170,7 @@ const upstreamError: ProxyResult = {
 
 export const proxyEndpoint = async (
   { name, query, authenticated }: ProxyRequest,
-  { tinybird, tenantId, fetch }: ProxyDeps,
+  { tinybird, tenantId, fetch, now }: ProxyDeps,
 ): Promise<ProxyResult> => {
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
   if (!ALLOWED_ENDPOINTS.includes(name) || (tenantId && UNPINNED_ONLY.includes(name)))
@@ -143,22 +183,11 @@ export const proxyEndpoint = async (
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
 
-  for (const key of ["from_at", "to_at", "compare_from_at"]) {
+  for (const key of ["from_at", "to_at"]) {
     const instant = query.get(key);
-    if (instant !== null && !ISO_INSTANT.test(instant))
+    if (instant !== null && !isValidInstant(instant))
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
-
-  for (const key of ["compare_from", "compare_to"]) {
-    const day = query.get(key);
-    if (day !== null && !PLAIN_DAY.test(day))
-      return { status: 400, body: { error: `Invalid ${key}` } };
-  }
-
-  const compareFrom = query.get("compare_from");
-  const compareTo = query.get("compare_to");
-  if (compareFrom !== null && compareTo !== null && compareFrom > compareTo)
-    return { status: 400, body: { error: "compare_from is after compare_to" } };
 
   const bucket = query.get("bucket_hours");
   if (bucket !== null && !(/^\d{1,2}$/.test(bucket) && Number(bucket) >= 1 && Number(bucket) <= 24))
@@ -168,7 +197,10 @@ export const proxyEndpoint = async (
   if (tz !== null && !isValidTimeZone(tz))
     return { status: 400, body: { error: "Invalid tz" } };
 
-  const qs = forwardedQuery(await startingAtFirstData(name, query, { tinybird, tenantId, fetch }), tenantId);
+  const compared = comparedQuery(query, (now ?? (() => new Date()))());
+  if ("error" in compared) return { status: 400, body: { error: compared.error } };
+
+  const qs = forwardedQuery(await startingAtFirstData(name, compared.query, { tinybird, tenantId, fetch }), tenantId);
   const url = pipeUrl(tinybird.host, name, qs);
 
   try {

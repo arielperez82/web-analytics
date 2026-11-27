@@ -103,8 +103,9 @@ test('speed insights are compared with the period before, until the viewer switc
           .some(
             query =>
               query.get('include_previous_period') === 'true' &&
-              query.get('compare_from') === '2026-11-01' &&
-              query.get('compare_to') === '2026-11-07'
+              query.get('compare') === 'previous' &&
+              !query.has('compare_from') &&
+              !query.has('compare_to')
           )
       )
       .toBe(true);
@@ -124,7 +125,7 @@ test('speed insights are compared with the period before, until the viewer switc
   ).toHaveCount(0);
   for (const endpoint of ['web_vitals_current', 'web_vitals_routes']) {
     await expect
-      .poll(() => api.requestsTo(endpoint).at(-1)?.has('compare_from'))
+      .poll(() => api.requestsTo(endpoint).at(-1)?.has('compare'))
       .toBe(false);
     await expect
       .poll(() =>

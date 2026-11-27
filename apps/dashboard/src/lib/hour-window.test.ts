@@ -51,4 +51,16 @@ describe("hourlyRequest", () => {
       hourlyRequest({ date_from: "2026-11-06", date_to: "2026-11-07", from_at: "2026-11-06T16:00:00Z", tz: "UTC" }),
     ).toEqual({ from_at: "2026-11-06T16:00:00Z", to_at: "2026-11-07T16:00:00Z", bucket_hours: "1" });
   });
+
+  it("ends an exact window where it is told to instead of a day after its start", () => {
+    expect(
+      hourlyRequest({ from_at: "2026-11-17T16:00:00Z", to_at: "2026-11-18T18:00:00Z", tz: "UTC" }),
+    ).toMatchObject({ from_at: "2026-11-17T16:00:00Z", to_at: "2026-11-18T18:00:00Z", bucket_hours: "1" });
+  });
+
+  it("ends an exact window a day after its start when it has no end", () => {
+    expect(hourlyRequest({ from_at: "2026-11-17T16:00:00Z", tz: "UTC" })).toMatchObject({
+      to_at: "2026-11-18T16:00:00Z",
+    });
+  });
 });

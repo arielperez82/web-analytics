@@ -1,3 +1,4 @@
+import { closedWindow, COMPARE_PARAMS, comparedWindow, isCompareChoice } from "./compare-window";
 import { type ProxyDeps, proxyEndpoint } from "./endpoint-proxy";
 import { hourlyRequest, zonedHour } from "./hour-window";
 import { METRICS, type Trend } from "./metrics";
@@ -9,7 +10,9 @@ type Params = Readonly<Record<string, string | undefined>>;
 
 type Loaded = { readonly status: number; readonly body: unknown };
 
-const OWN_PARAMS: readonly string[] = ["grain", "compare_from", "compare_to", "compare_from_at"];
+const OWN_PARAMS: readonly string[] = ["grain", "compare"];
+
+const REFUSED = { status: 400, body: { error: "Invalid compare" } } as const;
 
 const SERIES = {
   day: { endpoint: "daily_series", engagement: "daily_engagement_series", key: "date" },
@@ -50,14 +53,27 @@ export const loadSeries = async (
   const grain = query.get("grain") === "hour" ? "hour" : "day";
   const { endpoint, engagement, key } = SERIES[grain];
   const zone = query.get("tz") ?? "UTC";
-  const range = withoutOwn(query);
-  const [compareFrom, compareTo] = [query.get("compare_from"), query.get("compare_to")];
-  const compareFromAt = query.get("compare_from_at");
-  const comparison = compareFromAt
-    ? { ...range, from_at: compareFromAt }
-    : compareFrom && compareTo
-      ? { ...range, date_from: compareFrom, date_to: compareTo }
-      : undefined;
+  const choice = query.get("compare");
+  if (COMPARE_PARAMS.some((key) => query.has(key)) || (choice !== null && !isCompareChoice(choice))) return REFUSED;
+  const closed = closedWindow({
+    window: {
+      date_from: query.get("date_from") ?? undefined,
+      date_to: query.get("date_to") ?? undefined,
+      from_at: query.get("from_at") ?? undefined,
+      to_at: query.get("to_at") ?? undefined,
+    },
+    now: (deps.now ?? (() => new Date()))(),
+  });
+  const range = { ...withoutOwn(query), ...(closed.to_at === undefined ? {} : { to_at: closed.to_at }) };
+  const compared =
+    choice === null || !isCompareChoice(choice) ? undefined : comparedWindow({ compare: choice, window: closed, zone });
+  if (choice !== null && compared === undefined) return REFUSED;
+  const comparison =
+    compared === undefined
+      ? undefined
+      : "compare_from_at" in compared
+        ? { ...range, from_at: compared.compare_from_at, to_at: compared.compare_to_at }
+        : { ...range, date_from: compared.compare_from, date_to: compared.compare_to };
 
   const call = (name: string, params: Params) =>
     proxyEndpoint(

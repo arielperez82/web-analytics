@@ -10,7 +10,7 @@ const asInstant = (utc: string): Date => new Date(`${utc.replace(" ", "T")}Z`);
 
 const asIso = (instant: Date): string => `${instant.toISOString().slice(0, 19)}Z`;
 
-const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> =>
+export const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> =>
   Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: zone,
@@ -26,7 +26,7 @@ const partsIn = (instant: Date, zone: string): Readonly<Record<string, string>> 
       .map((part) => [part.type, part.value]),
   );
 
-const offsetMs = (instant: Date, zone: string): number => {
+export const offsetMs = (instant: Date, zone: string): number => {
   const p = partsIn(instant, zone);
   const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
   return local - Math.floor(instant.getTime() / 1000) * 1000;
@@ -56,13 +56,13 @@ export const zonedHour = (utcHour: string, zone: string): string => {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 
-const exactDay = (from_at: string): { readonly from_at: string; readonly to_at: string } => ({
+const exactWindow = (from_at: string, to_at: string | undefined): { readonly from_at: string; readonly to_at: string } => ({
   from_at,
-  to_at: asIso(new Date(new Date(from_at).getTime() + DAY_MS)),
+  to_at: to_at ?? asIso(new Date(new Date(from_at).getTime() + DAY_MS)),
 });
 
 export const hourlyRequest = (params: Params): Params => {
-  const { date_from, date_to, from_at, tz, ...rest } = params;
-  if (from_at !== undefined) return { ...rest, ...exactDay(from_at), bucket_hours: "1" };
+  const { date_from, date_to, from_at, to_at, tz, ...rest } = params;
+  if (from_at !== undefined) return { ...rest, ...exactWindow(from_at, to_at), bucket_hours: "1" };
   return { ...rest, ...hourWindow({ date_from, date_to }, tz ?? "UTC"), bucket_hours: String(hourBucket({ date_from, date_to }) ?? 1) };
 };

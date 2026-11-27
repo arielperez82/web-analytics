@@ -51,29 +51,27 @@ describe("useDashboardState", () => {
     expect(result.current.params.date_to).toBe("2026-11-07");
   });
 
-  describe("the range the chart is compared with", () => {
-    const comparisonOf = (query: string, now = "2026-11-18T12:00:00Z") => {
-      vi.useFakeTimers({ now: new Date(now) });
-      const { result } = visit(`${query}&tz=UTC`, () => useDashboardState());
-      vi.useRealTimers();
-      return result.current.comparison;
-    };
+  describe("the compare choice sent with requests", () => {
+    const comparisonOf = (query: string) => visit(`${query}&tz=UTC`, () => useDashboardState()).result.current.comparison;
 
-    it("is the range just before it by default", () => {
-      expect(comparisonOf("days=7")).toEqual({ compare_from: "2026-11-05", compare_to: "2026-11-11" });
+    it("is the previous period by default", () => {
+      expect(comparisonOf("days=7")).toEqual({ compare: "previous" });
     });
 
-    it("is the same days a week earlier when asked", () => {
-      expect(comparisonOf("days=1&compare=last_week")).toEqual({ compare_from: "2026-11-11", compare_to: "2026-11-11" });
+    it("is the same period last week when asked", () => {
+      expect(comparisonOf("days=1&compare=last_week")).toEqual({ compare: "last_week" });
     });
 
-    it("starts at an exact hour for the last 24 hours", () => {
-      expect(comparisonOf("range=last_24_hours", "2026-11-18T12:30:00Z")).toEqual({
-        compare_from: "2026-11-16",
-        compare_to: "2026-11-17",
-        compare_from_at: "2026-11-16T13:00:00Z",
-      });
+    it("is the previous period for the last 24 hours, whose dates the proxy works out", () => {
+      expect(comparisonOf("range=last_24_hours")).toEqual({ compare: "previous" });
     });
+
+    it.each(["this_week", "this_month", "this_year"])(
+      "is the previous period for %s, which the proxy turns into the equal-length window just before",
+      (preset) => {
+        expect(comparisonOf(`range=${preset}`)).toEqual({ compare: "previous" });
+      },
+    );
 
     it("is nothing when switched off", () => {
       expect(comparisonOf("days=7&compare=off")).toBeUndefined();
@@ -83,12 +81,8 @@ describe("useDashboardState", () => {
       expect(comparisonOf("range=all_time")).toBeUndefined();
     });
 
-    it("counts days on the calendar of the zone", () => {
-      vi.useFakeTimers({ now: new Date("2026-11-18T02:00:00Z") });
-      const { result } = visit("days=1&tz=America%2FNew_York", () => useDashboardState());
-      vi.useRealTimers();
-
-      expect(result.current.comparison).toEqual({ compare_from: "2026-11-16", compare_to: "2026-11-16" });
+    it("never carries a date", () => {
+      expect(Object.keys(comparisonOf("days=7&compare=last_week") ?? {})).toEqual(["compare"]);
     });
   });
 

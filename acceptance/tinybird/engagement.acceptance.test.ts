@@ -358,7 +358,7 @@ describe.concurrent('engagement', () => {
     });
   });
 
-  it('compares one day with all of a longer period, and nothing around it', async () => {
+  it('compares three days with three other days, and nothing around them', async () => {
     const scope = createScope();
     await ingestEvents(env, [
       ...visit(scope, [0], 0),
@@ -369,17 +369,17 @@ describe.concurrent('engagement', () => {
       ...visit(scope, [0], 6),
     ]);
 
-    const row = await engagement(scope, 7, {
-      date_from: dayOf(0),
+    const row = await engagement(scope, 8, {
+      date_from: dayOf(2),
       date_to: dayOf(0),
       compare_from: dayOf(5),
       compare_to: dayOf(3),
     });
 
     expect(row).toMatchObject({
-      pageviews: 1,
+      pageviews: 2,
       previous_pageviews: 6,
-      pageviews_change: -5,
+      pageviews_change: -4,
       previous_avg_session_sec: 30,
     });
   });
@@ -418,7 +418,9 @@ describe.concurrent('engagement', () => {
           tenant_id: scope.tenantId,
           domain: scope.domain,
           from_at: new Date(fromAt).toISOString(),
+          to_at: new Date(fromAt + 2 * HOUR_MS).toISOString(),
           compare_from_at: new Date(compareFromAt).toISOString(),
+          compare_to_at: new Date(compareFromAt + 2 * HOUR_MS).toISOString(),
         }),
       rows => Number(rows[0]?.pageviews) === 1
     );

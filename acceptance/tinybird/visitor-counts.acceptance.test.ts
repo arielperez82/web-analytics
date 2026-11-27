@@ -463,7 +463,7 @@ describe.concurrent('visitor counts', () => {
       { path: 'every visitor', filter: {} },
       { path: 'one country', filter: { location: 'ES' } },
     ])(
-      'compares one day of $path with all of a longer period, and nothing around it',
+      'compares three days of $path with three other days, and nothing around them',
       async ({ filter }) => {
         const scope = createScope();
         await ingestEvents(env, [
@@ -479,21 +479,21 @@ describe.concurrent('visitor counts', () => {
         const row = await compared(
           scope,
           {
-            date_from: dayOf(0),
+            date_from: dayOf(2),
             date_to: dayOf(0),
             compare_from: dayOf(5),
             compare_to: dayOf(3),
             ...filter,
           },
-          found => Number(found.sessions) === 1
+          found => Number(found.sessions) === 2
         );
 
         expect(row).toMatchObject({
-          sessions: 1,
+          sessions: 2,
           previous_sessions: 4,
           previous_known_visitors: 3,
           previous_anonymous_visitors: 1,
-          sessions_change: -3,
+          sessions_change: -2,
         });
       }
     );
@@ -526,7 +526,9 @@ describe.concurrent('visitor counts', () => {
           scope,
           {
             from_at: new Date(fromAt).toISOString(),
+            to_at: new Date(fromAt + 2 * HOUR_MS).toISOString(),
             compare_from_at: new Date(compareFromAt).toISOString(),
+            compare_to_at: new Date(compareFromAt + 2 * HOUR_MS).toISOString(),
             ...filter,
           },
           found => Number(found.sessions) === 1
