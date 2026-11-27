@@ -137,6 +137,21 @@ describe("parseGoals with event pattern goals", () => {
     expect(result.errors[2]).toContain("Not text");
   });
 
+  it("names each reason a pattern goal can be refused", () => {
+    const raw = JSON.stringify([
+      { name: "Empty", eventPattern: "" },
+      { name: "Text", eventPattern: ["a"] },
+      { name: "Unsafe", eventPattern: "a++" },
+      { name: "Several", path: "/a", event: "b", eventPattern: "c" },
+    ]);
+    expect(parseGoals(raw).errors).toEqual([
+      "Empty has an unsafe eventPattern: pattern is empty",
+      "Text needs an eventPattern that is text",
+      expect.stringMatching(/^Unsafe has an unsafe eventPattern: stacked quantifiers/),
+      "Several needs one of a path, an event or an eventPattern, not several",
+    ]);
+  });
+
   it("allows only one of path, event and eventPattern", () => {
     const raw = JSON.stringify([
       { name: "A", event: "a", eventPattern: "a.*" },

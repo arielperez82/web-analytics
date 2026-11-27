@@ -428,15 +428,34 @@ describe("proxyEndpoint", () => {
     expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?tenant_id=acme&goal_event_pattern=signup_.*");
   });
 
-  it("rejects an unsafe goal_event_pattern with 400 and never calls Tinybird", async () => {
+  it.each([
+    ["a nested quantifier", "(a+)+"],
+    ["a backreference", "(a)\\1"],
+    ["a lookahead", "a(?=b)"],
+    ["a wrapper escape", "a)|(.*"],
+    ["an empty pattern", ""],
+    ["a pattern over the cap", "a".repeat(101)],
+    ["a space", "sign up"],
+    ["a non-ascii letter", "caf\u00e9"],
+    ["an unbounded repeat", "a{2,}"],
+    ["a lazy quantifier", "a+?"],
+    ["a repeat over the cap", "a{21}"],
+    ["a backwards class range", "[z-a]"],
+  ])("rejects %s with 400 and never calls Tinybird", async (_label, bad) => {
     const { deps, calls } = createFakeDeps();
-    for (const bad of ["(a+)+", "(a)\\1", "a(?=b)", "a)|(.*", "", "a".repeat(101)]) {
-      const query = new URLSearchParams({ goal_event_pattern: bad }).toString();
-      const result = await proxyEndpoint(request("conversions", query), deps);
-      expect(result.status).toBe(400);
-      expect(result.body).toEqual({ error: "Invalid goal_event_pattern" });
-    }
+    const query = new URLSearchParams({ goal_event_pattern: bad }).toString();
+    const result = await proxyEndpoint(request("conversions", query), deps);
+    expect(result.status).toBe(400);
+    expect(result.body).toEqual({ error: "Invalid goal_event_pattern" });
     expect(calls).toHaveLength(0);
+  });
+
+  it("forwards a repeat at the cap, so the 400 above comes from the validator and not the wiring", async () => {
+    const { deps, calls } = createFakeDeps();
+    const query = new URLSearchParams({ goal_event_pattern: "a{20}" }).toString();
+    const result = await proxyEndpoint(request("conversion_summary", query), deps);
+    expect(result.status).toBe(200);
+    expect(calls).toHaveLength(1);
   });
 
   it("forwards a valid tz to the endpoint", async () => {
