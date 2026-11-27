@@ -20,18 +20,25 @@ test('a goal shows the summary headline and each channel as the API returned the
   const api = await stubApi(page, {
     ...emptyOverview,
     conversion_summary: [
-      { conversions: 70, sessions: 900, conversion_rate_percent: 7.5 },
+      {
+        conversions: 70,
+        sessions: 900,
+        denominator: 900,
+        conversion_rate_percent: 7.5,
+      },
     ],
     conversions: [
       {
         channel: 'Paid',
         sessions: 100,
+        denominator: 100,
         conversions: 9,
         conversion_rate_percent: 8.5,
       },
       {
         channel: 'Organic',
         sessions: 300,
+        denominator: 300,
         conversions: 40,
         conversion_rate_percent: 12.7,
       },
@@ -77,12 +84,18 @@ test('a pattern goal is titled as a pattern and asks the API with the pattern', 
   const api = await stubApi(page, {
     ...emptyOverview,
     conversion_summary: [
-      { conversions: 3, sessions: 30, conversion_rate_percent: 10 },
+      {
+        conversions: 3,
+        sessions: 30,
+        denominator: 30,
+        conversion_rate_percent: 10,
+      },
     ],
     conversions: [
       {
         channel: 'Direct',
         sessions: 30,
+        denominator: 30,
         conversions: 3,
         conversion_rate_percent: 10,
       },
@@ -110,4 +123,91 @@ test('a pattern goal is titled as a pattern and asks the API with the pattern', 
       .filter(query => query.has('goal_event_pattern'))
       .every(query => !query.has('goal_path') && !query.has('goal_event'))
   ).toBe(true);
+});
+
+test('a count-only goal shows its conversions and no rate, and says so', async ({
+  page,
+}) => {
+  const api = await stubApi(page, {
+    ...emptyOverview,
+    conversion_summary: query =>
+      query.get('goal_denominator') === 'none'
+        ? [
+            {
+              conversions: 12,
+              sessions: 40,
+              denominator: null,
+              conversion_rate_percent: null,
+            },
+          ]
+        : [],
+    conversions: query =>
+      query.get('goal_denominator') === 'none'
+        ? [
+            {
+              channel: 'Paid',
+              sessions: 40,
+              denominator: null,
+              conversions: 12,
+              conversion_rate_percent: null,
+            },
+          ]
+        : [],
+  });
+  await signIn(page);
+
+  const panel = page.locator('section.panel', { hasText: 'Bookings' });
+  await expect(panel.getByText('12 sessions converted')).toBeVisible();
+  await expect(panel.getByText('Count only, no rate')).toBeVisible();
+  await expect(panel.locator('th')).toHaveText(['Channel', 'Conversions']);
+  await expect(panel.locator('tbody tr')).toHaveText(['Paid12']);
+  expect(
+    api
+      .requestsTo('conversion_summary')
+      .some(query => query.get('goal_denominator') === 'none')
+  ).toBe(true);
+});
+
+test('a visitor goal divides by visitors and a goal that chose nothing says session is the default', async ({
+  page,
+}) => {
+  await stubApi(page, {
+    ...emptyOverview,
+    conversion_summary: query =>
+      query.get('goal_denominator') === 'visitor'
+        ? [
+            {
+              conversions: 5,
+              sessions: 90,
+              denominator: 20,
+              conversion_rate_percent: 25,
+            },
+          ]
+        : [
+            {
+              conversions: 70,
+              sessions: 900,
+              denominator: 900,
+              conversion_rate_percent: 7.5,
+            },
+          ],
+    conversions: [
+      {
+        channel: 'Paid',
+        sessions: 90,
+        denominator: 20,
+        conversions: 5,
+        conversion_rate_percent: 25,
+      },
+    ],
+  });
+  await signIn(page);
+
+  const returning = page.locator('section.panel', { hasText: 'Returning' });
+  await expect(
+    returning.getByText('5 of 20 visitors converted (25%)')
+  ).toBeVisible();
+  await expect(returning.getByText('Rate per visitor')).toBeVisible();
+  const signedUp = page.locator('section.panel', { hasText: 'Signed up' });
+  await expect(signedUp.getByText('Rate per session (default)')).toBeVisible();
 });
