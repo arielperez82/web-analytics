@@ -645,8 +645,9 @@ test('the chart is compared with the period before it until the viewer switches 
   await signIn(page);
 
   await expect
-    .poll(() => api.requestsTo('series').at(-1)?.get('compare_from'))
-    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    .poll(() => api.requestsTo('series').at(-1)?.get('compare'))
+    .toBe('previous');
+  expect(api.requestsTo('series').at(-1)?.has('compare_from')).toBe(false);
   await expect(page.getByLabel('Chart legend')).toContainText(
     'Previous period'
   );
@@ -658,7 +659,7 @@ test('the chart is compared with the period before it until the viewer switches 
 
   await expect(page).toHaveURL(/compare=off/);
   await expect
-    .poll(() => api.requestsTo('series').at(-1)?.has('compare_from'))
+    .poll(() => api.requestsTo('series').at(-1)?.has('compare'))
     .toBe(false);
 });
 
@@ -680,8 +681,9 @@ test('the last 24 hours start on an exact hour for the cards and the chart alike
     .poll(() => api.requestsTo('series').at(-1)?.get('from_at'))
     .toMatch(exactHour);
   await expect
-    .poll(() => api.requestsTo('series').at(-1)?.get('compare_from_at'))
-    .toMatch(exactHour);
+    .poll(() => api.requestsTo('series').at(-1)?.get('compare'))
+    .toBe('previous');
+  expect(api.requestsTo('series').at(-1)?.has('compare_from_at')).toBe(false);
   expect(api.requestsTo('series').at(-1)?.get('grain')).toBe('hour');
   await expect(
     page
@@ -700,8 +702,11 @@ test('the breakdowns are compared with the period before, until the viewer switc
   await signIn(page);
 
   await expect
-    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare_from'))
-    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare'))
+    .toBe('previous');
+  expect(api.requestsTo('top_locations').at(-1)?.has('compare_from')).toBe(
+    false
+  );
   expect(
     api.requestsTo('top_locations').at(-1)?.get('include_previous_period')
   ).toBe('true');
@@ -719,9 +724,7 @@ test('the breakdowns are compared with the period before, until the viewer switc
       api.requestsTo('top_locations').at(-1)?.has('include_previous_period')
     )
     .toBe(false);
-  expect(api.requestsTo('top_locations').at(-1)?.has('compare_from')).toBe(
-    false
-  );
+  expect(api.requestsTo('top_locations').at(-1)?.has('compare')).toBe(false);
 });
 
 test('the breakdowns compare with the same hours last week when asked', async ({
@@ -738,8 +741,11 @@ test('the breakdowns compare with the same hours last week when asked', async ({
 
   await expect(page).toHaveURL(/compare=last_week/);
   await expect
-    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare_from_at'))
-    .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/);
+    .poll(() => api.requestsTo('top_locations').at(-1)?.get('compare'))
+    .toBe('last_week');
+  expect(api.requestsTo('top_locations').at(-1)?.has('compare_from_at')).toBe(
+    false
+  );
 });
 
 test('the key figures are compared with the period before, and show no change once the viewer switches that off', async ({
@@ -750,11 +756,11 @@ test('the key figures are compared with the period before, and show no change on
   const sessions = page.getByRole('button', { name: 'Sessions' });
 
   await expect
-    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('compare_from'))
-    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.get('compare'))
+    .toBe('previous');
   await expect
-    .poll(() => api.requestsTo('engagement').at(-1)?.get('compare_to'))
-    .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    .poll(() => api.requestsTo('engagement').at(-1)?.get('compare'))
+    .toBe('previous');
   await expect(sessions).toContainText('+30 (+7.89%)');
   await expect(page.getByText('-1.5 pp (-3.85%)')).toBeVisible();
 
@@ -764,10 +770,10 @@ test('the key figures are compared with the period before, and show no change on
     .click();
 
   await expect
-    .poll(() => api.requestsTo('visitor_counts').at(-1)?.has('compare_from'))
+    .poll(() => api.requestsTo('visitor_counts').at(-1)?.has('compare'))
     .toBe(false);
   await expect
-    .poll(() => api.requestsTo('engagement').at(-1)?.has('compare_from'))
+    .poll(() => api.requestsTo('engagement').at(-1)?.has('compare'))
     .toBe(false);
   await expect(sessions).toContainText('410');
   await expect(sessions).not.toContainText('+30 (+7.89%)');
@@ -787,16 +793,10 @@ test('the key figures compare with the same hours last week when asked', async (
     .click();
 
   await expect(page).toHaveURL(/compare=last_week/);
-  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-  const exactHour = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/;
-  const lastComparedFrom = (endpoint: string): number | undefined => {
-    const sent = api.requestsTo(endpoint).at(-1);
-    const compareFromAt = sent?.get('compare_from_at') ?? '';
-    return exactHour.test(compareFromAt)
-      ? new Date(sent?.get('from_at') ?? '').getTime() -
-          new Date(compareFromAt).getTime()
-      : undefined;
-  };
-  await expect.poll(() => lastComparedFrom('visitor_counts')).toBe(WEEK_MS);
-  await expect.poll(() => lastComparedFrom('engagement')).toBe(WEEK_MS);
+  for (const endpoint of ['visitor_counts', 'engagement']) {
+    await expect
+      .poll(() => api.requestsTo(endpoint).at(-1)?.get('compare'))
+      .toBe('last_week');
+    expect(api.requestsTo(endpoint).at(-1)?.has('compare_from_at')).toBe(false);
+  }
 });
