@@ -15,7 +15,7 @@ const PRINTABLE_ASCII_WITHOUT_SPACE = /^[\x21-\x7e]+$/;
 const QUANTIFIER_START = /[*+?{]/;
 const CLASS_ESCAPES = "dwsDWS";
 const ESCAPABLE_PUNCTUATION = ".[](){}|*+?^$-:/\\";
-const REPEAT_NUMBER = /^\d{1,3}$/;
+const REPEAT_NUMBER = /^\d{1,9}$/;
 
 const parseEscape = (pattern: string, index: number): Parsed<{ readonly index: number }> => {
   const escaped = pattern[index + 1];
@@ -26,18 +26,37 @@ const parseEscape = (pattern: string, index: number): Parsed<{ readonly index: n
     : failure(`unsupported escape \\${escaped}; use \\d \\w \\s or escape a punctuation character`);
 };
 
+type ClassItem = { readonly set: boolean; readonly code: number };
+type ClassState = { readonly previous: ClassItem | undefined; readonly rangeFrom: ClassItem | undefined; readonly count: number };
+
+const RANGE_REASON = "invalid character class range: use a-z between two plain characters, in order";
+
+const classItem = (pattern: string, position: number): ClassItem & { readonly next: number } => {
+  const char = pattern[position] ?? "";
+  if (char !== "\\") return { set: false, code: char.charCodeAt(0), next: position + 1 };
+  const escaped = pattern[position + 1] ?? "";
+  return { set: CLASS_ESCAPES.includes(escaped), code: escaped.charCodeAt(0), next: position + 2 };
+};
+
 const parseClass = (pattern: string, index: number): Parsed<{ readonly index: number }> => {
   const start = pattern[index + 1] === "^" ? index + 2 : index + 1;
-  const close = (position: number, count: number): Parsed<{ readonly index: number }> => {
+  const close = (position: number, state: ClassState): Parsed<{ readonly index: number }> => {
     const char = pattern[position];
     if (char === undefined) return failure("unterminated character class");
-    if (char === "]") return count === 0 ? failure("invalid character class: it is empty") : { index: position + 1 };
+    if (char === "]") return state.count === 0 ? failure("invalid character class: it is empty") : { index: position + 1 };
     if (char === "[") return failure("invalid character class: nested brackets and POSIX classes are not supported");
-    if (char !== "\\") return close(position + 1, count + 1);
-    const escape = parseEscape(pattern, position);
-    return failed(escape) ? escape : close(escape.index, count + 1);
+    const opensRange = char === "-" && state.previous !== undefined && state.rangeFrom === undefined && pattern[position + 1] !== "]";
+    if (opensRange) return close(position + 1, { ...state, rangeFrom: state.previous, count: state.count + 1 });
+    if (char === "\\") {
+      const escape = parseEscape(pattern, position);
+      if (failed(escape)) return escape;
+    }
+    const item = classItem(pattern, position);
+    if (state.rangeFrom !== undefined && (state.rangeFrom.set || item.set || state.rangeFrom.code > item.code)) return failure(RANGE_REASON);
+    const closesRange = state.rangeFrom !== undefined;
+    return close(item.next, { previous: closesRange ? { set: true, code: 0 } : item, rangeFrom: undefined, count: state.count + 1 });
   };
-  return close(start, 0);
+  return close(start, { previous: undefined, rangeFrom: undefined, count: 0 });
 };
 
 const parseQuantifier = (pattern: string, index: number): Parsed<{ readonly index: number }> | undefined => {
