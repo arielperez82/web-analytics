@@ -17,8 +17,11 @@ export const yTicks = (values: readonly number[]): readonly YTick[] => {
 };
 
 const dayLabel = (key: string): string => {
-  const [, month, day] = key.split("-");
-  return `${MONTHS[Number(month) - 1] ?? ""} ${Number(day)}`;
+  const [year, month, day] = key.split("-");
+  const monthName = MONTHS[Number(month) - 1];
+  if (monthName === undefined) return key;
+  if (day === undefined) return `${monthName} ${year}`;
+  return `${monthName} ${Number(day)}`;
 };
 
 const hourLabel = (key: string): string => key.slice(11, 16);

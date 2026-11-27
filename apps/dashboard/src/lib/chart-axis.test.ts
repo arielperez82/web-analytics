@@ -72,6 +72,14 @@ describe("xLabels", () => {
     expect(labels.slice(0, 6)).toEqual(["Mar 7", "Mar 8", "", "", "", "Mar 9"]);
   });
 
+  it("names a month bucket by its month and year", () => {
+    expect(xLabels(["2026-10", "2026-11", "2026-12"], "day")).toEqual(["Oct 2026", "Nov 2026", "Dec 2026"]);
+  });
+
+  it("never prints NaN for a key that is not a date", () => {
+    expect(xLabels(["2026", "garbage"], "day").join(" ")).not.toContain("NaN");
+  });
+
   it("returns nothing for no bars", () => {
     expect(xLabels([], "day")).toEqual([]);
   });
