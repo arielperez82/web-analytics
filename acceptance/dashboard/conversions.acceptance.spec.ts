@@ -20,18 +20,25 @@ test('a goal shows the summary headline and each channel as the API returned the
   const api = await stubApi(page, {
     ...emptyOverview,
     conversion_summary: [
-      { conversions: 70, sessions: 900, conversion_rate_percent: 7.5 },
+      {
+        conversions: 70,
+        sessions: 900,
+        denominator: 900,
+        conversion_rate_percent: 7.5,
+      },
     ],
     conversions: [
       {
         channel: 'Paid',
         sessions: 100,
+        denominator: 100,
         conversions: 9,
         conversion_rate_percent: 8.5,
       },
       {
         channel: 'Organic',
         sessions: 300,
+        denominator: 300,
         conversions: 40,
         conversion_rate_percent: 12.7,
       },
@@ -77,12 +84,18 @@ test('a pattern goal is titled as a pattern and asks the API with the pattern', 
   const api = await stubApi(page, {
     ...emptyOverview,
     conversion_summary: [
-      { conversions: 3, sessions: 30, conversion_rate_percent: 10 },
+      {
+        conversions: 3,
+        sessions: 30,
+        denominator: 30,
+        conversion_rate_percent: 10,
+      },
     ],
     conversions: [
       {
         channel: 'Direct',
         sessions: 30,
+        denominator: 30,
         conversions: 3,
         conversion_rate_percent: 10,
       },
@@ -109,5 +122,43 @@ test('a pattern goal is titled as a pattern and asks the API with the pattern', 
       .requestsTo('conversions')
       .filter(query => query.has('goal_event_pattern'))
       .every(query => !query.has('goal_path') && !query.has('goal_event'))
+  ).toBe(true);
+});
+
+test('a goal with a denominator sends it to the API and shows the rate the API returned', async ({
+  page,
+}) => {
+  const api = await stubApi(page, {
+    ...emptyOverview,
+    conversion_summary: [
+      {
+        conversions: 5,
+        sessions: 90,
+        denominator: 20,
+        conversion_rate_percent: 25,
+      },
+    ],
+    conversions: [
+      {
+        channel: 'Paid',
+        sessions: 90,
+        denominator: 20,
+        conversions: 5,
+        conversion_rate_percent: 25,
+      },
+    ],
+  });
+  await signIn(page);
+
+  const panel = page.locator('section.panel', {
+    has: page.getByRole('heading', { name: /^Booked per visitor/ }),
+  });
+  await expect(
+    panel.getByText('5 of 20 visitors converted (25%)')
+  ).toBeVisible();
+  expect(
+    api
+      .requestsTo('conversion_summary')
+      .some(query => query.get('goal_denominator') === 'visitor')
   ).toBe(true);
 });

@@ -26,6 +26,11 @@ export default defineConfig({
       DASHBOARD_GOALS: JSON.stringify([
         { name: 'Signed up', path: '/welcome/done' },
         { name: 'Any signup', eventPattern: 'signup_.*' },
+        {
+          name: 'Booked per visitor',
+          path: '/welcome/back',
+          denominator: 'visitor',
+        },
       ]),
       TINYBIRD_HOST: 'http://127.0.0.1:1',
       TINYBIRD_TOKEN: 'unused',

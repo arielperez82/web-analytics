@@ -306,7 +306,12 @@ describe.concurrent('conversions pipe', () => {
       });
 
       expect(rows).toEqual([
-        { sessions: 0, conversions: 0, conversion_rate_percent: 0 },
+        {
+          sessions: 0,
+          denominator: 0,
+          conversions: 0,
+          conversion_rate_percent: 0,
+        },
       ]);
     });
   });
