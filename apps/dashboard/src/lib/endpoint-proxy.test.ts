@@ -421,6 +421,24 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("forwards a safe goal_event_pattern to conversions", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("conversions", new URLSearchParams({ goal_event_pattern: "signup_.*" }).toString()), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/conversions.json?tenant_id=acme&goal_event_pattern=signup_.*");
+  });
+
+  it("rejects an unsafe goal_event_pattern with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["(a+)+", "(a)\\1", "a(?=b)", "a)|(.*", "", "a".repeat(101)]) {
+      const query = new URLSearchParams({ goal_event_pattern: bad }).toString();
+      const result = await proxyEndpoint(request("conversions", query), deps);
+      expect(result.status).toBe(400);
+      expect(result.body).toEqual({ error: "Invalid goal_event_pattern" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("forwards a valid tz to the endpoint", async () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("visitor_counts", "tz=America%2FNew_York"), deps);
