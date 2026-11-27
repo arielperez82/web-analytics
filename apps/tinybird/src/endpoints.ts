@@ -1537,12 +1537,12 @@ const goalEventOnlySessionsNode = () =>
   node({
     name: "event_only_sessions",
     description:
-      "Sessions that sent events but no page view in range. They count in the session and visitor denominators and convert on an event goal; they never reach a goal page.",
+      "Sessions that sent events but no page view in range. They count in the session and visitor denominators and convert on an event goal; they never reach a goal page. Events without a session id belong to no session.",
     sql: `
         SELECT
             tenant_id,
             domain,
-            coalesce(session_id, '0') as session_id,
+            assumeNotNull(session_id) as session_id,
             any(visitor_id) as visitor_id,
             any(id_mode) as id_mode,
             min(timestamp) as started_at,
@@ -1551,21 +1551,26 @@ const goalEventOnlySessionsNode = () =>
             argMin(domainWithoutWWW(domain), timestamp) as site_domain,
             toUInt64(0) as hits,
             {% if defined(goal_event) or defined(goal_event_pattern) %}
-            toUInt8(max(${goalSessionReachedEventSql("coalesce(session_id, '0')")})) as converted
+            toUInt8(max(${goalSessionReachedEventSql("session_id")})) as converted
             {% else %}
             toUInt8(0) as converted
             {% end %}
-        FROM analytics_events
-        WHERE action NOT IN ('page_hit', 'web_vital')
-            AND timestamp >= (SELECT current_start_at FROM date_calculations)
-            AND timestamp < (SELECT current_end_at FROM date_calculations)${tenantScopeSql}
-            {% if defined(domain) %}
-            AND domain = {{ String(domain, description="Filter by domain") }}
-            {% end %}
-            {% if Int32(include_bots, 0) != 1 %}
-            AND is_bot = 0
-            {% end %}
-            AND (tenant_id, coalesce(session_id, '0')) NOT IN (SELECT tenant_id, session_id FROM page_view_sessions)
+        FROM (
+            SELECT tenant_id, domain, session_id, visitor_id, id_mode, timestamp, utm_medium, referrer
+            FROM analytics_events
+            WHERE action NOT IN ('page_hit', 'web_vital')
+                AND session_id IS NOT NULL
+                AND session_id != ''
+                AND timestamp >= (SELECT current_start_at FROM date_calculations)
+                AND timestamp < (SELECT current_end_at FROM date_calculations)${tenantScopeSql}
+                {% if defined(domain) %}
+                AND domain = {{ String(domain, description="Filter by domain") }}
+                {% end %}
+                {% if Int32(include_bots, 0) != 1 %}
+                AND is_bot = 0
+                {% end %}
+        )
+        WHERE (tenant_id, session_id) NOT IN (SELECT tenant_id, session_id FROM page_view_sessions)
         GROUP BY tenant_id, domain, session_id
       `,
   });
@@ -1586,12 +1591,14 @@ const goalSessionsNodes = () => [
 
 const goalFirstTouchColumns = `,
             v.converted as converted,
-            v.visitor_id as visitor_id`;
+            v.visitor_id as visitor_id,
+            v.tenant_id as tenant_id,
+            v.domain as domain`;
 
 const byDenominator = (cases: { readonly session: string; readonly visitor: string; readonly page_view: string; readonly none: string }) =>
   `{% if String(goal_denominator, 'session') == 'visitor' %}${cases.visitor}{% elif String(goal_denominator, 'session') == 'page_view' %}${cases.page_view}{% elif String(goal_denominator, 'session') == 'none' %}${cases.none}{% else %}${cases.session}{% end %}`;
 
-const visitorKeySql = "if(visitor_id != '', visitor_id, concat('legacy:', session_id))";
+const visitorKeySql = "tenant_id, domain, if(visitor_id != '', visitor_id, concat('legacy:', session_id))";
 
 const goalMeasureColumns = `
             count() as sessions,
@@ -1604,7 +1611,7 @@ const goalMeasureColumns = `
             ${byDenominator({
               session: "sum(converted)",
               visitor: `uniqExactIf(${visitorKeySql}, converted = 1)`,
-              page_view: "sum(converted)",
+              page_view: "sumIf(converted, hits > 0)",
               none: "sum(converted)",
             })} as conversions,
             if(isNull(denominator), CAST(NULL AS Nullable(Float64)), toNullable(if(denominator = 0, 0, round(conversions * 100.0 / denominator, 2)))) as conversion_rate_percent`;

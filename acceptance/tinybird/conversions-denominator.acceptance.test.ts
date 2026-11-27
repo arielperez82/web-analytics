@@ -43,13 +43,11 @@ describe.concurrent('conversion denominators', () => {
       ...paid,
       ...extra,
     });
-  const signup = (scope: Scope, sessionId: string, visitorId?: string) =>
-    createCustomEvent({
-      ...scope,
-      action: GOAL_EVENT,
-      sessionId,
-      payload: visitorId === undefined ? {} : { visitor_id: visitorId },
-    });
+  const signup = (
+    scope: Scope,
+    sessionId: string,
+    payload: Record<string, unknown> = {}
+  ) => createCustomEvent({ ...scope, action: GOAL_EVENT, sessionId, payload });
 
   const traffic = async () => {
     const scope = createScope();
@@ -65,7 +63,7 @@ describe.concurrent('conversion denominators', () => {
       hit(scope, second, { visitorId: 'v1' }),
       hit(scope, third, { visitorId: 'v2', offsetSeconds: 0 }),
       hit(scope, third, { visitorId: 'v2', offsetSeconds: 5 }),
-      signup(scope, eventOnly, 'v3'),
+      signup(scope, eventOnly, { visitor_id: 'v3' }),
     ]);
     return scope;
   };
@@ -76,12 +74,16 @@ describe.concurrent('conversion denominators', () => {
     goal_event: GOAL_EVENT,
     ...extra,
   });
-  const channels = async (scope: Scope, extra: Record<string, string>) => {
+  const channels = async (
+    scope: Scope,
+    extra: Record<string, string>,
+    minRows = 2
+  ) => {
     const rows = await waitForPipeRows<Row>(
       env,
       'conversions',
       params(scope, extra),
-      2
+      minRows
     );
     return Object.fromEntries(
       rows.map(row => [
@@ -122,12 +124,12 @@ describe.concurrent('conversion denominators', () => {
     });
   });
 
-  it('divides by page views, and shows no rate where there are none', async () => {
+  it('divides by page views, counting only converting sessions that had one, so the rate stays at most 100%', async () => {
     const scope = await traffic();
 
     expect(await channels(scope, { goal_denominator: 'page_view' })).toEqual({
       Paid: { denominator: 4, conversions: 1, rate: 25 },
-      Direct: { denominator: 0, conversions: 1, rate: 0 },
+      Direct: { denominator: 0, conversions: 0, rate: 0 },
     });
   });
 
@@ -144,7 +146,7 @@ describe.concurrent('conversion denominators', () => {
     const scope = createScope();
     await ingestEvents(env, [
       hit(scope, session('visit')),
-      signup(scope, session('event-only')),
+      signup(scope, session('event-only'), { pathname: GOAL_PATH }),
     ]);
 
     const rows = await waitForPipeRows<Row>(
@@ -171,7 +173,7 @@ describe.concurrent('conversion denominators', () => {
   it.each([
     ['session', { denominator: 4, conversions: 2, rate: 50 }],
     ['visitor', { denominator: 3, conversions: 2, rate: 66.67 }],
-    ['page_view', { denominator: 4, conversions: 2, rate: 50 }],
+    ['page_view', { denominator: 4, conversions: 1, rate: 25 }],
     ['none', { denominator: null, conversions: 2, rate: null }],
   ])(
     'totals every channel in the summary for %s',
@@ -232,4 +234,120 @@ describe.concurrent('conversion denominators', () => {
       )
     ).rejects.toThrow(/goal_denominator/);
   });
+
+  it('counts visitors without an id once per session', async () => {
+    const scope = createScope();
+    const [won, lost] = [session('won'), session('lost')] as const;
+    await ingestEvents(env, [
+      hit(scope, won),
+      signup(scope, won),
+      hit(scope, lost),
+    ]);
+
+    expect(await channels(scope, { goal_denominator: 'visitor' }, 1)).toEqual({
+      Paid: { denominator: 2, conversions: 1, rate: 50 },
+    });
+  });
+
+  it('counts a visitor with two converting sessions once under visitor, and twice under session', async () => {
+    const scope = createScope();
+    const [first, second, other] = [
+      session('first'),
+      session('second'),
+      session('other'),
+    ] as const;
+    await ingestEvents(env, [
+      hit(scope, first, { visitorId: 'v1' }),
+      signup(scope, first),
+      hit(scope, second, { visitorId: 'v1' }),
+      signup(scope, second),
+      hit(scope, other, { visitorId: 'v2' }),
+    ]);
+
+    expect(await channels(scope, { goal_denominator: 'visitor' }, 1)).toEqual({
+      Paid: { denominator: 2, conversions: 1, rate: 50 },
+    });
+    expect(await channels(scope, { goal_denominator: 'session' }, 1)).toEqual({
+      Paid: { denominator: 3, conversions: 2, rate: 66.67 },
+    });
+  });
+
+  it('puts an event-only session in the channel its own campaign names', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      signup(scope, session('campaign'), { utm_medium: 'cpc' }),
+      signup(scope, session('referred'), {
+        referrer: 'https://www.google.com/',
+      }),
+    ]);
+
+    expect(await channels(scope, {}, 2)).toEqual({
+      Paid: { denominator: 1, conversions: 1, rate: 100 },
+      'Organic Search': { denominator: 1, conversions: 1, rate: 100 },
+    });
+  });
+
+  it('credits an event-only session to the first campaign of its visitor', async () => {
+    const scope = createScope();
+    const who = { visitor_id: 'vx', id_mode: 'daily_proxy' };
+    await ingestEvents(env, [
+      hit(scope, session('earlier'), {
+        visitorId: 'vx',
+        idMode: 'daily_proxy',
+        offsetSeconds: -120,
+      }),
+      signup(scope, session('later'), who),
+    ]);
+
+    expect(await channels(scope, {}, 1)).toEqual({
+      Paid: { denominator: 2, conversions: 1, rate: 50 },
+    });
+  });
+
+  it('never creates a session from an event with no session id', async () => {
+    const scope = createScope();
+    await ingestEvents(env, [
+      hit(scope, session('visit')),
+      signup(scope, session('real-event-only')),
+      { ...signup(scope, 'x'), session_id: null },
+      { ...signup(scope, 'x'), session_id: '' },
+    ]);
+
+    expect(await channels(scope, {})).toEqual({
+      Paid: { denominator: 1, conversions: 0, rate: 0 },
+      Direct: { denominator: 1, conversions: 1, rate: 100 },
+    });
+  });
+
+  it.each(['session', 'visitor', 'page_view', 'none'])(
+    'keeps a rival tenant that reuses the same session ids out of the %s denominator',
+    async denominator => {
+      const scope = createScope();
+      const rival = createRivalTenant(scope);
+      const shared = session('shared');
+      const rivalOnly = session('rival-event-only');
+      await ingestEvents(env, [
+        hit(scope, shared, { visitorId: 'same' }),
+        hit(rival, shared, { visitorId: 'same' }),
+        signup(rival, shared),
+        signup(rival, rivalOnly, { visitor_id: 'same' }),
+      ]);
+
+      const [row] = await waitForRow(
+        () =>
+          pipeRows<SummaryRow>(
+            env,
+            'conversion_summary',
+            params(scope, { goal_denominator: denominator })
+          ),
+        rows => Number(rows[0]?.sessions) === 1
+      );
+
+      expect(Number(row?.sessions)).toBe(1);
+      expect(Number(row?.conversions)).toBe(0);
+      expect(row?.denominator === null ? null : Number(row?.denominator)).toBe(
+        denominator === 'none' ? null : 1
+      );
+    }
+  );
 });
