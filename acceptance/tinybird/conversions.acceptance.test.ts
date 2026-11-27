@@ -1,5 +1,7 @@
 import { describe, expect, inject, it } from 'vitest';
 
+import { EVENT_PATTERN_MAX_LENGTH } from '../../apps/dashboard/src/lib/event-pattern';
+import { GOAL_EVENT_PATTERN_MAX_LENGTH } from '../../apps/tinybird/src/endpoints';
 import {
   createCustomEvent,
   createPageHitEvent,
@@ -23,6 +25,7 @@ type ConversionRow = {
 
 const GOAL = '/welcome/done';
 const MINUTE_S = 60;
+const GOAL_EVENT_NAME = 'signup_completed';
 
 describe.concurrent('conversions pipe', () => {
   const env = inject('tinybird');
@@ -395,6 +398,306 @@ describe.concurrent('conversions pipe', () => {
           goal_event: GOAL_EVENT,
         })
       ).rejects.toThrow(/goal_path/);
+    });
+  });
+
+  describe('a goal that matches event names by pattern', () => {
+    const happened = (scope: Scope, sessionId: string, action: string) =>
+      createCustomEvent({ ...scope, action, sessionId });
+    const forPattern = (scope: Scope, pattern: string, minRows = 1) =>
+      waitForPipeRows<ConversionRow>(
+        env,
+        'conversions',
+        {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: pattern,
+        },
+        minRows
+      );
+    const converting = async (
+      pattern: string,
+      actions: Record<string, string>
+    ) => {
+      const scope = createScope();
+      const sessions = Object.fromEntries(
+        Object.keys(actions).map(name => [name, session(name)])
+      );
+      await ingestEvents(env, [
+        ...Object.keys(actions).map(name =>
+          hit(scope, '/', sessions[name] ?? '', paid)
+        ),
+        ...Object.entries(actions).map(([name, action]) =>
+          happened(scope, sessions[name] ?? '', action)
+        ),
+      ]);
+      const rows = await forPattern(scope, pattern);
+      return byChannel(rows).Paid;
+    };
+
+    it('counts each session that sent any event the pattern matches, once', async () => {
+      const scope = createScope();
+      const [first, second, none] = [
+        session('first'),
+        session('second'),
+        session('none'),
+      ] as const;
+      await ingestEvents(env, [
+        hit(scope, '/', first, paid),
+        happened(scope, first, 'signup_email'),
+        happened(scope, first, 'signup_google'),
+        hit(scope, '/', second, paid),
+        happened(scope, second, 'signup_google'),
+        hit(scope, '/', none, paid),
+        happened(scope, none, 'pageview_extra'),
+      ]);
+
+      const rows = await forPattern(scope, 'signup_.*');
+
+      expect(byChannel(rows)).toEqual({
+        Paid: { sessions: 3, conversions: 2 },
+      });
+    });
+
+    it('matches the whole event name, not a part of it', async () => {
+      expect(
+        await converting('signup', {
+          exact: 'signup',
+          longer: 'signup_done',
+          prefixed: 'pre_signup',
+        })
+      ).toEqual({ sessions: 3, conversions: 1 });
+      expect(
+        await converting('signup_.*', {
+          start: 'signup_done',
+          inside: 'pre_signup_done',
+        })
+      ).toEqual({ sessions: 2, conversions: 1 });
+    });
+
+    it('keeps a top-level alternation inside the whole-name match', async () => {
+      expect(
+        await converting('done|signup', {
+          done: 'done',
+          signup: 'signup',
+          prefixed: 'pre_done',
+          suffixed: 'signup_late',
+        })
+      ).toEqual({ sessions: 4, conversions: 2 });
+    });
+
+    it('is case sensitive, like an exact event name', async () => {
+      expect(
+        await converting('signup_done', {
+          lower: 'signup_done',
+          upper: 'Signup_Done',
+        })
+      ).toEqual({ sessions: 2, conversions: 1 });
+    });
+
+    it('treats an escaped dot as a literal dot', async () => {
+      expect(
+        await converting('sign\\.up', {
+          dotted: 'sign.up',
+          other: 'signXup',
+        })
+      ).toEqual({ sessions: 2, conversions: 1 });
+    });
+
+    it('supports classes, counted repeats and optional groups', async () => {
+      expect(
+        await converting('step_[0-9]{1,2}(?:_done)?', {
+          one: 'step_1',
+          twelve: 'step_12_done',
+          three: 'step_123',
+          word: 'step_x',
+        })
+      ).toEqual({ sessions: 4, conversions: 2 });
+    });
+
+    it('treats an injection attempt in the pattern as text that matches nothing', async () => {
+      expect(
+        await converting("x' OR '1'='1", { visit: 'signup_done' })
+      ).toEqual({ sessions: 1, conversions: 0 });
+    });
+
+    it('does not count an event another tenant sent', async () => {
+      const scope = createScope();
+      const rival = createRivalTenant(scope);
+      const who = session('mine');
+      await ingestEvents(env, [
+        hit(scope, '/', who, paid),
+        happened(rival, who, 'signup_done'),
+      ]);
+
+      const rows = await forPattern(scope, 'signup_.*');
+
+      expect(byChannel(rows)).toEqual({
+        Paid: { sessions: 1, conversions: 0 },
+      });
+    });
+
+    it('totals pattern conversions in the summary', async () => {
+      const scope = createScope();
+      const won = session('won');
+      await ingestEvents(env, [
+        hit(scope, '/', won, paid),
+        happened(scope, won, 'signup_done'),
+        hit(scope, '/', session('lost'), paid),
+      ]);
+
+      const [row] = await waitForRow(
+        () =>
+          pipeRows<ConversionRow>(env, 'conversion_summary', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            goal_event_pattern: 'signup_.*',
+          }),
+        rows => Number(rows[0]?.sessions) === 2
+      );
+
+      expect(row).toMatchObject({
+        sessions: 2,
+        conversions: 1,
+        conversion_rate_percent: 50,
+      });
+    });
+
+    it.each([
+      ['a pattern longer than the cap', 'a'.repeat(101), /at most 100/],
+      ['an empty pattern', '', /empty/],
+      ['an unclosed group', '(unclosed', /unbalanced parentheses/],
+      ['a wrapper escape', 'a)|(.*', /unbalanced parentheses/],
+      ['an inline flag', '(?i)signup', /\(\?:/],
+      ['a lookahead', 'a(?=b)', /\(\?:/],
+    ])('refuses %s', async (_label, pattern, message) => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversions', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: pattern,
+        })
+      ).rejects.toThrow(message);
+    });
+
+    it('accepts parentheses that are escaped or inside a class', async () => {
+      expect(
+        await converting('sign\\(up\\)', {
+          literal: 'sign(up)',
+          plain: 'signup',
+        })
+      ).toEqual({ sessions: 2, conversions: 1 });
+      expect(await converting('[(]x', { open: '(x', other: 'bx' })).toEqual({
+        sessions: 2,
+        conversions: 1,
+      });
+    });
+
+    it.each([
+      ['escaped parens that hide a wrapper escape', '\\(a)|(.*\\)'],
+      ['an escaped backslash before an open paren', '\\\\('],
+      ['an escaped backslash before a close paren', 'a\\\\)|(.*'],
+      ['a class that does not hide an unbalanced paren', '[a]b)|(.*'],
+      [
+        'a class opening with a close bracket, which the dashboard also refuses',
+        '[]a)]x',
+      ],
+    ])('refuses %s', async (_label, pattern) => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversion_summary', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: pattern,
+        })
+      ).rejects.toThrow(/unbalanced parentheses/);
+    });
+
+    it.each([
+      ['an escaped open paren', 'a\\(', { hit: 'a(', miss: 'a' }],
+      ['escaped parens', 'sign\\(up\\)', { hit: 'sign(up)', miss: 'signup' }],
+      ['an open paren in a class', '[(]x', { hit: '(x', miss: 'bx' }],
+      ['a close paren in a negated class', '[^)]x', { hit: 'bx', miss: ')x' }],
+    ])(
+      'accepts %s and matches the whole name',
+      async (_label, pattern, names) => {
+        expect(
+          await converting(pattern, { hit: names.hit, miss: names.miss })
+        ).toEqual({ sessions: 2, conversions: 1 });
+      }
+    );
+
+    it('refuses a wrapper-escape pattern even when the tenant has no events', async () => {
+      const scope = createScope();
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversion_summary', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: 'a)|(.*',
+        })
+      ).rejects.toThrow(/unbalanced parentheses/);
+    });
+
+    it('does not let a wrapper-escape pattern match every event', async () => {
+      const scope = createScope();
+      const who = session('mine');
+      await ingestEvents(env, [
+        hit(scope, '/', who, paid),
+        happened(scope, who, 'anything_at_all'),
+      ]);
+      await forPattern(scope, 'nothing_matches_this');
+
+      await expect(
+        pipeRows<ConversionRow>(env, 'conversions', {
+          tenant_id: scope.tenantId,
+          domain: scope.domain,
+          goal_event_pattern: 'a)|(.*',
+        })
+      ).rejects.toThrow();
+    });
+
+    it('uses the same pattern length cap as the dashboard validator', () => {
+      expect(GOAL_EVENT_PATTERN_MAX_LENGTH).toBe(EVENT_PATTERN_MAX_LENGTH);
+    });
+
+    it.each([
+      [
+        'a pattern and an exact event',
+        { goal_event_pattern: 'signup_.*', goal_event: GOAL_EVENT_NAME },
+      ],
+      [
+        'a pattern and a page',
+        { goal_event_pattern: 'signup_.*', goal_path: GOAL },
+      ],
+      [
+        'an exact event and a page',
+        { goal_event: GOAL_EVENT_NAME, goal_path: GOAL },
+      ],
+      [
+        'all three',
+        {
+          goal_event_pattern: 'signup_.*',
+          goal_event: GOAL_EVENT_NAME,
+          goal_path: GOAL,
+        },
+      ],
+      ['none of them', {}],
+    ])('refuses %s', async (_label, goal) => {
+      const scope = createScope();
+
+      for (const endpoint of ['conversions', 'conversion_summary']) {
+        await expect(
+          pipeRows<ConversionRow>(env, endpoint, {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+            ...goal,
+          })
+        ).rejects.toThrow(/goal_path, goal_event or goal_event_pattern/);
+      }
     });
   });
 });

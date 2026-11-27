@@ -70,3 +70,44 @@ test('a goal nobody reached says there is no data', async ({ page }) => {
   await expect(panel.getByText('No data')).toBeVisible();
   await expect(panel.getByText(/sessions converted/)).toHaveCount(0);
 });
+
+test('a pattern goal is titled as a pattern and asks the API with the pattern', async ({
+  page,
+}) => {
+  const api = await stubApi(page, {
+    ...emptyOverview,
+    conversion_summary: [
+      { conversions: 3, sessions: 30, conversion_rate_percent: 10 },
+    ],
+    conversions: [
+      {
+        channel: 'Direct',
+        sessions: 30,
+        conversions: 3,
+        conversion_rate_percent: 10,
+      },
+    ],
+  });
+  await signIn(page);
+
+  const panel = page.locator('section.panel', { hasText: 'Any signup' });
+  await expect(panel.getByRole('heading')).toHaveText(
+    'Any signup · pattern signup_.*'
+  );
+  await expect(
+    panel.getByText('3 of 30 sessions converted (10%)')
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      api
+        .requestsTo('conversions')
+        .some(query => query.get('goal_event_pattern') === 'signup_.*')
+    )
+    .toBe(true);
+  expect(
+    api
+      .requestsTo('conversions')
+      .filter(query => query.has('goal_event_pattern'))
+      .every(query => !query.has('goal_path') && !query.has('goal_event'))
+  ).toBe(true);
+});

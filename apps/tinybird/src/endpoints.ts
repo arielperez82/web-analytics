@@ -1475,15 +1475,47 @@ export const channels = defineEndpoint("channels", {
 export type ChannelsParams = InferParams<typeof channels>;
 export type ChannelsOutput = InferOutputRow<typeof channels>;
 
+export const GOAL_EVENT_PATTERN_MAX_LENGTH = 100;
+
+const goalEventMatchSql = `{% if defined(goal_event_pattern) %}match(action, concat('^(?:', {{ String(goal_event_pattern, description="RE2 pattern matched against the whole event name, e.g. signup_.*") }}, ')$')){% else %}action = {{ String(goal_event, description="Name of the goal event, e.g. signup_completed") }}{% end %}`;
+
+const goalPatternBalanceSql = `(SELECT throwIf(
+                arrayMin(arrayCumSum(parenthesis_steps)) < 0 OR arraySum(parenthesis_steps) != 0,
+                'goal_event_pattern has unbalanced parentheses'
+            ) FROM (
+                SELECT arrayMap(
+                    c -> if(c = '(', 1, if(c = ')', -1, 0)),
+                    extractAll(
+                        replaceRegexpAll(
+                            replaceRegexpAll({{ String(goal_event_pattern, description="RE2 pattern matched against the whole event name, e.g. signup_.*") }}, concat(char(92), char(92), '.'), ''),
+                            '[[][^]]*[]]',
+                            ''
+                        ),
+                        '.'
+                    )
+                ) AS parenthesis_steps
+            ))`;
+
+const goalPatternStandaloneGuardSql = `{% if defined(goal_event_pattern) %}WHERE ${goalPatternBalanceSql} = 0{% end %}`;
+
 const goalConvertedColumn = `,
-            {% if (defined(goal_path) and defined(goal_event)) or (not defined(goal_path) and not defined(goal_event)) %}
-            {{ custom_error({'error': 'Give exactly one of goal_path or goal_event'}) }}
+            {% if defined(goal_path) + defined(goal_event) + defined(goal_event_pattern) != 1 %}
+            {{ custom_error({'error': 'Give exactly one of goal_path, goal_event or goal_event_pattern'}) }}
             {% end %}
-            {% if defined(goal_event) %}
+            {% if defined(goal_event_pattern) and len(goal_event_pattern) == 0 %}
+            {{ custom_error({'error': 'goal_event_pattern must not be empty'}) }}
+            {% end %}
+            {% if defined(goal_event_pattern) and len(goal_event_pattern) > ${GOAL_EVENT_PATTERN_MAX_LENGTH} %}
+            {{ custom_error({'error': 'goal_event_pattern must be at most ${GOAL_EVENT_PATTERN_MAX_LENGTH} characters'}) }}
+            {% end %}
+            {% if defined(goal_event_pattern) and '(?' in goal_event_pattern.replace('(?:', '') %}
+            {{ custom_error({'error': 'goal_event_pattern allows only (?: groups; lookaround, named groups and flags are not supported'}) }}
+            {% end %}
+            {% if defined(goal_event) or defined(goal_event_pattern) %}
             max((tenant_id, session_id) IN (
                 SELECT tenant_id, session_id
                 FROM analytics_events
-                WHERE action = {{ String(goal_event, description="Name of the goal event, e.g. signup_completed") }}
+                WHERE ${goalEventMatchSql}
                     AND timestamp >= (SELECT current_start_at FROM date_calculations)
                     AND timestamp < (SELECT current_end_at FROM date_calculations)${tenantScopeSql}
                     {% if defined(domain) %}
@@ -1498,11 +1530,17 @@ const goalParams = {
   goal_path: p
     .string()
     .optional()
-    .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported. Give this or goal_event."),
+    .describe("Path of the goal page in readable form, e.g. /book/confirmed. A literal percent sign is not supported. Give this, goal_event or goal_event_pattern."),
   goal_event: p
     .string()
     .optional()
-    .describe("Name of a goal event, e.g. signup_completed. Give this or goal_path."),
+    .describe("Name of a goal event, e.g. signup_completed. Give this, goal_path or goal_event_pattern."),
+  goal_event_pattern: p
+    .string()
+    .optional()
+    .describe(
+      `RE2 pattern for the whole event name, case sensitive, at most ${GOAL_EVENT_PATTERN_MAX_LENGTH} characters, e.g. signup_.*. Give this, goal_path or goal_event.`,
+    ),
 };
 
 /**
@@ -1527,6 +1565,7 @@ export const conversions = defineEndpoint("conversions", {
             sum(converted) as conversions,
             round(sum(converted) * 100.0 / count(), 2) as conversion_rate_percent
         FROM first_touch
+        ${goalPatternStandaloneGuardSql}
         GROUP BY channel
         ORDER BY conversions DESC, sessions DESC
       `,
@@ -1569,6 +1608,7 @@ export const conversionSummary = defineEndpoint("conversion_summary", {
             sum(converted) as conversions,
             round(if(count() = 0, 0, sum(converted) * 100.0 / count()), 2) as conversion_rate_percent
         FROM first_touch
+        ${goalPatternStandaloneGuardSql}
       `,
     }),
   ],

@@ -25,6 +25,7 @@ export default defineConfig({
       DASHBOARD_TENANT_ID: 'acceptance',
       DASHBOARD_GOALS: JSON.stringify([
         { name: 'Signed up', path: '/welcome/done' },
+        { name: 'Any signup', eventPattern: 'signup_.*' },
       ]),
       TINYBIRD_HOST: 'http://127.0.0.1:1',
       TINYBIRD_TOKEN: 'unused',

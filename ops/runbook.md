@@ -17,6 +17,7 @@ checklist for the first deployment. Variable reference: [dashboard README](../ap
    - `TRACKING_ALLOWED_ORIGINS=https://spliceops.ai=splice,https://splicelabs.ai=splice`
    - `DASHBOARD_TENANT_ID=splice`
 6. **Goals:** `DASHBOARD_GOALS`, for example `[{"name":"Signed up","path":"/welcome/done"}]`.
+   Event and event pattern goals are described in the dashboard README.
 7. **Auth:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and
    `ALLOWED_EMAIL_DOMAINS` and/or `ALLOWED_EMAILS`. Do not set `DASHBOARD_DEV_LOGIN` (it is ignored in production).
 8. **Client:** embed with `proxy: 'https://<dashboard-host>'`; `initTinybirdAnalytics` still requires `token`

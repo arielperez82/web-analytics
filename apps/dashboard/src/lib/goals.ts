@@ -1,8 +1,25 @@
+import { checkEventPattern } from "./event-pattern";
+
 export type PathGoal = { readonly name: string; readonly path: string };
 export type EventGoal = { readonly name: string; readonly event: string };
-export type Goal = PathGoal | EventGoal;
+export type EventPatternGoal = { readonly name: string; readonly eventPattern: string };
+export type Goal = PathGoal | EventGoal | EventPatternGoal;
 
 export const isEventGoal = (goal: Goal): goal is EventGoal => "event" in goal;
+export const isEventPatternGoal = (goal: Goal): goal is EventPatternGoal => "eventPattern" in goal;
+
+export type GoalDescription = {
+  readonly query: Readonly<Record<string, string>>;
+  readonly label: string;
+  readonly key: string;
+};
+
+export const describeGoal = (goal: Goal): GoalDescription => {
+  if (isEventGoal(goal)) return { query: { goal_event: goal.event }, label: goal.event, key: `event:${goal.event}` };
+  if (isEventPatternGoal(goal))
+    return { query: { goal_event_pattern: goal.eventPattern }, label: `pattern ${goal.eventPattern}`, key: `pattern:${goal.eventPattern}` };
+  return { query: { goal_path: goal.path }, label: goal.path, key: `path:${goal.path}` };
+};
 
 export type ParsedGoals = {
   readonly goals: readonly Goal[];
@@ -27,13 +44,21 @@ export const isValidGoalEvent = (event: string): boolean =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const toPatternGoal = (name: string, label: string, eventPattern: unknown): EventPatternGoal | string => {
+  if (typeof eventPattern !== "string") return `${label} needs an eventPattern that is text`;
+  const check = checkEventPattern(eventPattern);
+  return check.valid ? { name, eventPattern } : `${label} has an unsafe eventPattern: ${check.reason}`;
+};
+
 const toGoal = (entry: unknown, index: number): Goal | string => {
   if (!isRecord(entry)) return `Goal ${index + 1} is not an object`;
-  const { name, path, event } = entry;
+  const { name, path, event, eventPattern } = entry;
   const label = typeof name === "string" && name ? name : `Goal ${index + 1}`;
   if (typeof name !== "string" || !name.trim() || name.length > MAX_NAME_LENGTH)
     return `${label} needs a name of 1 to ${MAX_NAME_LENGTH} characters`;
-  if (path !== undefined && event !== undefined) return `${label} needs a path or an event, not both`;
+  if ([path, event, eventPattern].filter((value) => value !== undefined).length > 1)
+    return `${label} needs one of a path, an event or an eventPattern, not several`;
+  if (eventPattern !== undefined) return toPatternGoal(name, label, eventPattern);
   if (event !== undefined)
     return typeof event === "string" && isValidGoalEvent(event)
       ? { name, event }
