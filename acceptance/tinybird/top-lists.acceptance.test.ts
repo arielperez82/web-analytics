@@ -214,6 +214,8 @@ describe.concurrent.each(entries)('top $label', entry => {
           date_from: dayString(-1),
           date_to: dayString(0),
           include_previous_period: 'true',
+          compare_from: dayString(-3),
+          compare_to: dayString(-2),
         },
         r =>
           Number(r[0]?.sessions) === current &&
@@ -265,8 +267,12 @@ describe.concurrent.each(entries)('top $label', entry => {
       scope,
       {
         from_at: fromAt.toISOString(),
+        to_at: new Date(fromAt.getTime() + 2 * 3_600_000).toISOString(),
         include_previous_period: 'true',
         compare_from_at: compareFromAt.toISOString(),
+        compare_to_at: new Date(
+          compareFromAt.getTime() + 2 * 3_600_000
+        ).toISOString(),
       },
       r => Number(r[0]?.sessions) === 1 && Number(r[0]?.previous_sessions) >= 1
     );
@@ -292,6 +298,8 @@ describe.concurrent.each(entries)('top $label', entry => {
         date_from: dayString(-1),
         date_to: dayString(0),
         include_previous_period: 'true',
+        compare_from: dayString(-3),
+        compare_to: dayString(-2),
       },
       r => r.length >= 3 && Number(r[2]?.previous_sessions) === 3
     );
@@ -520,6 +528,8 @@ describe.concurrent('top lists: real-world corner cases', () => {
           date_from: day(-1),
           date_to: day(0),
           include_previous_period: 'true',
+          compare_from: day(-3),
+          compare_to: day(-2),
         }),
       r => r.some(row => Number(row.previous_sessions) === 2)
     );

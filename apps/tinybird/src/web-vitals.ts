@@ -14,16 +14,16 @@ import { crossFilterParams, crossFilters } from "./cross-filters";
 import { dashboardToken } from "./tokens";
 import { browserSql, deviceSql } from "./user-agent";
 import { tzParam, tzSql } from "./time-zone";
-import { compareWindowParams, comparedWindowSql, exactRangeSql, windowParams } from "./window";
+import { compareWindowParams, comparedWindowSql, exactRangeSql, isComparingSql, windowParams } from "./window";
 
 const COMPARING = `defined(include_previous_period) and include_previous_period == 'true'`;
 
 const DAYS_SQL = `{{Int32(days, 1, description="Number of days to analyze")}}`;
 
 /**
- * The comparison window of a vitals request: the one the request names (compare_from_at, or
- * compare_from with compare_to), else the equal-length period just before the current one. A request
- * that gives only a number of days is compared with the same number of days before them.
+ * The comparison window of a vitals request: the one the request names, as long as the current one
+ * (compare_from_at with compare_to_at, or compare_from with compare_to). Comparing without both ends
+ * is refused. Without comparing, the equal-length period just before the current one stands in.
  */
 const vitalsCompareWindowNode = () =>
   node({
@@ -42,14 +42,12 @@ const vitalsCompareWindowNode = () =>
             current_start - (dateDiff('day', current_start, current_end) + 1) as previous_start
         SELECT${comparedWindowSql}
         {% else %}
+        {% if ${isComparingSql} %} {{ custom_error({'error': 'Comparing needs date_from and date_to, or from_at'}) }} {% end %}
         SELECT
             now() - interval ${DAYS_SQL} day AS current_start_at,
             now() AS current_end_at,
-            {% if defined(compare_from_at) %} parseDateTimeBestEffort({{ String(compare_from_at) }}, 'UTC')
-            {% elif defined(compare_from) and defined(compare_to) %} toDateTime(toDate({{ String(compare_from) }}), ${tzSql})
-            {% else %} current_start_at - interval ${DAYS_SQL} day {% end %} AS previous_start_at,
-            {% if defined(compare_from) and defined(compare_to) and not defined(compare_from_at) %} toDateTime(toDate({{ String(compare_to) }}) + 1, ${tzSql})
-            {% else %} previous_start_at + interval ${DAYS_SQL} day {% end %} AS previous_end_at
+            current_start_at - interval ${DAYS_SQL} day AS previous_start_at,
+            previous_start_at + interval ${DAYS_SQL} day AS previous_end_at
         {% end %}
       `,
   });

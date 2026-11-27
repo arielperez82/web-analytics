@@ -54,11 +54,17 @@ const twoHourWindow = () => {
   const earlier = new Date(start.getTime() - 24 * ONE_HOUR_MS);
   const inside = (from: Date) => new Date(from.getTime() + 31 * ONE_MINUTE_MS);
   return {
-    params: { from_at: instantOf(start), to_at: instantOf(end) },
+    params: {
+      from_at: instantOf(start),
+      to_at: instantOf(end),
+      compare_from_at: instantOf(before),
+      compare_to_at: instantOf(start),
+    },
     duringIt: inside(start),
     justBeforeIt: inside(before),
     aDayBeforeIt: inside(earlier),
     aDayEarlier: instantOf(earlier),
+    aDayEarlierEnd: instantOf(new Date(earlier.getTime() + 2 * ONE_HOUR_MS)),
   };
 };
 
@@ -407,6 +413,7 @@ describe.concurrent('web_vitals_routes pipe', () => {
       const rows = await compared(scope, {
         ...window.params,
         compare_from_at: window.aDayEarlier,
+        compare_to_at: window.aDayEarlierEnd,
       });
 
       expect(rows).toEqual([
