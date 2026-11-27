@@ -1,4 +1,4 @@
-import { COMPARE_PARAMS, comparedWindow, ISO_INSTANT, isCompareChoice, PLAIN_DAY } from "./compare-window";
+import { COMPARE_PARAMS, comparedWindow, ISO_INSTANT, isCompareChoice } from "./compare-window";
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
 import { isValidTimeZone, localDay } from "./time-zone";
 
@@ -94,10 +94,10 @@ const comparedQuery = (
   query: URLSearchParams,
   now: Date,
 ): { readonly query: URLSearchParams } | { readonly error: string } => {
+  if (COMPARE_PARAMS.some((key) => query.has(key))) return { error: "Comparison dates are worked out by the server; send compare" };
   const choice = query.get("compare");
-  if (choice === null) return { query };
+  if (choice === null) return query.get("include_previous_period") === "true" ? { error: "include_previous_period needs compare" } : { query };
   if (!isCompareChoice(choice)) return { error: "Invalid compare" };
-  if (COMPARE_PARAMS.some((key) => query.has(key))) return { error: "compare cannot be combined with compare_* params" };
   const open = query.has("from_at") && !query.has("to_at");
   const window = {
     date_from: query.get("date_from") ?? undefined,
@@ -173,22 +173,11 @@ export const proxyEndpoint = async (
   if (goalEvent !== null && !isValidGoalEvent(goalEvent))
     return { status: 400, body: { error: "Invalid goal_event" } };
 
-  for (const key of ["from_at", "to_at", "compare_from_at", "compare_to_at"]) {
+  for (const key of ["from_at", "to_at"]) {
     const instant = query.get(key);
     if (instant !== null && !ISO_INSTANT.test(instant))
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
-
-  for (const key of ["compare_from", "compare_to"]) {
-    const day = query.get(key);
-    if (day !== null && !PLAIN_DAY.test(day))
-      return { status: 400, body: { error: `Invalid ${key}` } };
-  }
-
-  const compareFrom = query.get("compare_from");
-  const compareTo = query.get("compare_to");
-  if (compareFrom !== null && compareTo !== null && compareFrom > compareTo)
-    return { status: 400, body: { error: "compare_from is after compare_to" } };
 
   const bucket = query.get("bucket_hours");
   if (bucket !== null && !(/^\d{1,2}$/.test(bucket) && Number(bucket) >= 1 && Number(bucket) <= 24))

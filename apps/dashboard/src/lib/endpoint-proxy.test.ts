@@ -87,48 +87,56 @@ describe("proxyEndpoint", () => {
     expect((await proxyEndpoint(request("kpis"), deps)).status).toBe(404);
   });
 
-  it("forwards the previous-period comparison flag", async () => {
-    const { deps, calls } = createFakeDeps();
-    await proxyEndpoint(request("top_pages", "include_previous_period=true"), deps);
-    expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/top_pages.json?include_previous_period=true",
-    );
-  });
-
-  it("forwards the comparison days and hour to the breakdown pipes", async () => {
+  it("forwards the previous-period comparison flag with the window it compares", async () => {
     const { deps, calls } = createFakeDeps();
     await proxyEndpoint(
-      request(
-        "top_pages",
-        "compare_from=2026-11-03&compare_to=2026-11-09&compare_from_at=2026-11-03T05:00:00Z",
-      ),
+      request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true&compare=previous"),
       deps,
     );
     expect(calls[0].url).toBe(
-      "http://tb.test/v0/pipes/top_pages.json?compare_from=2026-11-03&compare_to=2026-11-09&compare_from_at=2026-11-03T05%3A00%3A00Z",
+      "http://tb.test/v0/pipes/top_pages.json?date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true&compare_from=2026-11-03&compare_to=2026-11-09",
     );
   });
 
-  it("refuses a comparison hour that is not an exact instant", async () => {
+  it.each([
+    "compare_from=2026-11-03",
+    "compare_to=2026-11-09",
+    "compare_from_at=2026-11-03T05:00:00Z",
+    "compare_to_at=2026-11-04T05:00:00Z",
+    "compare_from=2026-11-03&compare_to=2026-11-09&compare_from_at=2026-11-03T05:00:00Z",
+    "compare_from_at=yesterday",
+    "compare_from=2000-01-01'%20OR%201",
+  ])("refuses client-made comparison dates (%s) without calling Tinybird", async (legacy) => {
     const { deps, calls } = createFakeDeps();
-    const result = await proxyEndpoint(request("top_pages", "compare_from_at=yesterday"), deps);
+    const result = await proxyEndpoint(request("top_pages", `date_from=2026-11-10&date_to=2026-11-16&${legacy}`), deps);
     expect(result.status).toBe(400);
     expect(calls).toHaveLength(0);
   });
 
-  it.each(["compare_from", "compare_to"])("refuses a %s that is not a plain day", async (key) => {
+  it("refuses a legacy comparison on every endpoint, even one that ignores comparing", async () => {
     const { deps, calls } = createFakeDeps();
-    const result = await proxyEndpoint(request("channels", `${key}=2000-01-01'%20OR%201`), deps);
+    const result = await proxyEndpoint(request("channels", "compare_from=2026-11-03&compare_to=2026-11-03"), deps);
     expect(result.status).toBe(400);
     expect(calls).toHaveLength(0);
   });
 
-  it("refuses a comparison that ends before it starts, and accepts a single day", async () => {
+  it("refuses a comparison turned on without the choice of what to compare with", async () => {
     const { deps, calls } = createFakeDeps();
-    const reversed = await proxyEndpoint(request("channels", "compare_from=2026-11-09&compare_to=2026-11-03"), deps);
-    const single = await proxyEndpoint(request("channels", "compare_from=2026-11-03&compare_to=2026-11-03"), deps);
-    expect(reversed.status).toBe(400);
-    expect(single.status).toBe(200);
+    const result = await proxyEndpoint(
+      request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&include_previous_period=true"),
+      deps,
+    );
+    expect(result.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("lets include_previous_period=false through without a choice", async () => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(
+      request("top_pages", "date_from=2026-11-10&date_to=2026-11-16&include_previous_period=false"),
+      deps,
+    );
+    expect(result.status).toBe(200);
     expect(calls).toHaveLength(1);
   });
 
