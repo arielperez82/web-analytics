@@ -17,6 +17,7 @@ import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 import { CompareControl } from "./CompareControl";
 import { DateRangePicker } from "./DateRangePicker";
 import { FilterMenu } from "./FilterMenu";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 import { fmt, type Row } from "./ui";
 
 type TenantsLoad = ReturnType<typeof useEndpoint<Row>>;
@@ -101,6 +102,7 @@ const ShellFrame = ({
         }
         account={
           <>
+            <ThemeSwitcher />
             <span>{email}</span>
             <button type="button" onClick={() => void signOut({ callbackUrl: "/login" })}>
               Sign out
