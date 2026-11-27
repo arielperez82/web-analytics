@@ -56,13 +56,13 @@ export const zonedHour = (utcHour: string, zone: string): string => {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 
-const exactDay = (from_at: string): { readonly from_at: string; readonly to_at: string } => ({
+const exactWindow = (from_at: string, to_at: string | undefined): { readonly from_at: string; readonly to_at: string } => ({
   from_at,
-  to_at: asIso(new Date(new Date(from_at).getTime() + DAY_MS)),
+  to_at: to_at ?? asIso(new Date(new Date(from_at).getTime() + DAY_MS)),
 });
 
 export const hourlyRequest = (params: Params): Params => {
-  const { date_from, date_to, from_at, tz, ...rest } = params;
-  if (from_at !== undefined) return { ...rest, ...exactDay(from_at), bucket_hours: "1" };
+  const { date_from, date_to, from_at, to_at, tz, ...rest } = params;
+  if (from_at !== undefined) return { ...rest, ...exactWindow(from_at, to_at), bucket_hours: "1" };
   return { ...rest, ...hourWindow({ date_from, date_to }, tz ?? "UTC"), bucket_hours: String(hourBucket({ date_from, date_to }) ?? 1) };
 };

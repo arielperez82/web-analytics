@@ -8,10 +8,12 @@ type Rows = readonly Record<string, unknown>[] | undefined;
 const fakeDeps = (
   rowsFor: (url: URL) => Rows,
   engagementFor: (url: URL) => Rows = () => undefined,
+  now: () => Date = () => new Date("2026-11-18T15:20:00Z"),
 ): { readonly deps: ProxyDeps; readonly urls: URL[] } => {
   const urls: URL[] = [];
   const deps: ProxyDeps = {
     tinybird: { host: "http://tb.test", token: "t" },
+    now,
     fetch: async (url) => {
       const parsed = new URL(String(url));
       urls.push(parsed);
@@ -151,6 +153,35 @@ describe("loadSeries", () => {
     const result = await load(query, deps);
     expect(result.status).toBe(400);
     expect(urls).toHaveLength(0);
+  });
+
+  it("compares hours across the fall clock change with the same local start and the same length", async () => {
+    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-08 05:00:00", ...counts, value: 2 }]);
+    await load(
+      "grain=hour&tz=America%2FNew_York&from_at=2026-11-08T05:00:00Z&to_at=2026-11-09T05:00:00Z&compare=last_week",
+      deps,
+    );
+    expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
+      ["2026-11-08T05:00:00Z", "2026-11-09T05:00:00Z"],
+      ["2026-11-01T04:00:00Z", "2026-11-02T04:00:00Z"],
+    ]);
+  });
+
+  it("closes an open exact window at the end of the current hour for both periods", async () => {
+    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }], () => undefined, () => new Date("2026-11-18T17:20:00Z"));
+    await load("grain=hour&tz=UTC&from_at=2026-11-17T16:00:00Z&compare=previous", deps);
+    expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
+      ["2026-11-17T16:00:00Z", "2026-11-18T18:00:00Z"],
+      ["2026-11-16T14:00:00Z", "2026-11-17T16:00:00Z"],
+    ]);
+  });
+
+  it("closes an open window the same way when nothing is compared", async () => {
+    const { deps, urls } = fakeDeps(() => [{ hour: "2026-11-17 16:00:00", ...counts, value: 2 }], () => undefined, () => new Date("2026-11-18T17:20:00Z"));
+    await load("grain=hour&tz=UTC&from_at=2026-11-17T16:00:00Z", deps);
+    expect(seriesCalls(urls).map((u) => [u.searchParams.get("from_at"), u.searchParams.get("to_at")])).toEqual([
+      ["2026-11-17T16:00:00Z", "2026-11-18T18:00:00Z"],
+    ]);
   });
 
   it("fails as a whole when either call fails", async () => {

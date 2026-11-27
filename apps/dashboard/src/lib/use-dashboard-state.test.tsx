@@ -66,6 +66,13 @@ describe("useDashboardState", () => {
       expect(comparisonOf("range=last_24_hours")).toEqual({ compare: "previous" });
     });
 
+    it.each(["this_week", "this_month", "this_year"])(
+      "is the previous period for %s, which the proxy turns into the equal-length window just before",
+      (preset) => {
+        expect(comparisonOf(`range=${preset}`)).toEqual({ compare: "previous" });
+      },
+    );
+
     it("is nothing when switched off", () => {
       expect(comparisonOf("days=7&compare=off")).toBeUndefined();
     });

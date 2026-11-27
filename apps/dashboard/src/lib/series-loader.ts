@@ -1,4 +1,4 @@
-import { COMPARE_PARAMS, comparedWindow, isCompareChoice } from "./compare-window";
+import { closedWindow, COMPARE_PARAMS, comparedWindow, isCompareChoice } from "./compare-window";
 import { type ProxyDeps, proxyEndpoint } from "./endpoint-proxy";
 import { hourlyRequest, zonedHour } from "./hour-window";
 import { METRICS, type Trend } from "./metrics";
@@ -11,13 +11,6 @@ type Params = Readonly<Record<string, string | undefined>>;
 type Loaded = { readonly status: number; readonly body: unknown };
 
 const OWN_PARAMS: readonly string[] = ["grain", "compare"];
-
-const DAY_MS = 86_400_000;
-
-const aDayAfter = (instant: string): string | undefined => {
-  const end = new Date(Date.parse(instant) + DAY_MS);
-  return Number.isNaN(end.getTime()) ? undefined : `${end.toISOString().slice(0, 19)}Z`;
-};
 
 const REFUSED = { status: 400, body: { error: "Invalid compare" } } as const;
 
@@ -60,23 +53,20 @@ export const loadSeries = async (
   const grain = query.get("grain") === "hour" ? "hour" : "day";
   const { endpoint, engagement, key } = SERIES[grain];
   const zone = query.get("tz") ?? "UTC";
-  const range = withoutOwn(query);
   const choice = query.get("compare");
   if (COMPARE_PARAMS.some((key) => query.has(key)) || (choice !== null && !isCompareChoice(choice))) return REFUSED;
-  const fromAt = query.get("from_at");
+  const closed = closedWindow({
+    window: {
+      date_from: query.get("date_from") ?? undefined,
+      date_to: query.get("date_to") ?? undefined,
+      from_at: query.get("from_at") ?? undefined,
+      to_at: query.get("to_at") ?? undefined,
+    },
+    now: (deps.now ?? (() => new Date()))(),
+  });
+  const range = { ...withoutOwn(query), ...(closed.to_at === undefined ? {} : { to_at: closed.to_at }) };
   const compared =
-    choice === null || !isCompareChoice(choice)
-      ? undefined
-      : comparedWindow({
-          compare: choice,
-          window: {
-            date_from: query.get("date_from") ?? undefined,
-            date_to: query.get("date_to") ?? undefined,
-            from_at: fromAt ?? undefined,
-            to_at: fromAt === null ? undefined : (query.get("to_at") ?? aDayAfter(fromAt)),
-          },
-          zone,
-        });
+    choice === null || !isCompareChoice(choice) ? undefined : comparedWindow({ compare: choice, window: closed, zone });
   if (choice !== null && compared === undefined) return REFUSED;
   const comparison =
     compared === undefined
