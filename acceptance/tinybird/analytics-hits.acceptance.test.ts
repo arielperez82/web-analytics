@@ -10,7 +10,7 @@ import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type HitRow = { readonly pathname: string };
 
-describe.concurrent('analytics_hits like_filter', () => {
+describe.concurrent('page_hits like_filter', () => {
   const env = inject('tinybird');
 
   it('narrows the hits to those whose payload contains the search term', async () => {
@@ -26,7 +26,7 @@ describe.concurrent('analytics_hits like_filter', () => {
 
     const rows = await waitForRow(
       () =>
-        pipeRows<HitRow>(env, 'analytics_hits', {
+        pipeRows<HitRow>(env, 'page_hits', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
           like_filter: 'utm_source',
@@ -46,7 +46,7 @@ describe.concurrent('analytics_hits like_filter', () => {
 
     const rows = await waitForRow(
       () =>
-        pipeRows<HitRow>(env, 'analytics_hits', {
+        pipeRows<HitRow>(env, 'page_hits', {
           tenant_id: scope.tenantId,
           domain: scope.domain,
           like_filter: 'PRICING',

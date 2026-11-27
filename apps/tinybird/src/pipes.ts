@@ -4,22 +4,48 @@
 
 import {
   defineEndpoint,
+  definePipe,
   node,
   t,
   p,
   type InferParams,
   type InferOutputRow,
 } from "@tinybirdco/sdk";
+
+import { tenantParam, tenantScopeSql } from "./tenant";
 import { dashboardToken } from "./tokens";
 import { browserSql, deviceSql } from "./user-agent";
 
+const hitsOutput = {
+  timestamp: t.dateTime(),
+  action: t.string(),
+  version: t.string(),
+  session_id: t.string(),
+  tenant_id: t.string(),
+  domain: t.string(),
+  location: t.string(),
+  referrer: t.string(),
+  pathname: t.string(),
+  href: t.string(),
+  utm_source: t.string(),
+  utm_medium: t.string(),
+  visitor_id: t.string(),
+  id_mode: t.string(),
+  visitor_key: t.string(),
+  is_bot: t.uint8(),
+  current_domain: t.string(),
+  device: t.string(),
+  browser: t.string(),
+};
+
 /**
- * Analytics hits - parsed page_hit events with browser/device detection
+ * Analytics hits - parsed page_hit events with browser/device detection. An internal pipe the
+ * materializations read without a tenant, so its tenant filter stays optional; it has no endpoint of
+ * its own. page_hits is the endpoint over it and requires the tenant.
  */
-export const analyticsHits = defineEndpoint("analytics_hits", {
+export const analyticsHits = definePipe("analytics_hits", {
   description:
     "Parsed page_hit events with browser and device detection logic. Use like_filter as a search term over the payload column.",
-  tokens: [{ token: dashboardToken, scope: "READ" }],
   nodes: [
     node({
       name: "parsed_hits",
@@ -108,28 +134,44 @@ export const analyticsHits = defineEndpoint("analytics_hits", {
     hits_limit: p.int32().optional(20).describe("Limit for pagination"),
     hits_page: p.int32().optional(0).describe("Page number for pagination"),
   },
-  output: {
-    timestamp: t.dateTime(),
-    action: t.string(),
-    version: t.string(),
-    session_id: t.string(),
-    tenant_id: t.string(),
-    domain: t.string(),
-    location: t.string(),
-    referrer: t.string(),
-    pathname: t.string(),
-    href: t.string(),
-    utm_source: t.string(),
-    utm_medium: t.string(),
-    visitor_id: t.string(),
-    id_mode: t.string(),
-    visitor_key: t.string(),
-    is_bot: t.uint8(),
-    current_domain: t.string(),
-    device: t.string(),
-    browser: t.string(),
-  },
+  output: hitsOutput,
+
 });
 
 export type AnalyticsHitsParams = InferParams<typeof analyticsHits>;
 export type AnalyticsHitsOutput = InferOutputRow<typeof analyticsHits>;
+
+/**
+ * Page hits - the parsed page_hit events of one tenant
+ */
+export const pageHits = defineEndpoint("page_hits", {
+  description:
+    "Parsed page_hit events of one tenant with browser and device detection logic. tenant_id is required. Use like_filter as a search term over the payload column.",
+  tokens: [{ token: dashboardToken, scope: "READ" }],
+  nodes: [
+    node({
+      name: "endpoint",
+      sql: `
+        SELECT *
+        FROM analytics_hits
+        WHERE 1${tenantScopeSql}
+      `,
+    }),
+  ],
+  params: {
+    tenant_id: tenantParam,
+    domain: p.string().optional().describe("Filter by domain"),
+    from_date: p.date().optional().describe("Starting date for filtering"),
+    to_date: p.date().optional().describe("Finishing date for filtering"),
+    like_filter: p
+      .string()
+      .optional()
+      .describe("Search term matched anywhere in the payload JSON, ignoring case"),
+    hits_limit: p.int32().optional(20).describe("Limit for pagination"),
+    hits_page: p.int32().optional(0).describe("Page number for pagination"),
+  },
+  output: hitsOutput,
+});
+
+export type PageHitsParams = InferParams<typeof pageHits>;
+export type PageHitsOutput = InferOutputRow<typeof pageHits>;

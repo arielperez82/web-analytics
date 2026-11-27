@@ -37,7 +37,7 @@ describe.concurrent('bot classification and visitor key at ingest', () => {
 
   const hitsFor = (tenantId: string) =>
     waitForRow(
-      () => pipeRows<HitRow>(env, 'analytics_hits', { tenant_id: tenantId }),
+      () => pipeRows<HitRow>(env, 'page_hits', { tenant_id: tenantId }),
       rows => rows.length > 0
     );
 

@@ -89,8 +89,8 @@ const createProxy = (scope: Scope, origin = `https://${scope.domain}`) => {
 const hitsFor = (scope: Scope, minRows: number) =>
   waitForPipeRows<HitRow>(
     env,
-    'analytics_hits',
-    { domain: scope.domain, hits_limit: 50 },
+    'page_hits',
+    { tenant_id: scope.tenantId, domain: scope.domain, hits_limit: 50 },
     minRows
   );
 
