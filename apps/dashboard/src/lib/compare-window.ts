@@ -1,11 +1,9 @@
 import { offsetMs, partsIn } from "./hour-window";
 import { shifted } from "./time-range";
 
-export type CompareChoice =
-  | "previous_period"
-  | "previous_week"
-  | "previous_month"
-  | "previous_year";
+export const COMPARE_CHOICES = ["previous_period", "previous_week", "previous_month", "previous_year"] as const;
+
+export type CompareChoice = (typeof COMPARE_CHOICES)[number];
 
 export type CurrentWindow = {
   readonly date_from?: string;
@@ -20,14 +18,8 @@ export type ComparedWindow =
 
 export const COMPARE_PARAMS: readonly string[] = ["compare_from", "compare_to", "compare_from_at", "compare_to_at"];
 
-const COMPARE_CHOICES: readonly string[] = [
-  "previous_period",
-  "previous_week",
-  "previous_month",
-  "previous_year",
-];
-
-export const isCompareChoice = (value: string): value is CompareChoice => COMPARE_CHOICES.includes(value);
+export const isCompareChoice = (value: string): value is CompareChoice =>
+  COMPARE_CHOICES.some((choice) => choice === value);
 
 const PLAIN_DAY = /^(\d{4})-\d{2}-\d{2}$/;
 
@@ -85,11 +77,12 @@ const SECONDS_PER_MINUTE = 60;
 const MONTHS_PER_YEAR = 12;
 const MONTH_LENGTHS: readonly number[] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const FEBRUARY = 1;
+const LEAP_FEBRUARY = 29;
 
 const isLeap = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 
 const daysInMonth = (year: number, month: number): number =>
-  month === FEBRUARY && isLeap(year) ? MONTH_LENGTHS[FEBRUARY]! + 1 : (MONTH_LENGTHS[month] ?? 0);
+  month === FEBRUARY && isLeap(year) ? LEAP_FEBRUARY : (MONTH_LENGTHS[month] ?? 0);
 
 const pad = (value: number, width: number): string => String(value).padStart(width, "0");
 

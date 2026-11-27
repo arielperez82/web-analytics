@@ -7,8 +7,8 @@ import { SegmentedControl } from "./SegmentedControl";
 afterEach(cleanup);
 
 const options = [
-  { value: "previous", label: "Previous period" },
-  { value: "last_week", label: "Same day last week" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
   { value: "off", label: "None", disabled: true },
 ] as const;
 
@@ -16,7 +16,7 @@ const renderControl = (overrides: Partial<Parameters<typeof SegmentedControl>[0]
   render(
     <SegmentedControl
       label="Compare to"
-      value="previous"
+      value="week"
       options={options}
       onChange={() => undefined}
       {...overrides}
@@ -32,17 +32,17 @@ describe("SegmentedControl", () => {
       screen.getByRole("button", { name }).getAttribute("aria-pressed");
 
     expect(group).toBeTruthy();
-    expect(pressed("Previous period")).toBe("true");
-    expect(pressed("Same day last week")).toBe("false");
+    expect(pressed("This week")).toBe("true");
+    expect(pressed("This month")).toBe("false");
   });
 
   it("reports the value of the option that is clicked", () => {
     const onChange = vi.fn();
     renderControl({ onChange });
 
-    fireEvent.click(screen.getByRole("button", { name: "Same day last week" }));
+    fireEvent.click(screen.getByRole("button", { name: "This month" }));
 
-    expect(onChange).toHaveBeenCalledWith("last_week");
+    expect(onChange).toHaveBeenCalledWith("month");
   });
 
   it("does not report a disabled option", () => {

@@ -1,3 +1,4 @@
+import { type CompareChoice, isCompareChoice } from "./compare-window";
 import type { Filters } from "./filters";
 import { isValidTimeZone } from "./time-zone";
 
@@ -29,7 +30,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
 
 export type Grain = "day" | "hour";
 
-export type Compare = "previous_week" | "previous_month" | "previous_year" | "off";
+export type Compare = Exclude<CompareChoice, "previous_period"> | "off";
 
 export type DashboardState = {
   readonly range: Range;
@@ -49,9 +50,8 @@ export const isRealDay = (value: string | null): value is string =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 
-const COMPARE_CHOICES: readonly (string | null)[] = ["previous_week", "previous_month", "previous_year", "off"];
-
-const isCompare = (value: string | null): value is Compare => COMPARE_CHOICES.includes(value);
+const isCompare = (value: string | null): value is Compare =>
+  value === "off" || (value !== null && value !== "previous_period" && isCompareChoice(value));
 
 const isGrain = (value: string | null): boolean => value === "day" || value === "hour";
 

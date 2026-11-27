@@ -389,6 +389,52 @@ describe("named comparisons in whole days", () => {
     });
   });
 
+  it("lands a month shift on February 29 when the earlier year is a leap year", () => {
+    expect(compared("previous_month", days("2028-03-29", "2028-03-31"))).toEqual({
+      compare_from: "2028-02-29",
+      compare_to: "2028-03-02",
+    });
+  });
+
+  it("clamps a leap day shifted a year to February 28 of a common year, even four years on", () => {
+    expect(compared("previous_year", days("2032-02-29", "2032-02-29"))).toEqual({
+      compare_from: "2031-02-28",
+      compare_to: "2031-02-28",
+    });
+  });
+
+  it("treats 2100 as a common year, because the century is not a leap year", () => {
+    expect(compared("previous_month", days("2100-03-31", "2100-03-31"))).toEqual({
+      compare_from: "2100-02-28",
+      compare_to: "2100-02-28",
+    });
+    expect(compared("previous_month", days("2100-03-29", "2100-03-31"))).toEqual({
+      compare_from: "2100-02-28",
+      compare_to: "2100-03-02",
+    });
+  });
+
+  it("treats 2000 as a leap year, because the century is divisible by 400", () => {
+    expect(compared("previous_month", days("2000-03-31", "2000-03-31"))).toEqual({
+      compare_from: "2000-02-29",
+      compare_to: "2000-02-29",
+    });
+  });
+
+  it("keeps August 31 on July 31, which has 31 days", () => {
+    expect(compared("previous_month", days("2026-08-31", "2026-08-31"))).toEqual({
+      compare_from: "2026-07-31",
+      compare_to: "2026-07-31",
+    });
+  });
+
+  it("clamps a window that starts on March 31 and keeps its span", () => {
+    expect(compared("previous_month", days("2026-03-31", "2026-04-02"))).toEqual({
+      compare_from: "2026-02-28",
+      compare_to: "2026-03-02",
+    });
+  });
+
   it("has no comparison that would reach before year 1", () => {
     expect(compared("previous_year", days("0001-06-01", "0001-06-03"))).toBeUndefined();
     expect(compared("previous_month", days("0001-01-05", "0001-01-06"))).toBeUndefined();
@@ -405,7 +451,7 @@ describe("named comparisons in whole days", () => {
 
 describe("named comparisons in exact hours", () => {
   it.each(NAMED)("%s keeps the elapsed span of the current window", (compare) => {
-    const window = hours("2026-03-29T10:00:00Z", "2026-04-02T07:30:00Z");
+    const window = hours("2026-03-07T10:00:00Z", "2026-03-09T10:00:00Z");
     const result = comparedWindow({ compare, window, zone: "America/New_York" });
     expect(
       result && "compare_from_at" in result && Date.parse(result.compare_to_at) - Date.parse(result.compare_from_at),
@@ -459,6 +505,20 @@ describe("named comparisons in exact hours", () => {
     expect(
       compared("previous_year", hours("2026-11-02T05:00:00Z", "2026-11-03T05:00:00Z"), "America/New_York"),
     ).toEqual({ compare_from_at: "2025-11-02T04:00:00Z", compare_to_at: "2025-11-03T04:00:00Z" });
+  });
+
+  it("clamps by the local day when it differs from the UTC day", () => {
+    expect(compared("previous_month", hours("2026-03-30T18:30:00Z", "2026-03-31T18:30:00Z"), "Asia/Kolkata")).toEqual({
+      compare_from_at: "2026-02-27T18:30:00Z",
+      compare_to_at: "2026-02-28T18:30:00Z",
+    });
+  });
+
+  it("clamps a local leap day shifted a year when the UTC day is the 28th", () => {
+    expect(compared("previous_year", hours("2028-02-28T18:30:00Z", "2028-02-29T18:30:00Z"), "Asia/Kolkata")).toEqual({
+      compare_from_at: "2027-02-27T18:30:00Z",
+      compare_to_at: "2027-02-28T18:30:00Z",
+    });
   });
 
   it("previous_week matches the old last-week behaviour", () => {
