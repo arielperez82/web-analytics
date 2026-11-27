@@ -31,7 +31,11 @@ const untenantedRequest = (name: string, query = "", authenticated = true) => ({
 });
 
 const request = (name: string, query = "", authenticated = true) =>
-  untenantedRequest(name, query.includes("tenant_id") ? query : [query, `tenant_id=${TENANT}`].filter(Boolean).join("&"), authenticated);
+  untenantedRequest(
+    name,
+    new URLSearchParams(query).has("tenant_id") ? query : [query, `tenant_id=${TENANT}`].filter(Boolean).join("&"),
+    authenticated,
+  );
 
 describe("proxyEndpoint", () => {
   it("returns 401 and never calls Tinybird when unauthenticated", async () => {
@@ -315,9 +319,25 @@ describe("proxyEndpoint", () => {
     },
   );
 
-  it("treats an empty pinned tenant as no tenant", async () => {
-    const { deps, calls } = createFakeDeps({ tenantId: "" });
-    expect((await proxyEndpoint(untenantedRequest("top_pages"), deps)).status).toBe(400);
+  it.each(["", "  "])("fails closed with a configuration error when the pinned tenant is blank (%j)", async (blank) => {
+    const { deps, calls } = createFakeDeps({ tenantId: blank });
+    for (const name of ["top_pages", "tenants", "domains"]) {
+      const result = await proxyEndpoint(request(name, "tenant_id=someone-else"), deps);
+      expect(result.status).toBe(500);
+      expect(result.body).toEqual({ error: "DASHBOARD_TENANT_ID is set but blank" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("still answers 401 before reporting a blank pinned tenant", async () => {
+    const { deps } = createFakeDeps({ tenantId: "" });
+    expect((await proxyEndpoint(request("top_pages", "", false), deps)).status).toBe(401);
+  });
+
+  it.each(["tenant_id=", "tenant_id=%20"])("refuses an empty tenant_id (%s) when unpinned", async (query) => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(untenantedRequest("top_pages", query), deps);
+    expect(result).toEqual({ status: 400, body: { error: "tenant_id is required" } });
     expect(calls).toHaveLength(0);
   });
 
@@ -362,11 +382,6 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("forwards an empty tenant_id so events without a tenant can be selected", async () => {
-    const { deps, calls } = createFakeDeps();
-    await proxyEndpoint(request("top_pages", "tenant_id="), deps);
-    expect(calls[0]?.url).toBe("http://tb.test/v0/pipes/top_pages.json?tenant_id=");
-  });
   it("allows the channels endpoint", async () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("channels", "domain=a.com"), deps);
@@ -423,6 +438,21 @@ describe("proxyEndpoint", () => {
   });
 
   describe("a daily series that starts before the first data", () => {
+    it("asks for the first day with the pinned tenant, whatever the client sent", async () => {
+      const calls: string[] = [];
+      const deps: ProxyDeps = {
+        tinybird: { host: "http://tb.test", token: "x" },
+        tenantId: "my-tenant",
+        fetch: async (url) => {
+          calls.push(String(url));
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        },
+      };
+      await proxyEndpoint(request("daily_series", "date_from=1970-01-01&date_to=2026-11-18&tenant_id=someone-else"), deps);
+      expect(calls[0]).toBe("http://tb.test/v0/pipes/domains.json?tenant_id=my-tenant");
+      expect(calls.every((url) => !url.includes("someone-else"))).toBe(true);
+    });
+
     const withDomains = (firstSeen: readonly string[]) => {
       const calls: string[] = [];
       const deps: ProxyDeps = {

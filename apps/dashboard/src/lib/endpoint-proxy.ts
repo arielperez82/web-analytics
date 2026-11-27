@@ -137,7 +137,7 @@ const earliestDay = async (
   query: URLSearchParams,
   { tinybird, tenantId, fetch }: ProxyDeps,
 ): Promise<string | undefined> => {
-  const tenant = tenantId ?? query.get("tenant_id");
+  const tenant = tenantId || query.get("tenant_id");
   const qs = new URLSearchParams(tenant ? [["tenant_id", tenant]] : []).toString();
   try {
     const response = await fetch(pipeUrl(tinybird.host, "domains", qs), {
@@ -173,9 +173,11 @@ export const proxyEndpoint = async (
   { tinybird, tenantId, fetch, now }: ProxyDeps,
 ): Promise<ProxyResult> => {
   if (!authenticated) return { status: 401, body: { error: "Unauthorized" } };
+  if (tenantId !== undefined && tenantId.trim() === "")
+    return { status: 500, body: { error: "DASHBOARD_TENANT_ID is set but blank" } };
   if (!ALLOWED_ENDPOINTS.includes(name) || (tenantId && UNPINNED_ONLY.includes(name)))
     return { status: 404, body: { error: "Not found" } };
-  if (!UNPINNED_ONLY.includes(name) && !tenantId && !query.has("tenant_id"))
+  if (!UNPINNED_ONLY.includes(name) && !tenantId && !query.get("tenant_id")?.trim())
     return { status: 400, body: { error: "tenant_id is required" } };
 
   const goalPath = query.get("goal_path");
