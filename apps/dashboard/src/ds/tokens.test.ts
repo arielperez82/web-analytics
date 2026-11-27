@@ -90,6 +90,14 @@ describe("design tokens", () => {
     expect(declarationsOf(":root:not([data-theme])")).toEqual(themes.dark);
   });
 
+  it("follows the system contrast preference when no theme is chosen, over the dark preference", () => {
+    const dark = css.indexOf("@media (prefers-color-scheme:dark)");
+    const media = css.indexOf("@media (prefers-contrast:more)");
+    expect(media).toBeGreaterThan(dark);
+    const body = css.slice(css.indexOf(":root:not([data-theme])", media));
+    expect(declarationsOf(body)).toEqual(themes.contrast);
+  });
+
   it("outlines every keyboard-focused element with the focus ring", () => {
     expect(css).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\)[^}]*outline-offset:\s*2px/);
   });
