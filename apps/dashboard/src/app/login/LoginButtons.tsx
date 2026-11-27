@@ -3,12 +3,14 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
-export const LoginButtons = ({ google, dev }: { google: boolean; dev: boolean }) => {
+type Props = { readonly google: boolean; readonly dev: boolean; readonly callbackUrl: string };
+
+export const LoginButtons = ({ google, dev, callbackUrl }: Props) => {
   const [email, setEmail] = useState("");
   return (
     <div className="stack">
       {google && (
-        <button onClick={() => signIn("google", { callbackUrl: "/" })}>
+        <button onClick={() => signIn("google", { callbackUrl })}>
           Sign in with Google
         </button>
       )}
@@ -17,7 +19,7 @@ export const LoginButtons = ({ google, dev }: { google: boolean; dev: boolean })
           className="stack"
           onSubmit={(event) => {
             event.preventDefault();
-            void signIn("dev-login", { email, callbackUrl: "/" });
+            void signIn("dev-login", { email, callbackUrl });
           }}
         >
           <input
