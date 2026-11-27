@@ -91,6 +91,11 @@ Revisit the window if a finer granularity is added. Events outside it go to
 `analytics_events_rejected` with a `reason`, kept for 30 days. The `rejected_events`
 endpoint summarizes them per tenant by day, site and reason, with the largest skew.
 
+`tenant_id` is required on every endpoint that reads tenant data: a request without it is refused
+with 400, and an empty `tenant_id` selects the events that carry no tenant. Only `tenants`, the tenant
+list, takes no tenant. Joins and groups carry `tenant_id`, so two tenants sharing a domain and path
+never mix. `analytics_hits` is an internal pipe; `page_hits` is its tenant-required endpoint.
+
 Senders append to `analytics_events_landing`. History older than the window
 cannot come through it; seed such data directly into `analytics_events` with
 `reception_timestamp` equal to `timestamp` (the acceptance helpers do this).
