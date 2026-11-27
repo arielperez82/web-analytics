@@ -458,6 +458,24 @@ describe("proxyEndpoint", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it.each(["session", "visitor", "page_view", "none"])("forwards goal_denominator %s to conversions", async (choice) => {
+    const { deps, calls } = createFakeDeps();
+    const result = await proxyEndpoint(request("conversion_summary", `goal_path=/thanks&goal_denominator=${choice}`), deps);
+    expect(result.status).toBe(200);
+    expect(calls[0]?.url).toBe(`http://tb.test/v0/pipes/conversion_summary.json?tenant_id=acme&goal_path=%2Fthanks&goal_denominator=${choice}`);
+  });
+
+  it("rejects an unknown goal_denominator with 400 and never calls Tinybird", async () => {
+    const { deps, calls } = createFakeDeps();
+    for (const bad of ["sessions", "", "SESSION", "1; DROP", "visitor,none"]) {
+      const query = new URLSearchParams({ goal_path: "/thanks", goal_denominator: bad }).toString();
+      const result = await proxyEndpoint(request("conversions", query), deps);
+      expect(result.status).toBe(400);
+      expect(result.body).toEqual({ error: "Invalid goal_denominator" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("forwards a valid tz to the endpoint", async () => {
     const { deps, calls } = createFakeDeps();
     const result = await proxyEndpoint(request("visitor_counts", "tz=America%2FNew_York"), deps);

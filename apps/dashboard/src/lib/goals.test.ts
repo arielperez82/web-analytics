@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeGoal, isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
+import { denominatorOf, describeGoal, isValidGoalEvent, isValidGoalPath, parseGoals } from "./goals";
 
 describe("isValidGoalPath", () => {
   it.each(["/", "/book/confirmed", "/it's/done", "/café/done", "/a b"])(
@@ -183,5 +183,49 @@ describe("goal presentation", () => {
   it("keys the three kinds apart even when the text is the same", () => {
     const keys = [describeGoal(path).key, describeGoal({ name: "x", event: "/book" }).key, describeGoal({ name: "x", eventPattern: "/book" }).key];
     expect(new Set(keys).size).toBe(3);
+  });
+});
+
+describe("goal denominators", () => {
+  it("reads a denominator on a path, event or pattern goal", () => {
+    const raw = JSON.stringify([
+      { name: "A", path: "/a", denominator: "visitor" },
+      { name: "B", event: "b", denominator: "page_view" },
+      { name: "C", eventPattern: "c_.*", denominator: "none" },
+      { name: "D", path: "/d", denominator: "session" },
+    ]);
+    expect(parseGoals(raw)).toEqual({
+      goals: [
+        { name: "A", path: "/a", denominator: "visitor" },
+        { name: "B", event: "b", denominator: "page_view" },
+        { name: "C", eventPattern: "c_.*", denominator: "none" },
+        { name: "D", path: "/d", denominator: "session" },
+      ],
+      errors: [],
+    });
+  });
+
+  it("fails closed on a denominator it does not know and names the choices", () => {
+    const raw = JSON.stringify([
+      { name: "Typo", path: "/a", denominator: "sessions" },
+      { name: "Number", path: "/b", denominator: 3 },
+    ]);
+    const result = parseGoals(raw);
+    expect(result.goals).toEqual([]);
+    expect(result.errors).toHaveLength(2);
+    expect(result.errors[0]).toMatch(/Typo.*session, visitor, page_view or none/);
+  });
+
+  it("falls back to the session denominator when the goal names none", () => {
+    expect(denominatorOf({ name: "A", path: "/a" })).toBe("session");
+    expect(denominatorOf({ name: "A", path: "/a", denominator: "none" })).toBe("none");
+  });
+
+  it("asks the API for a denominator only when the goal chose one", () => {
+    expect(describeGoal({ name: "A", path: "/a" }).query).toEqual({ goal_path: "/a" });
+    expect(describeGoal({ name: "A", event: "e", denominator: "visitor" }).query).toEqual({
+      goal_event: "e",
+      goal_denominator: "visitor",
+    });
   });
 });

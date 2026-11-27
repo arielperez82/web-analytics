@@ -1,6 +1,6 @@
 import { type CompareChoice, closedWindow, COMPARE_PARAMS, comparedWindow, isCompareChoice, isValidInstant } from "./compare-window";
 import { isValidEventPattern } from "./event-pattern";
-import { isValidGoalEvent, isValidGoalPath } from "./goals";
+import { isDenominator, isValidGoalEvent, isValidGoalPath } from "./goals";
 import { isValidTimeZone, localDay } from "./time-zone";
 
 export const ALLOWED_ENDPOINTS: readonly string[] = [
@@ -51,6 +51,7 @@ const FORWARDED_PARAMS: readonly string[] = [
   "goal_path",
   "goal_event",
   "goal_event_pattern",
+  "goal_denominator",
   "tz",
   "from_at",
   "bucket_hours",
@@ -191,6 +192,9 @@ export const proxyEndpoint = async (
   const goalEventPattern = query.get("goal_event_pattern");
   if (goalEventPattern !== null && !isValidEventPattern(goalEventPattern))
     return { status: 400, body: { error: "Invalid goal_event_pattern" } };
+  const goalDenominator = query.get("goal_denominator");
+  if (goalDenominator !== null && !isDenominator(goalDenominator))
+    return { status: 400, body: { error: "Invalid goal_denominator" } };
 
   for (const key of ["from_at", "to_at"]) {
     const instant = query.get(key);
