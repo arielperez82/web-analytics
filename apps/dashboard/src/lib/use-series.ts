@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { type Metric, METRICS, type Trend } from "./metrics";
+import { redirectToSignIn } from "./sign-in-redirect";
 
 export type SeriesPoint = {
   readonly label: string;
@@ -44,6 +45,7 @@ export const useSeries = (params: Readonly<Record<string, string | undefined>>):
       .then(async (response) => {
         const body = (await response.json()) as { series?: unknown; error?: string };
         if (controller.signal.aborted) return;
+        if (redirectToSignIn(response.status, window.location)) return;
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
         if (!isMetricSeries(body.series)) throw new Error("The series answer had no data");
         setState({ series: body.series, error: undefined, loading: false, refreshing: false });

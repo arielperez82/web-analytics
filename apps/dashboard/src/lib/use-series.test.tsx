@@ -93,3 +93,28 @@ describe("useSeries when a request is overtaken", () => {
     expect(screen.getByText("new")).toBeTruthy();
   });
 });
+
+describe("useSeries when the session has expired", () => {
+  it("sends the user to sign in and back to the same url state", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "?date_from=2026-11-16&compare=previous_period", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }));
+
+    render(<Harness />);
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/login?callbackUrl=%2F%3Fdate_from%3D2026-11-16%26compare%3Dprevious_period"),
+    );
+  });
+
+  it("does not redirect for other failures", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "boom" }), { status: 502 }));
+
+    render(<Harness />);
+
+    await waitFor(() => expect(screen.getByText("boom")).toBeTruthy());
+    expect(assign).not.toHaveBeenCalled();
+  });
+});

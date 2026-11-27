@@ -38,3 +38,28 @@ describe("useEndpoint when a request is overtaken", () => {
     expect(screen.getByText("new")).toBeTruthy();
   });
 });
+
+describe("useEndpoint when the session has expired", () => {
+  it("sends the user to sign in and back to the same url state", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/reports/pages", search: "?date_from=2026-01-01", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }));
+
+    render(<First from="2026-01-01" />);
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/login?callbackUrl=%2Freports%2Fpages%3Fdate_from%3D2026-01-01"),
+    );
+  });
+
+  it("does not redirect for other failures", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Upstream error" }), { status: 502 }));
+
+    render(<First from="2026-01-01" />);
+
+    await waitFor(() => expect(screen.getByText("none")).toBeTruthy());
+    expect(assign).not.toHaveBeenCalled();
+  });
+});
