@@ -40,20 +40,23 @@ Each entry of `DASHBOARD_GOALS` has a `name` and exactly one way to recognise th
 
 ### Event patterns
 
-A pattern is matched by ClickHouse `match()`, which uses RE2: it has no backtracking, so a pattern cannot make a
-query slow. Patterns are also limited to a safe subset and checked when the dashboard reads its configuration and
-again before every request. An unsafe pattern is refused with the reason shown on the page, never run.
+A pattern is matched by ClickHouse `match()`, which uses RE2: it has no catastrophic backtracking. Patterns are
+also limited to a safe subset. The dashboard checks them when it reads its configuration and again in the proxy
+before every request, and the Tinybird pipe checks the parts that protect the whole-name match (balanced parentheses,
+no `(?` forms other than `(?:`, not empty, at most 100 characters) so a direct call with a read token cannot bypass
+them. An unsafe pattern is refused with the reason shown on the page, never run.
 
 - The pattern must match the whole event name. `signup` does not match `signup_done`; write `signup_.*`.
 - Matching is case sensitive, like an exact event name. `signup_.*` does not match `Signup_done`.
-- Allowed: literal characters, `.`, `\d \w \s`, escaped punctuation such as `\.`, character classes such as `[a-z]`
-  and `[^_]`, groups `( )` and `(?: )`, alternation `|`, `?` `*` `+`, bounded repeats `{n}` and `{m,n}` (at most 20),
-  and the anchors `^` and `$`.
+- Allowed: literal characters, `.`, `\d \w \s \D \W \S`, escaped punctuation such as `\.`, `\/` and `\:`, character
+  classes such as `[a-z]` and `[^_]` (ranges must run low to high between plain characters), groups `( )` and
+  `(?: )`, alternation `|`, `?` `*` `+`, bounded repeats `{n}` and `{m,n}` (at most 20), and the anchors `^` and `$`.
 - Refused: backreferences (`\1`), lookaround and every other `(?` form (named groups, flags), a quantifier on a group
   that already contains a quantifier (`(a+)+`), stacked, lazy or possessive quantifiers (`a**`, `a+?`, `a++`),
-  unbounded counted repeats (`{2,}`), POSIX classes, spaces and non-ASCII characters, and patterns over 100
-  characters.
-- The pattern reaches Tinybird only as a bound query parameter, never as SQL text.
+  unbounded counted repeats (`{2,}`), POSIX classes, impossible class ranges (`[z-a]`, `[\w-z]`), spaces and
+  non-ASCII characters, and patterns over 100 characters.
+- The pattern is passed to Tinybird as a template parameter. Tinybird's `String()` substitutes it as an escaped
+  literal, not as a true bound query parameter, so its safety rests on that escaping plus the checks above.
 
 ## Identity proxy (`POST /api/tracking`)
 
