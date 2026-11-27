@@ -1,4 +1,4 @@
-import { COMPARE_PARAMS, comparedWindow, ISO_INSTANT, isCompareChoice } from "./compare-window";
+import { type CompareChoice, closedWindow, COMPARE_PARAMS, comparedWindow, isCompareChoice, isValidInstant } from "./compare-window";
 import { isValidGoalEvent, isValidGoalPath } from "./goals";
 import { isValidTimeZone, localDay } from "./time-zone";
 
@@ -59,8 +59,6 @@ const FORWARDED_PARAMS: readonly string[] = [
   "compare_to_at",
 ];
 
-const HOUR_MS = 3_600_000;
-
 export type ProxyDeps = {
   readonly tinybird: { readonly host: string; readonly token: string };
   readonly tenantId?: string;
@@ -87,33 +85,45 @@ const forwardedQuery = (
     ).map((key) => [key, query.get(key) ?? ""] as [string, string]),
   ]).toString();
 
-const endOfCurrentHour = (now: Date): string =>
-  `${new Date((Math.floor(now.getTime() / HOUR_MS) + 1) * HOUR_MS).toISOString().slice(0, 19)}Z`;
+type Compared = { readonly query: URLSearchParams } | { readonly error: string };
 
-const comparedQuery = (
-  query: URLSearchParams,
-  now: Date,
-): { readonly query: URLSearchParams } | { readonly error: string } => {
-  if (COMPARE_PARAMS.some((key) => query.has(key))) return { error: "Comparison dates are worked out by the server; send compare" };
-  const choice = query.get("compare");
-  if (choice === null) return query.get("include_previous_period") === "true" ? { error: "include_previous_period needs compare" } : { query };
-  if (!isCompareChoice(choice)) return { error: "Invalid compare" };
-  const open = query.has("from_at") && !query.has("to_at");
-  const window = {
-    date_from: query.get("date_from") ?? undefined,
-    date_to: query.get("date_to") ?? undefined,
-    from_at: query.get("from_at") ?? undefined,
-    to_at: open ? endOfCurrentHour(now) : (query.get("to_at") ?? undefined),
-  };
-  const compared = comparedWindow({ compare: choice, window, zone: query.get("tz") ?? "UTC" });
-  if (compared === undefined) return { error: "compare needs a complete, ordered window" };
-  const own = [...query.entries()].filter(([key]) => key !== "compare" && !(open && key === "to_at"));
+const refused = (error: string): Compared => ({ error });
+
+const optional = (query: URLSearchParams, key: string): string | undefined => query.get(key) ?? undefined;
+
+const windowOf = (query: URLSearchParams) => ({
+  date_from: optional(query, "date_from"),
+  date_to: optional(query, "date_to"),
+  from_at: optional(query, "from_at"),
+  to_at: optional(query, "to_at"),
+});
+
+const legacyCompareGuard = (query: URLSearchParams): Compared | undefined =>
+  COMPARE_PARAMS.some((key) => query.has(key)) ? refused("Comparison dates are worked out by the server; send compare") : undefined;
+
+const missingChoiceGuard = (query: URLSearchParams): Compared | undefined =>
+  query.get("include_previous_period") === "true" ? refused("include_previous_period needs compare") : undefined;
+
+const resolved = (query: URLSearchParams, choice: CompareChoice, now: Date): Compared => {
+  const window = windowOf(query);
+  const closed = closedWindow({ window, now });
+  const compared = comparedWindow({ compare: choice, window: closed, zone: query.get("tz") ?? "UTC" });
+  if (compared === undefined) return refused("compare needs a complete, ordered window");
+  const filled = closed.to_at === window.to_at ? {} : { to_at: closed.to_at ?? "" };
   return {
     query: new URLSearchParams([
-      ...own,
-      ...Object.entries({ ...(open ? { to_at: endOfCurrentHour(now) } : {}), ...compared }),
+      ...[...query.entries()].filter(([key]) => key !== "compare" && !(key in filled)),
+      ...Object.entries({ ...filled, ...compared }),
     ]),
   };
+};
+
+const comparedQuery = (query: URLSearchParams, now: Date): Compared => {
+  const legacy = legacyCompareGuard(query);
+  if (legacy !== undefined) return legacy;
+  const choice = query.get("compare");
+  if (choice === null) return missingChoiceGuard(query) ?? { query };
+  return isCompareChoice(choice) ? resolved(query, choice, now) : refused("Invalid compare");
 };
 
 const BEFORE_ANY_DATA = "2010-01-01";
@@ -175,7 +185,7 @@ export const proxyEndpoint = async (
 
   for (const key of ["from_at", "to_at"]) {
     const instant = query.get(key);
-    if (instant !== null && !ISO_INSTANT.test(instant))
+    if (instant !== null && !isValidInstant(instant))
       return { status: 400, body: { error: `Invalid ${key}` } };
   }
 

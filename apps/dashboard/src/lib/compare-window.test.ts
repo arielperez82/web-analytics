@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { comparedWindow } from "./compare-window";
+import { closedWindow, comparedWindow, isValidInstant } from "./compare-window";
+import { rangeToParams } from "./time-range";
 
 const days = (date_from: string, date_to: string) => ({ date_from, date_to });
 const hours = (from_at: string, to_at: string) => ({ from_at, to_at });
@@ -65,6 +66,57 @@ describe("comparedWindow in whole days", () => {
       compare_from: "2026-10-26",
       compare_to: "2026-11-01",
     });
+  });
+
+  it("shifts a three-day window by seven days, not by its length, for last week", () => {
+    const window = days("2026-11-10", "2026-11-12");
+    expect(comparedWindow({ compare: "last_week", window, zone: "UTC" })).toEqual({
+      compare_from: "2026-11-03",
+      compare_to: "2026-11-05",
+    });
+    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toEqual({
+      compare_from: "2026-11-07",
+      compare_to: "2026-11-09",
+    });
+  });
+
+  it("shifts a whole month by seven days for last week and by its length for previous", () => {
+    const window = days("2026-11-01", "2026-11-30");
+    expect(comparedWindow({ compare: "last_week", window, zone: "UTC" })).toEqual({
+      compare_from: "2026-10-25",
+      compare_to: "2026-11-23",
+    });
+    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toEqual({
+      compare_from: "2026-10-02",
+      compare_to: "2026-10-31",
+    });
+  });
+
+  describe("the calendar presets compare with the equal-length window just before", () => {
+    const now = new Date("2026-11-18T12:00:00Z");
+    const previousOf = (preset: "this_week" | "this_month" | "this_year") =>
+      comparedWindow({ compare: "previous", window: rangeToParams({ preset }, now, "UTC"), zone: "UTC" });
+
+    it("compares this week so far with the days right before Monday", () => {
+      expect(previousOf("this_week")).toEqual({ compare_from: "2026-11-13", compare_to: "2026-11-15" });
+    });
+
+    it("compares this month so far with the days right before the 1st", () => {
+      expect(previousOf("this_month")).toEqual({ compare_from: "2026-10-14", compare_to: "2026-10-31" });
+    });
+
+    it("compares this year so far with as many days right before January 1st", () => {
+      expect(previousOf("this_year")).toEqual({ compare_from: "2025-02-13", compare_to: "2025-12-31" });
+    });
+  });
+
+  it("has no comparison that would reach before year 1", () => {
+    expect(comparedWindow({ compare: "previous", window: days("0001-01-01", "0001-01-03"), zone: "UTC" })).toBeUndefined();
+    expect(comparedWindow({ compare: "last_week", window: days("0001-01-03", "0001-01-05"), zone: "UTC" })).toBeUndefined();
+  });
+
+  it("refuses a day the calendar does not have", () => {
+    expect(comparedWindow({ compare: "previous", window: days("2026-02-29", "2026-03-02"), zone: "UTC" })).toBeUndefined();
   });
 
   it("ignores instants that are not part of the request", () => {
@@ -138,6 +190,36 @@ describe("comparedWindow in exact hours", () => {
     ).toEqual({ compare_from_at: "2026-11-03T18:30:00Z", compare_to_at: "2026-11-04T18:30:00Z" });
   });
 
+  it("keeps a local start that is not on midnight across the spring clock change", () => {
+    expect(
+      comparedWindow({
+        compare: "last_week",
+        window: hours("2026-03-15T07:30:00Z", "2026-03-16T07:30:00Z"),
+        zone: "America/New_York",
+      }),
+    ).toEqual({ compare_from_at: "2026-03-08T07:30:00Z", compare_to_at: "2026-03-09T07:30:00Z" });
+  });
+
+  it("settles a local start that does not exist a week earlier on the instant before the gap", () => {
+    expect(
+      comparedWindow({
+        compare: "last_week",
+        window: hours("2026-03-15T06:30:00Z", "2026-03-16T06:30:00Z"),
+        zone: "America/New_York",
+      }),
+    ).toEqual({ compare_from_at: "2026-03-08T06:30:00Z", compare_to_at: "2026-03-09T06:30:00Z" });
+  });
+
+  it("settles a local start that happens twice a week earlier on its first occurrence", () => {
+    expect(
+      comparedWindow({
+        compare: "last_week",
+        window: hours("2026-11-08T06:30:00Z", "2026-11-09T06:30:00Z"),
+        zone: "America/New_York",
+      }),
+    ).toEqual({ compare_from_at: "2026-11-01T05:30:00Z", compare_to_at: "2026-11-02T05:30:00Z" });
+  });
+
   it("goes back across a month end", () => {
     expect(
       comparedWindow({ compare: "last_week", window: hours("2026-12-03T00:00:00Z", "2026-12-04T00:00:00Z"), zone: "UTC" }),
@@ -165,6 +247,22 @@ describe("comparedWindow in exact hours", () => {
   });
 
   it.each([
+    ["a day the calendar does not have", hours("2023-02-31T00:00:00Z", "2023-03-02T00:00:00Z")],
+    ["hour 24", hours("2026-11-10T24:00:00Z", "2026-11-12T00:00:00Z")],
+    ["minute 60", hours("2026-11-10T00:60:00Z", "2026-11-12T00:00:00Z")],
+    ["an offset beyond a day", hours("2026-11-10T00:00:00+24:00", "2026-11-12T00:00:00Z")],
+    ["year 0", hours("0000-01-01T00:00:00Z", "0000-01-02T00:00:00Z")],
+  ])("has no comparison for %s", (_name, window) => {
+    expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toBeUndefined();
+  });
+
+  it("has no comparison that would reach before year 1", () => {
+    expect(
+      comparedWindow({ compare: "previous", window: hours("0001-01-01T05:00:00Z", "0001-01-01T15:00:00Z"), zone: "UTC" }),
+    ).toBeUndefined();
+  });
+
+  it.each([
     ["only a start", { from_at: "2026-11-17T16:00:00Z" }],
     ["only an end", { to_at: "2026-11-17T16:00:00Z" }],
     ["an end before the start", hours("2026-11-18T16:00:00Z", "2026-11-17T16:00:00Z")],
@@ -172,5 +270,45 @@ describe("comparedWindow in exact hours", () => {
     ["a start that is not an instant", hours("yesterday", "2026-11-17T16:00:00Z")],
   ])("has no comparison for %s", (_name, window) => {
     expect(comparedWindow({ compare: "previous", window, zone: "UTC" })).toBeUndefined();
+  });
+});
+
+describe("isValidInstant", () => {
+  it.each(["2026-11-10T05:00:00Z", "2026-11-10T05:00:00+05:30", "2024-02-29T23:59:59Z"])("accepts %s", (value) => {
+    expect(isValidInstant(value)).toBe(true);
+  });
+
+  it.each(["2023-02-31T00:00:00Z", "2026-11-10T24:00:00Z", "2026-11-10", "yesterday", "", "2026-11-10T05:00:00"])(
+    "refuses %s",
+    (value) => {
+      expect(isValidInstant(value)).toBe(false);
+    },
+  );
+});
+
+describe("closedWindow", () => {
+  const now = new Date("2026-11-18T16:20:00Z");
+
+  it("ends an open exact window at the end of the current hour", () => {
+    expect(closedWindow({ window: { from_at: "2026-11-17T17:00:00Z" }, now })).toEqual({
+      from_at: "2026-11-17T17:00:00Z",
+      to_at: "2026-11-18T17:00:00Z",
+    });
+  });
+
+  it("ends it an hour later when now is exactly on the hour", () => {
+    expect(
+      closedWindow({ window: { from_at: "2026-11-17T17:00:00Z" }, now: new Date("2026-11-18T16:00:00Z") }).to_at,
+    ).toBe("2026-11-18T17:00:00Z");
+  });
+
+  it("leaves a window that already has an end alone", () => {
+    const window = { from_at: "2026-11-17T17:00:00Z", to_at: "2026-11-18T05:00:00Z" };
+    expect(closedWindow({ window, now })).toEqual(window);
+  });
+
+  it("leaves a day window alone", () => {
+    const window = { date_from: "2026-11-10", date_to: "2026-11-12" };
+    expect(closedWindow({ window, now })).toEqual(window);
   });
 });
