@@ -1,13 +1,18 @@
 import { describe, expect, inject, it } from 'vitest';
 
 import {
+  createPageHitEvent,
   createRivalTenant,
   createScope,
   createWebVitalEvent,
   type Scope,
 } from '../../testing/tinybird/helpers/factories';
-import { waitForPipeRows } from '../../testing/tinybird/helpers/pipe-rows';
+import {
+  pipeRows,
+  waitForPipeRows,
+} from '../../testing/tinybird/helpers/pipe-rows';
 import { ingestEvents } from '../../testing/tinybird/helpers/tinybird-client';
+import { waitForRow } from '../../testing/tinybird/helpers/wait-for-row';
 
 type RouteRow = {
   route: string;
@@ -185,4 +190,87 @@ describe.concurrent('two tenants sharing a domain and a path', () => {
       expect.objectContaining({ route: 'shop', overall_score: 25 }),
     ]);
   });
+
+  const hit = (
+    scope: Scope,
+    pathname: string,
+    extra: { sessionId?: string; offsetSeconds?: number } = {}
+  ) => createPageHitEvent({ ...scope, pathname, ...extra });
+
+  it('counts the page views of each tenant only, on a shared page', async () => {
+    const mine = createScope();
+    const theirs = createRivalTenant(mine);
+    await ingestEvents(env, [
+      ...Array.from({ length: 3 }, () => hit(mine, '/pricing')),
+      hit(theirs, '/pricing'),
+    ]);
+    const pages = (scope: Scope) =>
+      waitForPipeRows<{ pathname: string; hits: number }>(env, 'top_pages', {
+        tenant_id: scope.tenantId,
+        domain: scope.domain,
+      });
+
+    expect(await pages(mine)).toEqual([
+      expect.objectContaining({ pathname: '/pricing', hits: 3 }),
+    ]);
+    expect(await pages(theirs)).toEqual([
+      expect.objectContaining({ pathname: '/pricing', hits: 1 }),
+    ]);
+  });
+
+  it('measures engagement per tenant even when both reuse a session id (tenant keys on the session lookups are defence in depth)', async () => {
+    const mine = createScope();
+    const theirs = createRivalTenant(mine);
+    const sessionId = crypto.randomUUID();
+    await ingestEvents(env, [
+      hit(mine, '/a', { sessionId }),
+      ...[0, 30, 60].map(offsetSeconds =>
+        hit(theirs, `/b-${String(offsetSeconds)}`, { sessionId, offsetSeconds })
+      ),
+    ]);
+    const engagementOf = (scope: Scope, pageviews: number) =>
+      waitForRow(
+        () =>
+          pipeRows<Record<string, number>>(env, 'engagement', {
+            tenant_id: scope.tenantId,
+            domain: scope.domain,
+          }),
+        rows => Number(rows[0]?.pageviews) === pageviews
+      ).then(rows => rows[0]);
+
+    expect(await engagementOf(mine, 1)).toEqual(
+      expect.objectContaining({ pageviews: 1, bounce_rate_percent: 100 })
+    );
+    expect(await engagementOf(theirs, 3)).toEqual(
+      expect.objectContaining({ pageviews: 3, bounce_rate_percent: 0 })
+    );
+  });
+
+  it.each([
+    ['entry_pages', ['/one', '/two']],
+    ['exit_pages', ['/one', '/two']],
+  ])(
+    '%s counts a session that spans two sites of one tenant once on each site',
+    async (pipe, expected) => {
+      const first = createScope();
+      const second = { ...createScope(), tenantId: first.tenantId };
+      const sessionId = crypto.randomUUID();
+      await ingestEvents(env, [
+        hit(first, '/one', { sessionId }),
+        hit(second, '/two', { sessionId, offsetSeconds: 30 }),
+      ]);
+
+      const rows = await waitForRow(
+        () =>
+          pipeRows<{ pathname: string }>(env, pipe, {
+            tenant_id: first.tenantId,
+          }),
+        found => found.length >= expected.length
+      );
+
+      expect(
+        rows.map(row => row.pathname).sort((a, b) => a.localeCompare(b))
+      ).toEqual(expected);
+    }
+  );
 });
