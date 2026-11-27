@@ -9,7 +9,7 @@ Self-hosted (for example on Vercel); nothing in the code is specific to one orga
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `TINYBIRD_HOST`, `TINYBIRD_TOKEN`          | Tinybird workspace and a read token. Server-side only.                                                           |
 | `DASHBOARD_TENANT_ID`                      | Pins every query to one tenant; the browser cannot override it.                                                  |
-| `DASHBOARD_GOALS`                          | JSON `[{"name","path"}]`: one conversions panel per goal (max 10). Paths start with `/`, no `%`, `?` or `#`.     |
+| `DASHBOARD_GOALS`                          | JSON array of goals: one conversions panel per goal (max 10). See [Conversion goals](#conversion-goals).         |
 | `ALLOWED_EMAIL_DOMAINS`                    | Comma-separated domains allowed to sign in, for example `example.com`. Exact match, subdomains are not admitted. |
 | `ALLOWED_EMAILS`                           | Comma-separated individual addresses allowed in addition to the domains.                                         |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth client for the deployment.                                                                          |
@@ -19,6 +19,41 @@ Access is deny-all unless a domain or address is listed, and the Google email mu
 
 The Channels report and the conversions panels do not apply the device, location or browser filters; the
 overview says so. One panel is shown per goal; a malformed goal is dropped and its error is shown on the page.
+
+## Conversion goals
+
+Each entry of `DASHBOARD_GOALS` has a `name` and exactly one way to recognise the conversion:
+
+| Key            | Matches                                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `path`         | A page: starts with `/`, no `%`, `?` or `#`. A trailing slash is ignored.                                      |
+| `event`        | A tracked event by exact name (letters, digits, `_` `.` `:` `-`, at most 100). This is the default for events. |
+| `eventPattern` | A tracked event by pattern. Opt in only when one exact name is not enough, for example `signup_.*`.            |
+
+```json
+[
+  { "name": "Booked", "path": "/book/confirmed" },
+  { "name": "Signed up", "event": "signup_completed" },
+  { "name": "Any signup", "eventPattern": "(?:signup|register)_[a-z]+" }
+]
+```
+
+### Event patterns
+
+A pattern is matched by ClickHouse `match()`, which uses RE2: it has no backtracking, so a pattern cannot make a
+query slow. Patterns are also limited to a safe subset and checked when the dashboard reads its configuration and
+again before every request. An unsafe pattern is refused with the reason shown on the page, never run.
+
+- The pattern must match the whole event name. `signup` does not match `signup_done`; write `signup_.*`.
+- Matching is case sensitive, like an exact event name. `signup_.*` does not match `Signup_done`.
+- Allowed: literal characters, `.`, `\d \w \s`, escaped punctuation such as `\.`, character classes such as `[a-z]`
+  and `[^_]`, groups `( )` and `(?: )`, alternation `|`, `?` `*` `+`, bounded repeats `{n}` and `{m,n}` (at most 20),
+  and the anchors `^` and `$`.
+- Refused: backreferences (`\1`), lookaround and every other `(?` form (named groups, flags), a quantifier on a group
+  that already contains a quantifier (`(a+)+`), stacked, lazy or possessive quantifiers (`a**`, `a+?`, `a++`),
+  unbounded counted repeats (`{2,}`), POSIX classes, spaces and non-ASCII characters, and patterns over 100
+  characters.
+- The pattern reaches Tinybird only as a bound query parameter, never as SQL text.
 
 ## Identity proxy (`POST /api/tracking`)
 
