@@ -41,4 +41,27 @@ describe("OverviewView", () => {
 
     expect(panels.slice(panels.indexOf("Pages"), panels.indexOf("Pages") + 4)).toEqual(["Pages", "Sources", "Speed", "Channels"]);
   });
+
+  it("renders one panel per goal when the same path has different denominators, with no duplicate keys", () => {
+    installFakeApi({});
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(
+      <OverviewView
+        goals={[
+          { name: "Booked per session", path: "/book" },
+          { name: "Booked per visitor", path: "/book", denominator: "visitor" },
+          { name: "Booked count", path: "/book", denominator: "none" },
+        ]}
+        goalErrors={[]}
+      />,
+    );
+
+    const titles = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent ?? "")
+      .filter((text) => text.includes("/book"));
+    expect(titles).toEqual(["Booked per session · /book", "Booked per visitor · /book", "Booked count · /book"]);
+    expect(errors.mock.calls.flat().join(" ")).not.toMatch(/same key/);
+    errors.mockRestore();
+  });
 });

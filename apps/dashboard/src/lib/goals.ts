@@ -29,14 +29,14 @@ const denominatorQuery = (goal: Goal): Readonly<Record<string, string>> =>
 
 export const describeGoal = (goal: Goal): GoalDescription => {
   if (isEventGoal(goal))
-    return { query: { goal_event: goal.event, ...denominatorQuery(goal) }, label: goal.event, key: `event:${goal.event}` };
+    return { query: { goal_event: goal.event, ...denominatorQuery(goal) }, label: goal.event, key: `event:${goal.event}:${denominatorOf(goal)}:${goal.name}` };
   if (isEventPatternGoal(goal))
     return {
       query: { goal_event_pattern: goal.eventPattern, ...denominatorQuery(goal) },
       label: `pattern ${goal.eventPattern}`,
-      key: `pattern:${goal.eventPattern}`,
+      key: `pattern:${goal.eventPattern}:${denominatorOf(goal)}:${goal.name}`,
     };
-  return { query: { goal_path: goal.path, ...denominatorQuery(goal) }, label: goal.path, key: `path:${goal.path}` };
+  return { query: { goal_path: goal.path, ...denominatorQuery(goal) }, label: goal.path, key: `path:${goal.path}:${denominatorOf(goal)}:${goal.name}` };
 };
 
 export type ParsedGoals = {
