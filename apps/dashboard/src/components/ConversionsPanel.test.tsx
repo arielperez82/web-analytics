@@ -15,11 +15,11 @@ afterEach(() => {
 const goal: Goal = { name: "Signup", path: "/thanks" };
 const params = { date_from: "2026-11-10", date_to: "2026-11-16", domain: "a.example" };
 
-const summary: ApiRow = { conversions: 70, sessions: 900, conversion_rate_percent: 7.5 };
+const summary: ApiRow = { conversions: 70, sessions: 900, denominator: 900, conversion_rate_percent: 7.5 };
 const channelRows: readonly ApiRow[] = [
-  { channel: "Paid", sessions: 100, conversions: 9, conversion_rate_percent: 8.5 },
-  { channel: "Organic", sessions: 300, conversions: 40, conversion_rate_percent: 12.7 },
-  { channel: "Direct", sessions: 50, conversions: 1, conversion_rate_percent: 1.9 },
+  { channel: "Paid", sessions: 100, denominator: 100, conversions: 9, conversion_rate_percent: 8.5 },
+  { channel: "Organic", sessions: 300, denominator: 300, conversions: 40, conversion_rate_percent: 12.7 },
+  { channel: "Direct", sessions: 50, denominator: 50, conversions: 1, conversion_rate_percent: 1.9 },
 ];
 
 const renderPanel = (routes: Parameters<typeof installFakeApi>[0] = {}) => {
@@ -115,5 +115,75 @@ describe("ConversionsPanel", () => {
     const queries = [...api.requestsTo("conversions"), ...api.requestsTo("conversion_summary")];
     expect(queries.map((query) => query.get("goal_event_pattern"))).toEqual(["signup_.*", "signup_.*"]);
     expect(queries.some((query) => query.has("goal_path") || query.has("goal_event"))).toBe(false);
+  });
+
+  describe("denominator", () => {
+    const cellsOf = () =>
+      Array.from(document.querySelectorAll("tbody tr")).map((row) =>
+        Array.from(row.querySelectorAll("td")).map((cell) => cell.textContent),
+      );
+    const headersOf = () => Array.from(document.querySelectorAll("th")).map((cell) => cell.textContent);
+    const renderGoal = (denominator?: "session" | "visitor" | "page_view" | "none", routes: Parameters<typeof installFakeApi>[0] = {}) => {
+      const api = installFakeApi({ conversions: channelRows, conversion_summary: [summary], ...routes });
+      render(<ConversionsPanel goal={{ ...goal, ...(denominator === undefined ? {} : { denominator }) }} params={params} />);
+      return api;
+    };
+
+    it("says the rate is per session, and that this is the default, when the goal chose nothing", async () => {
+      const api = renderGoal();
+
+      await screen.findByText("Organic");
+      expect(screen.getByText("Rate per session (default)")).toBeTruthy();
+      expect(api.requestsTo("conversions")[0]?.has("goal_denominator")).toBe(false);
+      expect(headersOf()).toEqual(["Channel", "Sessions", "Conversions", "Rate"]);
+    });
+
+    it("does not call a chosen session denominator the default", async () => {
+      const api = renderGoal("session");
+
+      await screen.findByText("Organic");
+      expect(screen.getByText("Rate per session")).toBeTruthy();
+      expect(api.requestsTo("conversions")[0]?.get("goal_denominator")).toBe("session");
+    });
+
+    it("shows visitors as the denominator the API returned", async () => {
+      const api = renderGoal("visitor", {
+        conversion_summary: [{ conversions: 40, sessions: 90, denominator: 80, conversion_rate_percent: 50 }],
+        conversions: [{ channel: "Paid", sessions: 90, denominator: 80, conversions: 40, conversion_rate_percent: 50 }],
+      });
+
+      const headline = await screen.findByText(/visitors\s+converted/);
+      expect(headline.textContent).toBe("40 of 80 visitors converted (50%)");
+      expect(screen.getByText("Rate per visitor")).toBeTruthy();
+      expect(headersOf()).toEqual(["Channel", "Visitors", "Conversions", "Rate"]);
+      expect(cellsOf()).toEqual([["Paid", "80", "40", "50%"]]);
+      expect(api.requestsTo("conversion_summary")[0]?.get("goal_denominator")).toBe("visitor");
+    });
+
+    it("shows page views as the denominator the API returned", async () => {
+      renderGoal("page_view", {
+        conversion_summary: [{ conversions: 9, sessions: 30, denominator: 120, conversion_rate_percent: 7.5 }],
+        conversions: [{ channel: "Paid", sessions: 30, denominator: 120, conversions: 9, conversion_rate_percent: 7.5 }],
+      });
+
+      const headline = await screen.findByText(/page views/);
+      expect(headline.textContent).toBe("9 sessions converted from 120 page views (7.5%)");
+      expect(screen.getByText("Rate per page view")).toBeTruthy();
+      expect(headersOf()).toEqual(["Channel", "Page views", "Conversions", "Rate"]);
+    });
+
+    it("shows a count and no rate for an absolute goal", async () => {
+      renderGoal("none", {
+        conversion_summary: [{ conversions: 12, sessions: 30, denominator: null, conversion_rate_percent: null }],
+        conversions: [{ channel: "Paid", sessions: 30, denominator: null, conversions: 9, conversion_rate_percent: null }],
+      });
+
+      const headline = await screen.findByText(/converted/);
+      expect(headline.textContent).toBe("12 sessions converted");
+      expect(screen.getByText("Count only, no rate")).toBeTruthy();
+      expect(headersOf()).toEqual(["Channel", "Conversions"]);
+      expect(cellsOf()).toEqual([["Paid", "9"]]);
+      expect(document.body.textContent).not.toContain("%");
+    });
   });
 });
