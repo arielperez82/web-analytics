@@ -193,6 +193,15 @@ describe("RankedTable", () => {
     expect(screen.getAllByText(path)).toHaveLength(1);
   });
 
+  it("leaves a short label untouched: no title, no second copy for assistive tech", async () => {
+    renderTable();
+
+    const text = (await screen.findByText("ES")).closest<HTMLElement>("span.text");
+    expect(text?.hasAttribute("title")).toBe(false);
+    expect(text?.querySelector("[aria-hidden=true], .ds-sr")).toBeNull();
+    expect(screen.getAllByText("ES")).toHaveLength(1);
+  });
+
   it("draws no ghost bar without a comparison", async () => {
     renderTable();
 
