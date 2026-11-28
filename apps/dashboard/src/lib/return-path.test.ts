@@ -30,6 +30,12 @@ describe("returnPath", () => {
     ["tab inside authority", "/\t/evil.example"],
     ["sign-in page itself", "/login?callbackUrl=%2F"],
     ["auth api", "/api/auth/signout"],
+    ["encoded backslash", "/%5cevil.example"],
+    ["encoded backslash upper case", "/%5Cevil.example"],
+    ["encoded null", "/a%00b"],
+    ["dot segments into sign-in", "/../login"],
+    ["encoded dot segments into sign-in", "/%2e%2e/login"],
+    ["dot segments into auth api", "/x/../api/auth/signout"],
   ])("falls back to the root for %s", (_name, raw) => {
     expect(returnPath(raw)).toBe("/");
   });
