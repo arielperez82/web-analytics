@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { redirectToSignIn } from "./sign-in-redirect";
+
 type State<T> = {
   readonly data: readonly T[] | undefined;
   readonly error: string | undefined;
@@ -45,6 +47,8 @@ export const useEndpoint = <T,>(
     setState((previous) => ({ ...previous, loading: previous.data === undefined, refreshing: previous.data !== undefined, error: undefined }));
     fetch(`/api/endpoints/${name}?${query}`, { signal: controller.signal })
       .then(async (response) => {
+        if (controller.signal.aborted) return;
+        if (redirectToSignIn(response.status, window.location)) return;
         const body = (await response.json()) as { data?: T[]; error?: string };
         if (controller.signal.aborted) return;
         if (!response.ok) throw new EndpointError(body.error ?? `HTTP ${response.status}`, response.status);

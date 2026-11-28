@@ -93,3 +93,69 @@ describe("useSeries when a request is overtaken", () => {
     expect(screen.getByText("new")).toBeTruthy();
   });
 });
+
+describe("useSeries when the session has expired", () => {
+  it("sends the user to sign in and back to the same url state", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "?date_from=2026-11-16&compare=previous_period", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }));
+
+    render(<Harness />);
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/login?callbackUrl=%2F%3Fdate_from%3D2026-11-16%26compare%3Dprevious_period"),
+    );
+  });
+
+  it("still redirects when the 401 has no readable body", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "?days=7", assign });
+    vi.stubGlobal("fetch", async () => ({
+      ok: false,
+      status: 401,
+      json: async () => {
+        throw new SyntaxError("Unexpected token <");
+      },
+    }));
+
+    render(<Harness />);
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/login?callbackUrl=%2F%3Fdays%3D7"));
+  });
+
+  it("does not redirect for a superseded request that returns 401", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "", assign });
+    let releaseOld: (response: unknown) => void = () => undefined;
+    const old = new Promise<unknown>((resolve) => {
+      releaseOld = resolve;
+    });
+    const answers = [
+      () => old,
+      async () => ({ ok: true, status: 200, json: async () => ({ series: every("new") }) }),
+    ];
+    vi.stubGlobal("fetch", () => answers.shift()?.());
+
+    const view = render(<First from="old" />);
+    view.rerender(<First from="new" />);
+    await waitFor(() => expect(screen.getByText("new")).toBeTruthy());
+
+    await act(async () => {
+      releaseOld({ ok: false, status: 401, json: async () => ({ error: "Unauthorized" }) });
+      await old;
+    });
+
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect for other failures", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/", search: "", assign });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "boom" }), { status: 502 }));
+
+    render(<Harness />);
+
+    await waitFor(() => expect(screen.getByText("boom")).toBeTruthy());
+    expect(assign).not.toHaveBeenCalled();
+  });
+});
