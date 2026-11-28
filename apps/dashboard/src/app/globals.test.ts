@@ -29,6 +29,17 @@ describe("the design system foundation", () => {
     expect(controls).toContain("min-height:36px");
   });
 
+  it("keeps ranked table rows on one line, ellipsizing the middle of a long label", () => {
+    expect(ruleFor(".text")).not.toContain("word-break");
+    expect(ruleFor(".text")).toContain("white-space:nowrap");
+    expect(ruleFor(".text-head")).toContain("text-overflow:ellipsis");
+    expect(ruleFor(".text-head")).toContain("overflow:hidden");
+    expect(ruleFor(".text-tail")).toContain("flex:none");
+    expect(ruleFor(".text-head")).toContain("white-space:pre");
+    expect(ruleFor(".text-tail")).toContain("white-space:pre");
+    expect(ruleFor("td.label")).toContain("max-width:0");
+  });
+
   it("shows the page title at 24px", () => {
     expect(ruleFor(".page-head h1")).toContain("font-size:24px");
   });

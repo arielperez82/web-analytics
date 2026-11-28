@@ -7,6 +7,7 @@ import { Badge } from "@/ds/Badge";
 import type { CompareChoice } from "@/lib/compare-window";
 import { comparisonTitle, comparisonWords } from "@/lib/comparison-words";
 import { spokenSignedNumber } from "@/lib/format";
+import { splitForMiddleTruncation } from "@/lib/middle-truncate";
 import type { Report } from "@/lib/reports";
 import type { ComparisonParams, QueryParams } from "@/lib/use-dashboard-state";
 import { useEndpoint } from "@/lib/use-endpoint";
@@ -25,6 +26,18 @@ const changeOf = (row: Row, against: CompareChoice) => {
       amount={spokenSignedNumber}
       against={against}
     />
+  );
+};
+
+const RowLabel = ({ value }: { value: string }) => {
+  const { head, tail } = splitForMiddleTruncation(value);
+  if (tail === "") return <span className="text">{value}</span>;
+  return (
+    <span className="text" title={value}>
+      <span className="ds-sr">{value}</span>
+      <span className="text-head" aria-hidden="true">{head}</span>
+      <span className="text-tail" aria-hidden="true">{tail}</span>
+    </span>
   );
 };
 
@@ -77,7 +90,7 @@ export const RankedTable = ({
                 <td className="label">
                   <span className="bar" style={{ width: `${Number(row.bar_percent ?? 0)}%` }} />
                   {comparing && <span className="bar ghost" aria-hidden="true" style={{ width: `${Number(row.previous_bar_percent ?? 0)}%` }} />}
-                  <span className="text">{label || "(direct)"}</span>
+                  <RowLabel value={label || "(direct)"} />
                   {comparison !== undefined && <span className="ds-sr">{comparisonTitle(comparison.compare)}: {fmt(row.previous_sessions)} sessions</span>}
                 </td>
                 <td className="num">{fmt(row.sessions)}</td>
