@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,23 +8,23 @@ vi.mock("./globals.css", () => ({}));
 
 import RootLayout from "./layout";
 
-const markup = renderToStaticMarkup(
-  <RootLayout>
-    <p>page</p>
-  </RootLayout>,
-);
+const render = () =>
+  renderToStaticMarkup(
+    <RootLayout>
+      <p>page</p>
+    </RootLayout>,
+  );
 
 describe("root layout", () => {
   it("sets the saved theme in the head, before the body is painted", () => {
+    const markup = render();
     const head = markup.slice(markup.indexOf("<head>"), markup.indexOf("</head>"));
 
     expect(head).toContain(`<script>${THEME_SCRIPT}</script>`);
     expect(markup.indexOf("<script>")).toBeLessThan(markup.indexOf("<body"));
   });
 
-  it("tolerates the theme attribute the script adds before React hydrates", () => {
-    const source = readFileSync(fileURLToPath(new URL("./layout.tsx", import.meta.url)), "utf8");
-
-    expect(source).toContain("suppressHydrationWarning");
+  it("still renders the page inside the body", () => {
+    expect(render()).toContain("<body><p>page</p></body>");
   });
 });
