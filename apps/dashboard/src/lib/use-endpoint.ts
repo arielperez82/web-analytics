@@ -47,9 +47,10 @@ export const useEndpoint = <T,>(
     setState((previous) => ({ ...previous, loading: previous.data === undefined, refreshing: previous.data !== undefined, error: undefined }));
     fetch(`/api/endpoints/${name}?${query}`, { signal: controller.signal })
       .then(async (response) => {
-        const body = (await response.json()) as { data?: T[]; error?: string };
         if (controller.signal.aborted) return;
         if (redirectToSignIn(response.status, window.location)) return;
+        const body = (await response.json()) as { data?: T[]; error?: string };
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new EndpointError(body.error ?? `HTTP ${response.status}`, response.status);
         setState({ data: body.data ?? [], error: undefined, status: response.status, loading: false, refreshing: false });
       })

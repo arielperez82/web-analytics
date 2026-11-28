@@ -43,9 +43,10 @@ export const useSeries = (params: Readonly<Record<string, string | undefined>>):
     setState((previous) => ({ ...previous, loading: previous.series === undefined, refreshing: previous.series !== undefined, error: undefined }));
     fetch(`/api/series?${query}`, { signal: controller.signal })
       .then(async (response) => {
-        const body = (await response.json()) as { series?: unknown; error?: string };
         if (controller.signal.aborted) return;
         if (redirectToSignIn(response.status, window.location)) return;
+        const body = (await response.json()) as { series?: unknown; error?: string };
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
         if (!isMetricSeries(body.series)) throw new Error("The series answer had no data");
         setState({ series: body.series, error: undefined, loading: false, refreshing: false });
