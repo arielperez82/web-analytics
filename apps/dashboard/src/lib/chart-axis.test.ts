@@ -72,6 +72,31 @@ describe("xLabels", () => {
     expect(labels.slice(0, 6)).toEqual(["Mar 7", "Mar 8", "", "", "", "Mar 9"]);
   });
 
+  it("names a month bucket by its month and year", () => {
+    expect(xLabels(["2026-10", "2026-11", "2026-12"], "day")).toEqual(["Oct 2026", "Nov 2026", "Dec 2026"]);
+  });
+
+  it("names the first and last month of a year", () => {
+    expect(xLabels(["2026-01", "2026-12"], "day")).toEqual(["Jan 2026", "Dec 2026"]);
+  });
+
+  it("falls back to the key when it is not a date", () => {
+    expect(xLabels(["2026", "garbage"], "day")).toEqual(["2026", "garbage"]);
+  });
+
+  it("falls back to the key when the month is out of range", () => {
+    expect(xLabels(["2026-13", "2026-00"], "day")).toEqual(["2026-13", "2026-00"]);
+  });
+
+  it("falls back to the key when the day is missing, not a number or out of range", () => {
+    expect(xLabels(["2026-11-xx", "2026-11-", "2026-11-0", "2026-11-32"], "day")).toEqual([
+      "2026-11-xx",
+      "2026-11-",
+      "2026-11-0",
+      "2026-11-32",
+    ]);
+  });
+
   it("returns nothing for no bars", () => {
     expect(xLabels([], "day")).toEqual([]);
   });
