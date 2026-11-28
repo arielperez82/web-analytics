@@ -30,14 +30,6 @@ describe("useTheme", () => {
     expect(attribute()).toBe("dark");
   });
 
-  it("lets light override a dark system preference by setting it explicitly", () => {
-    const { result } = renderHook(() => useTheme());
-
-    act(() => result.current.choose("light"));
-
-    expect(attribute()).toBe("light");
-  });
-
   it("hands the page back to the media queries when system is chosen again", () => {
     const { result } = renderHook(() => useTheme());
     act(() => result.current.choose("contrast"));

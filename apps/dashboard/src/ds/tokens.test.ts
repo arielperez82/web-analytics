@@ -23,6 +23,18 @@ const declarationsOf = (selector: string): Theme => {
   );
 };
 
+const mediaBlock = (query: string): string => {
+  const start = css.indexOf(`@media ${query}`);
+  if (start < 0) throw new Error(`tokens.css has no @media ${query}`);
+  const open = css.indexOf("{", start);
+  const end = [...css.slice(open)].reduce<{ depth: number; at: number }>(
+    (acc, char, index) =>
+      acc.at >= 0 ? acc : char === "{" ? { ...acc, depth: acc.depth + 1 } : char === "}" ? (acc.depth === 1 ? { depth: 0, at: index } : { ...acc, depth: acc.depth - 1 }) : acc,
+    { depth: 0, at: -1 },
+  ).at;
+  return css.slice(open + 1, open + end);
+};
+
 const themes = {
   light: declarationsOf(':root,[data-theme="light"]'),
   dark: declarationsOf('[data-theme="dark"]'),
@@ -84,19 +96,24 @@ describe("design tokens", () => {
   });
 
   it("follows the system dark preference when no theme is chosen", () => {
-    const media = css.indexOf("@media (prefers-color-scheme:dark)");
-    expect(media).toBeGreaterThanOrEqual(0);
-    expect(css.indexOf(":root:not([data-theme])")).toBeGreaterThan(media);
-    expect(declarationsOf(":root:not([data-theme])")).toEqual(themes.dark);
+    expect(declarationsOf(mediaBlock("(prefers-color-scheme:dark)"))).toEqual(themes.dark);
   });
 
   it("follows the system contrast preference when no theme is chosen, over the dark preference", () => {
-    const dark = css.indexOf("@media (prefers-color-scheme:dark)");
-    const media = css.indexOf("@media (prefers-contrast:more)");
-    expect(media).toBeGreaterThan(dark);
-    const body = css.slice(css.indexOf(":root:not([data-theme])", media));
-    expect(declarationsOf(body)).toEqual(themes.contrast);
+    expect(css.indexOf("@media (prefers-contrast:more)")).toBeGreaterThan(
+      css.indexOf("@media (prefers-color-scheme:dark)"),
+    );
+    expect(declarationsOf(mediaBlock("(prefers-contrast:more)"))).toEqual(themes.contrast);
   });
+
+  it.each(["(prefers-color-scheme:dark)", "(prefers-contrast:more)"])(
+    "applies the %s fallback only while no theme is chosen, so an explicit light always wins",
+    (query) => {
+      const block = mediaBlock(query);
+      expect(block).toContain(":root:not([data-theme]){");
+      expect(block.replace(":root:not([data-theme])", "")).not.toMatch(/(^|[{}])\s*(:root|\[data-theme)/);
+    },
+  );
 
   it("outlines every keyboard-focused element with the focus ring", () => {
     expect(css).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\)[^}]*outline-offset:\s*2px/);
