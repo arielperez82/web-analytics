@@ -5,7 +5,12 @@ export type MiddleSplit = { readonly head: string; readonly tail: string };
 export const splitForMiddleTruncation = (
   value: string,
   { tailLength = DEFAULT_TAIL_LENGTH }: { readonly tailLength?: number } = {},
-): MiddleSplit =>
-  value.length <= tailLength
+): MiddleSplit => {
+  const characters = Array.from(value);
+  return tailLength <= 0 || characters.length <= tailLength
     ? { head: value, tail: "" }
-    : { head: value.slice(0, -tailLength), tail: value.slice(-tailLength) };
+    : {
+        head: characters.slice(0, -tailLength).join(""),
+        tail: characters.slice(-tailLength).join(""),
+      };
+};
