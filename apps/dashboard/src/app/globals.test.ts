@@ -35,6 +35,8 @@ describe("the design system foundation", () => {
     expect(ruleFor(".text-head")).toContain("text-overflow:ellipsis");
     expect(ruleFor(".text-head")).toContain("overflow:hidden");
     expect(ruleFor(".text-tail")).toContain("flex:none");
+    expect(ruleFor(".text-head")).toContain("white-space:pre");
+    expect(ruleFor(".text-tail")).toContain("white-space:pre");
     expect(ruleFor("td.label")).toContain("max-width:0");
   });
 
