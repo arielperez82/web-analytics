@@ -2,6 +2,7 @@ export type YTick = { readonly value: number; readonly percent: number };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 const MAX_LABELS = 7;
+const MAX_DAY = 31;
 const HOURS_PER_LABEL = 4;
 const MIN_TOP_FOR_MIDDLE = 4;
 
@@ -21,7 +22,8 @@ const dayLabel = (key: string): string => {
   const monthName = MONTHS[Number(month) - 1];
   if (monthName === undefined) return key;
   if (day === undefined) return `${monthName} ${year}`;
-  return `${monthName} ${Number(day)}`;
+  const dayNumber = Number(day);
+  return /^\d{1,2}$/.test(day) && dayNumber >= 1 && dayNumber <= MAX_DAY ? `${monthName} ${dayNumber}` : key;
 };
 
 const hourLabel = (key: string): string => key.slice(11, 16);
